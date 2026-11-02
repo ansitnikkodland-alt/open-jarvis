@@ -121,6 +121,33 @@ RULES:
                         else -> cleanCommand
                     }
 
+                    // Simple, unambiguous app launches do not need model inference,
+                    // OCR, or graph retrieval. Resolve the installed app locally and execute.
+                    val quickAction = QuickCommandRouter.parse(safeCommand)
+                    if (quickAction != null) {
+                        currentStage = "quick app launch"
+                        val quickStart = System.currentTimeMillis()
+                        _state.value = AgentState.Running("opening ${quickAction.label}...")
+                        executeActions(listOf(quickAction))
+                        val quickElapsed = System.currentTimeMillis() - quickStart
+                        val quickState = _state.value
+                        if (quickState is AgentState.Error) {
+                            val diagnosis = ErrorDiagnosis.fromThrowable(
+                                IllegalStateException(quickState.message),
+                                "Quick app launch"
+                            )
+                            repairMemory.recordFailure(diagnosis.code, diagnosis.stage)
+                            repairCenter.recordFailure(diagnosis.code, diagnosis.stage, quickState.message)
+                            graphifyRepo.logTask(safeCommand, "failed: ${quickState.message}", universalAdapter.getProviderName(), quickElapsed)
+                            _state.value = AgentState.Error(diagnosis.display(quickState.message))
+                        } else {
+                            graphifyRepo.logTask(safeCommand, "success (quick app launch)", universalAdapter.getProviderName(), quickElapsed)
+                            selfHealing.recordSuccess(safeCommand)
+                            _state.value = AgentState.Done("opened ${quickAction.label} in ${quickElapsed}ms (no AI inference)")
+                        }
+                        return@withLock
+                    }
+
                     _state.value = AgentState.Running("analyzing task...")
 
                     currentStage = "task routing"
@@ -474,7 +501,9 @@ Preserve the user's original intent. Never invent a destructive or sensitive act
                 }
             }
 
-            kotlinx.coroutines.delay(500)
+            // Keep a short transition pause only between actions; never add
+            // an unnecessary half-second delay after the final action.
+            if (index < actions.lastIndex) kotlinx.coroutines.delay(500)
         }
     }
 
