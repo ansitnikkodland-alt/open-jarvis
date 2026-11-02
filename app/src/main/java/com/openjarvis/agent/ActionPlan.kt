@@ -3,6 +3,16 @@ package com.openjarvis.agent
 import org.json.JSONArray
 import org.json.JSONObject
 
+/**
+ * Reads an optional JSON string without passing a nullable fallback into a Kotlin
+ * platform type. Android's org.json may return null for optString(key, null),
+ * which makes a following String extension call crash with an NPE.
+ */
+internal fun JSONObject.optNullableNonBlankString(key: String): String? {
+    if (!has(key) || isNull(key)) return null
+    return optString(key, "").takeIf { it.isNotBlank() }
+}
+
 data class Action(
     val action: String,
     val packageName: String? = null,
@@ -56,25 +66,25 @@ object ActionJsonParser {
                 .removePrefix("```")
                 .removeSuffix("```")
                 .trim()
-            
+
             val jsonArray = JSONArray(clean)
             (0 until jsonArray.length()).map { i ->
                 val obj = jsonArray.getJSONObject(i)
                 Action(
                     action = obj.getString("action"),
-                    packageName = obj.optString("package", null).takeIf { it.isNotBlank() },
-                    label = obj.optString("label", null).takeIf { it.isNotBlank() },
-                    text = obj.optString("text", null).takeIf { it.isNotBlank() },
-                    value = obj.optString("value", null).takeIf { it.isNotBlank() },
-                    hint = obj.optString("hint", null).takeIf { it.isNotBlank() },
-                    direction = obj.optString("direction", null).takeIf { it.isNotBlank() },
-                    x = if (obj.has("x")) obj.getInt("x") else null,
-                    y = if (obj.has("y")) obj.getInt("y") else null,
-                    distance = obj.optString("distance", null).takeIf { it.isNotBlank() },
+                    packageName = obj.optNullableNonBlankString("package"),
+                    label = obj.optNullableNonBlankString("label"),
+                    text = obj.optNullableNonBlankString("text"),
+                    value = obj.optNullableNonBlankString("value"),
+                    hint = obj.optNullableNonBlankString("hint"),
+                    direction = obj.optNullableNonBlankString("direction"),
+                    x = if (obj.has("x") && !obj.isNull("x")) obj.getInt("x") else null,
+                    y = if (obj.has("y") && !obj.isNull("y")) obj.getInt("y") else null,
+                    distance = obj.optNullableNonBlankString("distance"),
                     timeoutMs = obj.optLong("timeout_ms", 3000L),
-                    message = obj.optString("message", null).takeIf { it.isNotBlank() },
-                    prompt = obj.optString("prompt", null).takeIf { it.isNotBlank() },
-                    outputKey = obj.optString("outputKey", null).takeIf { it.isNotBlank() }
+                    message = obj.optNullableNonBlankString("message"),
+                    prompt = obj.optNullableNonBlankString("prompt"),
+                    outputKey = obj.optNullableNonBlankString("outputKey")
                 )
             }
         } catch (e: Exception) {
