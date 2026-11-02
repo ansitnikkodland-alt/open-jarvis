@@ -9,8 +9,16 @@ import org.json.JSONObject
  * which makes a following String extension call crash with an NPE.
  */
 internal fun JSONObject.optNullableNonBlankString(key: String): String? {
-    if (!has(key) || isNull(key)) return null
-    return optString(key, "").takeIf { it.isNotBlank() }
+    // Avoid JSONObject.optString's platform-type behavior entirely. Treat absent,
+    // JSON null, blank, object, and array values as missing optional strings.
+    val raw = opt(key) ?: return null
+    if (raw === JSONObject.NULL) return null
+    val value = when (raw) {
+        is String -> raw
+        is Number, is Boolean -> raw.toString()
+        else -> return null
+    }
+    return value.takeIf { it.isNotBlank() }
 }
 
 data class Action(
