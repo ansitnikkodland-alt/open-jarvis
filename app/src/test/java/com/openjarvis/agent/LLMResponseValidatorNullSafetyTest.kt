@@ -35,6 +35,17 @@ class LLMResponseValidatorNullSafetyTest {
     }
 
     @Test
+    fun nonStringOptionalFieldsAreIgnoredWithoutCrashing() {
+        val result = LLMResponseValidator.validate(
+            """[{"action":"open_app","package":{"unexpected":"object"},"label":["unexpected","array"]}]"""
+        )
+
+        assertTrue(result.errors.toString(), result.isValid)
+        assertNull(result.actions.single().packageName)
+        assertNull(result.actions.single().label)
+    }
+
+    @Test
     fun populatedOptionalFieldsArePreserved() {
         val result = LLMResponseValidator.validate(
             """[{"action":"open_app","package":"com.example.app","label":"Example"}]"""
