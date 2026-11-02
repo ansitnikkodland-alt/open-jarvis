@@ -14,6 +14,8 @@ internal object QuickCommandRouter {
         val match = openAppPattern.matchEntire(command.trim()) ?: return null
         val label = match.groupValues[1].trim().trimEnd('.', '!', '?')
         if (label.isBlank()) return null
+        // A conjunction usually signals a multi-step request, not an app name.
+        if (Regex("\\b(and|then|after|before)\\b", RegexOption.IGNORE_CASE).containsMatchIn(label)) return null
         return Action(action = Action.OPEN_APP, label = label)
     }
 }
