@@ -70,7 +70,7 @@ APP SELECTION REASONING: {APP_REASONING}
 
 INSTALLED AI APPS: {AI_APPS}
 
-RECENT MEMORY CONTEXT: {GRAPHIFY_CONTEXT}
+USER WORKING PROFILE: {USER_PROFILE}\n\nRECENT MEMORY CONTEXT: {GRAPHIFY_CONTEXT}
 
 RULES:
 - Understand Hindi, Marathi, and English commands.
@@ -170,6 +170,7 @@ RULES:
                         .replace("{SCREEN_OCR}", screenText.take(2000))
                         .replace("{APP_REASONING}", plan.reasoning)
                         .replace("{AI_APPS}", getInstalledAIApps())
+                        .replace("{USER_PROFILE}", UserProfileContext.prompt)
                         .replace(
                             "{GRAPHIFY_CONTEXT}",
                             if (memoryContext.isBlank()) {
