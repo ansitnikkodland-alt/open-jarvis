@@ -226,10 +226,49 @@ SCREEN: {SCREEN_OCR}
                                 "executing ${actions.size} actions..."
                             )
 
-                            val executionSucceeded = executeActions(actions)
-                            if (!executionSucceeded || _state.value is AgentState.Error) {
-                                val failure = (_state.value as? AgentState.Error)?.message ?: "Action execution returned false"
-                                AgentDiagnostics.record(context, "action-execution", safeCommand, failure, effectiveRawJson, provider = universalAdapter.getProviderName(), model = "qwen3:1.7b")
+                            var execution = executeActions(actions)
+                            var reEvaluationResponse = ""
+                            if (!execution.succeeded && execution.failedAction != null &&
+                                AgentReEvaluationPolicy.canReplan(execution.completedActions, execution.failedAction)
+                            ) {
+                                _state.value = AgentState.Running("checking why the step failed...")
+                                val freshScreen = runCatching { screenReader.extractAllText() }.getOrDefault("")
+                                if (freshScreen.isNotBlank()) {
+                                    val completedSummary = execution.completedActions.joinToString(", ") { it.action }
+                                        .ifBlank { "none" }
+                                    val reEvaluationPrompt = systemPrompt
+                                        .replace("{PERSONAL_MEMORY}", personalMemoryStore.promptContext())
+                                        .replace("{SCREEN_OCR}", freshScreen.take(1200)) +
+                                        "\n\nAGENT RE-EVALUATION: The original goal is still: $safeCommand. " +
+                                        "Already completed steps: $completedSummary. " +
+                                        "The last safe navigation/observation step failed: ${execution.failedAction.action}. " +
+                                        "Failure: ${execution.failure ?: "verification failed"}. " +
+                                        "Re-plan ONLY the remaining work from the fresh screen above. " +
+                                        "Do not repeat completed steps or repeat the failed step. Return only a non-empty JSON action array."
+                                    _state.value = AgentState.Running("re-planning remaining steps...")
+                                    reEvaluationResponse = universalAdapter.complete(reEvaluationPrompt, safeCommand)
+                                        .getOrElse { throw it }
+                                    val reEvaluation = LLMResponseValidator.validate(reEvaluationResponse)
+                                    if (reEvaluation.isValid &&
+                                        AgentReEvaluationPolicy.isAcceptableReplan(reEvaluation.actions, execution.failedAction)
+                                    ) {
+                                        latency = System.currentTimeMillis() - startTime
+                                        _state.value = AgentState.Running("executing revised plan...")
+                                        execution = executeActions(reEvaluation.actions)
+                                    } else {
+                                        val reason = reEvaluation.errors.firstOrNull()
+                                            ?: reEvaluation.actions.firstOrNull { it.action == Action.ERROR }?.message
+                                            ?: "The revised plan repeated a failed step or was not safe to execute."
+                                        AgentDiagnostics.record(context, "agent-re-evaluation", safeCommand, reason, reEvaluationResponse, provider = universalAdapter.getProviderName(), model = "qwen3:1.7b")
+                                        _state.value = AgentState.Error("Jarvis could not safely re-plan: $reason")
+                                    }
+                                }
+                            }
+                            if (!execution.succeeded || _state.value is AgentState.Error) {
+                                val failure = (_state.value as? AgentState.Error)?.message
+                                    ?: execution.failure
+                                    ?: "Action execution returned false"
+                                AgentDiagnostics.record(context, "action-execution", safeCommand, failure, reEvaluationResponse.ifBlank { effectiveRawJson }, provider = universalAdapter.getProviderName(), model = "qwen3:1.7b")
                                 graphifyRepo.logTask(safeCommand, "failed: action execution", universalAdapter.getProviderName(), latency)
                                 return@fold
                             }
@@ -325,8 +364,9 @@ SCREEN: {SCREEN_OCR}
     suspend fun getAIAppCount(): Int =
         appAnalyzer.getAICount()
 
-    private suspend fun executeActions(actions: List<Action>): Boolean {
+    private suspend fun executeActions(actions: List<Action>): ActionExecutionResult {
         val results = mutableListOf<String>()
+        val completedActions = mutableListOf<Action>()
 
         suspend fun executeOnce(action: Action): String? {
             val activeService = JarvisAccessibilityService.instance
@@ -453,8 +493,14 @@ SCREEN: {SCREEN_OCR}
                 results.add(message)
                 Log.e(TAG, message)
                 _state.value = AgentState.Error(message)
-                return false
+                return ActionExecutionResult(
+                    succeeded = false,
+                    completedActions = completedActions.toList(),
+                    failedAction = action,
+                    failure = message
+                )
             }
+            completedActions.add(action)
             val actionResult = if (action.action == Action.OPEN_APP) {
                 "Action ${index + 1}/${actions.size} ${action.action}: launch accepted"
             } else {
@@ -465,7 +511,10 @@ SCREEN: {SCREEN_OCR}
             kotlinx.coroutines.delay(250)
         }
         Log.i(TAG, "Command completed: ${results.joinToString("; ")}")
-        return true
+        return ActionExecutionResult(
+            succeeded = true,
+            completedActions = completedActions.toList()
+        )
     }
 
     private suspend fun executeFastCommand(command: FastCommandParser.Command): String {
