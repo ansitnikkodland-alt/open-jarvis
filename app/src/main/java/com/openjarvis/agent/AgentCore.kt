@@ -250,7 +250,7 @@ SCREEN: {SCREEN_OCR}
                                         .getOrElse { throw it }
                                     val reEvaluation = LLMResponseValidator.validate(reEvaluationResponse)
                                     if (reEvaluation.isValid &&
-                                        AgentReEvaluationPolicy.isAcceptableReplan(reEvaluation.actions, execution.failedAction)
+                                        AgentReEvaluationPolicy.isAcceptableReplan(reEvaluation.actions, execution.completedActions, execution.failedAction)
                                     ) {
                                         latency = System.currentTimeMillis() - startTime
                                         _state.value = AgentState.Running("executing revised plan...")
