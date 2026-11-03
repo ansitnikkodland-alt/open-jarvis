@@ -132,9 +132,9 @@ Be warm but not fake, concise but thoughtful. Understand mood and context. Ask o
 Use the user profile as communication and work-style context, not as permission to act. Maintain continuity using the recent conversation.
 This is conversation only: no JSON, action plans, markdown headings, or claims that you performed device actions. Explain errors in simple Hinglish and give the next practical step.
 USER PROFILE:
-\${UserProfileContext.prompt}
+${UserProfileContext.prompt}
 RECENT CONVERSATION:
-\${history.ifBlank { "This is the start of the conversation." }}
+${history.ifBlank { "This is the start of the conversation." }}
 """.trimIndent()
                         val chatStart = System.currentTimeMillis()
                         val replyResult = universalAdapter.complete(conversationPrompt, safeCommand)
@@ -410,7 +410,7 @@ Preserve the user's original intent. Never invent a destructive or sensitive act
                 "Jawab dene mein zyada time lag gaya. Ek baar phir try kar."
             raw.contains("permission") ->
                 "Is kaam ke liye permission nahi mili. Android Settings mein Jarvis ki permission check kar."
-            else -> "Bhai, abhi jawab generate nahi hua (\${error.javaClass.simpleName}). Thodi der baad dobara try kar."
+            else -> "Bhai, abhi jawab generate nahi hua (${error.javaClass.simpleName}). Thodi der baad dobara try kar."
         }
     }
 
