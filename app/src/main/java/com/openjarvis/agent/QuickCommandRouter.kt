@@ -24,7 +24,7 @@ internal object QuickCommandRouter {
             RegexOption.IGNORE_CASE
         )
         if (compound.containsMatchIn(label)) return null
-        if (label.any { it in '\\u0900'..'\\u097F' } &&
+        if (label.any { it.code in 0x0900..0x097F } &&
             listOf("और", "फिर", "नंतर", "आणि", "मग").any { label.contains(it) }) return null
 
         return Action(action = Action.OPEN_APP, label = label)
