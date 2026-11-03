@@ -127,7 +127,12 @@ class OverlayService : Service() {
         else statusText?.text = "Allow microphone permission to enable Hey Jarvis"
     }
 
-    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int = START_STICKY
+    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        // Re-check the saved AccessKey whenever the app asks the existing service to start.
+        // This also refreshes wake-word setup after the user edits the key in Settings.
+        if (::voiceManager.isInitialized) startWakeWordListening()
+        return START_STICKY
+    }
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onDestroy() {
