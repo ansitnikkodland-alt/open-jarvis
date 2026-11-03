@@ -237,11 +237,19 @@ class OpenAIProvider(
 
 class OllamaProvider(
     override val baseUrl: String,
-    private val model: String = "llama3"
+    private val model: String = DEFAULT_MODEL
 ) : LLMProvider {
-    
+
+    private val endpointBaseUrl = baseUrl.trim().trimEnd('/').ifBlank { DEFAULT_BASE_URL }
+    private val client = okhttp3.OkHttpClient.Builder()
+        .connectTimeout(10, java.util.concurrent.TimeUnit.SECONDS)
+        .readTimeout(180, java.util.concurrent.TimeUnit.SECONDS)
+        .writeTimeout(30, java.util.concurrent.TimeUnit.SECONDS)
+        .retryOnConnectionFailure(true)
+        .build()
+
     override val name: String = "Ollama"
-    
+
     override suspend fun complete(
         systemPrompt: String,
         userMessage: String
@@ -261,46 +269,69 @@ class OllamaProvider(
                 })
                 put("stream", false)
             }.toString()
-            
+
             val request = Request.Builder()
-                .url("$baseUrl/api/chat")
+                .url("$endpointBaseUrl/api/chat")
                 .addHeader("Content-Type", "application/json")
                 .post(requestBody.toRequestBody("application/json".toMediaType()))
                 .build()
-            
-            HttpClient.client.newCall(request).execute().use { response ->
-                val body = response.body?.string() ?: throw Exception("Empty response")
-                val json = JSONObject(body)
-                if (json.has("message")) {
-                    json.getJSONObject("message").getString("content")
-                } else if (json.has("error")) {
-                    throw Exception(json.getString("error"))
-                } else {
-                    throw Exception("Unknown response: $body")
-                }
-            }
+
+            val body = executeWithRetry(request)
+            OllamaResponseParser.parseChatContent(body)
         }
     }
-    
+
     override suspend fun testConnection(): Result<Long> = withContext(Dispatchers.IO) {
         runCatching {
             val startTime = System.currentTimeMillis()
-            val requestBody = JSONObject().apply {
-                put("model", model)
-            }.toString()
-            
             val request = Request.Builder()
-                .url("$baseUrl/api/tags")
-                .post(requestBody.toRequestBody("application/json".toMediaType()))
+                .url("$endpointBaseUrl/api/tags")
+                .get()
                 .build()
-            
-            HttpClient.client.newCall(request).execute().use { response ->
-                if (!response.isSuccessful) {
-                    throw Exception("HTTP ${response.code}")
-                }
+
+            val body = executeWithRetry(request)
+            if (!OllamaResponseParser.hasModel(body, model)) {
+                throw IllegalStateException(
+                    "Ollama is reachable, but model '$model' is not installed. In Termux run: ollama pull $model"
+                )
             }
             System.currentTimeMillis() - startTime
         }
+    }
+
+    private suspend fun executeWithRetry(request: Request): String {
+        var lastError: java.io.IOException? = null
+        for (attempt in 0..2) {
+            try {
+                client.newCall(request).execute().use { response ->
+                    val body = response.body?.string().orEmpty()
+                    if (!response.isSuccessful) {
+                        val message = OllamaResponseParser.httpError(response.code, body)
+                        if (response.code == 429 || response.code >= 500) {
+                            throw java.io.IOException(message)
+                        }
+                        throw IllegalStateException(message)
+                    }
+                    if (body.isBlank()) throw java.io.IOException("Ollama returned an empty HTTP response.")
+                    return body
+                }
+            } catch (error: java.io.IOException) {
+                lastError = error
+                if (attempt == 2) break
+                kotlinx.coroutines.delay(500L * (attempt + 1))
+            }
+        }
+
+        val detail = lastError?.message.orEmpty()
+        throw IllegalStateException(
+            "Cannot reach Ollama at $endpointBaseUrl. Keep 'ollama serve' running in Termux and check the Base URL. $detail",
+            lastError
+        )
+    }
+
+    companion object {
+        const val DEFAULT_MODEL = "qwen3:1.7b"
+        const val DEFAULT_BASE_URL = "http://127.0.0.1:11434"
     }
 }
 
