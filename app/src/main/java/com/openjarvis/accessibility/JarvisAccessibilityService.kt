@@ -74,33 +74,86 @@ class JarvisAccessibilityService : AccessibilityService() {
         return false
     }
 
+    /**
+     * Click the matching node or its nearest clickable ancestor. Many Android apps
+     * expose the label on a non-clickable TextView inside a clickable row/card.
+     */
     fun tapByText(text: String): Boolean {
-        val rootNode = rootInActiveWindow ?: return false
-        val node = findNodeByText(rootNode, text)
-        if (node != null) {
-            val result = node.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+        if (text.isBlank()) return false
+        val root = rootInActiveWindow ?: return false
+        val queue = ArrayDeque<AccessibilityNodeInfo>()
+        queue.add(root)
+        val needle = text.trim()
+        while (queue.isNotEmpty()) {
+            val node = queue.removeFirst()
+            val matches = node.isVisibleToUser && (
+                node.text?.toString()?.contains(needle, ignoreCase = true) == true ||
+                node.contentDescription?.toString()?.contains(needle, ignoreCase = true) == true
+            )
+            if (matches) {
+                var candidate: AccessibilityNodeInfo? = AccessibilityNodeInfo.obtain(node)
+                repeat(6) {
+                    val current = candidate ?: return@repeat
+                    if (current.isVisibleToUser && current.isEnabled && current.isClickable) {
+                        val clicked = current.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+                        current.recycle()
+                        node.recycle()
+                        root.recycle()
+                        while (queue.isNotEmpty()) queue.removeFirst().recycle()
+                        if (clicked) return true
+                        candidate = null
+                        return@repeat
+                    }
+                    val parent = current.parent
+                    current.recycle()
+                    candidate = parent
+                }
+                candidate?.recycle()
+            }
+            for (index in 0 until node.childCount) {
+                node.getChild(index)?.let(queue::add)
+            }
             node.recycle()
-            rootNode.recycle()
-            return result
         }
-        rootNode.recycle()
+        root.recycle()
         return false
     }
 
+    /**
+     * Prefer the focused editor, but fall back to the first visible editable field.
+     * This handles search boxes and forms where focus was not automatically granted.
+     */
     fun typeText(text: String): Boolean {
-        val rootNode = rootInActiveWindow ?: return false
-        val focused = rootNode.findFocus(AccessibilityNodeInfo.FOCUS_INPUT)
-        if (focused != null) {
-            val arguments = android.os.Bundle().apply {
-                putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, text)
+        if (text.isEmpty()) return false
+        val root = rootInActiveWindow ?: return false
+        var editor: AccessibilityNodeInfo? = root.findFocus(AccessibilityNodeInfo.FOCUS_INPUT)
+        if (editor == null || !editor.isEditable) {
+            editor?.recycle()
+            editor = null
+            val queue = ArrayDeque<AccessibilityNodeInfo>()
+            queue.add(AccessibilityNodeInfo.obtain(root))
+            while (queue.isNotEmpty() && editor == null) {
+                val node = queue.removeFirst()
+                if (node.isVisibleToUser && node.isEnabled && node.isEditable) {
+                    editor = AccessibilityNodeInfo.obtain(node)
+                } else {
+                    for (index in 0 until node.childCount) {
+                        node.getChild(index)?.let(queue::add)
+                    }
+                }
+                node.recycle()
             }
-            val result = focused.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, arguments)
-            focused.recycle()
-            rootNode.recycle()
-            return result
+            while (queue.isNotEmpty()) queue.removeFirst().recycle()
         }
-        rootNode.recycle()
-        return false
+        root.recycle()
+        val target = editor ?: return false
+        val focused = target.performAction(AccessibilityNodeInfo.ACTION_FOCUS)
+        val arguments = android.os.Bundle().apply {
+            putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, text)
+        }
+        val changed = target.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, arguments)
+        target.recycle()
+        return changed || focused && false
     }
 
     fun pressBack() = performGlobalAction(GLOBAL_ACTION_BACK)
