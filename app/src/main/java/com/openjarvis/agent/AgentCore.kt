@@ -53,7 +53,7 @@ For complex tasks, open the required app, verify with wait_for, and keep the act
 SCREEN: {SCREEN_OCR}
 APP HINT: {APP_REASONING}
 MEMORY: {GRAPHIFY_CONTEXT}
-""".trimIndent())
+""".trimIndent()
 
     fun executeTask(cleanCommand: String) {
         workingMemory = TaskWorkingMemory()
@@ -103,19 +103,19 @@ MEMORY: {GRAPHIFY_CONTEXT}
                         graphifyRepo.buildMemoryContext(safeCommand)
 
                     val fullSystem = systemPrompt
-                        .replace("{SCREEN_OCR}", screenText.take(2000))
-                        .replace("{APP_REASONING}", plan.reasoning)
+                        .replace("{SCREEN_OCR}", screenText.take(800))
+                        .replace("{APP_REASONING}", plan.reasoning.take(200))
                         .replace("{AI_APPS}", getInstalledAIApps())
                         .replace(
                             "{GRAPHIFY_CONTEXT}",
                             if (memoryContext.isBlank()) {
                                 "No recent tasks"
                             } else {
-                                memoryContext
+                                memoryContext.take(250)
                             }
                         )
 
-                    _state.value = AgentState.Running("thinking...")
+                    _state.value = AgentState.Running("Soch raha hoon...")
 
                     val startTime = System.currentTimeMillis()
 
