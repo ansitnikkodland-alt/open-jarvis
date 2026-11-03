@@ -22,8 +22,7 @@ class FastCommandParserTest {
 
     @Test fun recognizesScrollDirections() {
         assertEquals(FastCommandParser.Command.Scroll("up"), FastCommandParser.parse("scroll up"))
-        assertEquals(FastCommandParser.Command.Scroll("down"), FastCommandParser.parse("neeche scroll"))
-            .also { /* direction-first phrases intentionally remain unsupported */ }
+        assertEquals(FastCommandParser.Command.Scroll("down"), FastCommandParser.parse("scroll neeche"))
     }
 
     @Test fun recognizesSettingsScreens() {
