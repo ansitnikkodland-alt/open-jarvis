@@ -7,8 +7,8 @@ import android.content.Context
 import android.util.Log
 
 /**
- * Offline wake-word detector. The built-in JARVIS keyword is contained in the spoken phrase
- * "Hey Jarvis"; Porcupine performs audio inference locally after its AccessKey is validated.
+ * Offline wake-word detector. Porcupine listens for its built-in JARVIS keyword.
+ * The spoken trigger is "Jarvis"; audio inference runs locally after AccessKey validation.
  */
 class PorcupineWakeWordController(
     context: Context,
