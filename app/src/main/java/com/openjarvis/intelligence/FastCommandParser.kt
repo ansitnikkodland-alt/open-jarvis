@@ -55,8 +55,15 @@ internal object FastCommandParser {
         val normalized = normalize(command)
         if (normalized.isBlank()) return null
         val match = englishOpen.matchEntire(normalized) ?: hindiOpen.matchEntire(normalized) ?: return null
-        return match.groupValues[1].trim().takeIf {
-            it.isNotBlank() && it.length <= 60
+        return match.groupValues[1].trim().takeIf { target ->
+            target.isNotBlank() &&
+                target.length <= 60 &&
+                // A fast-path target must be only an app label. Compound requests
+                // (open WhatsApp and send a message...) must reach the AI planner.
+                !Regex(
+                    "\\b(and|then|also|aur|phir|fir|send|message|text|reply|type|search|play|karo)\\b",
+                    RegexOption.IGNORE_CASE
+                ).containsMatchIn(target)
         }
     }
 
