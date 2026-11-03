@@ -300,6 +300,7 @@ class OverlayService : Service() {
             statusText?.text = "Accessibility service is OFF. Enable Open Jarvis in Android Accessibility settings."
             return
         }
+        voiceManager.pauseWakeWordListening()
         statusText?.text = "Jarvis is working…"
         agentCore.executeTask(command)
         commandInput?.text?.clear()
