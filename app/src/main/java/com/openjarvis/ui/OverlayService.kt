@@ -88,7 +88,7 @@ class OverlayService : Service() {
                     }
                     is com.openjarvis.agent.AgentState.Error -> {
                         statusText?.text = "Command failed — tap Mic to try again"
-                        voiceManager.speak(if (responseLanguage == "mr") "काम पूर्ण होऊ शकलं नाही. ${state.message}" else "Bhai, kaam poora nahi hua. ${state.message}")
+                        voiceManager.speak(if (responseLanguage == "mr") "काम पूर्ण होऊ शकलं नाही. कृपया पुन्हा प्रयत्न करा." else "Bhai, command poori nahi hui. Ek baar phir try karo.")
                         voiceManager.resetState()
                     }
                 }
