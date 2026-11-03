@@ -57,7 +57,7 @@ internal object FastCommandParser {
         val match = englishOpen.matchEntire(normalized) ?: hindiOpen.matchEntire(normalized) ?: return null
         return match.groupValues[1].trim().takeIf {
             it.isNotBlank() && it.length <= 60 &&
-                !it.equals("settings", true).not().let { false }
+                true
         }
     }
 
