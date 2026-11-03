@@ -111,6 +111,7 @@ SCREEN: {SCREEN_OCR}
                             _state.value = AgentState.Done(result)
                         } catch (error: Exception) {
                             val detail = error.message?.takeIf { it.isNotBlank() } ?: error.javaClass.simpleName
+                            AgentDiagnostics.record(context, "fast-command-execution", safeCommand, detail, error = error)
                             graphifyRepo.logTask(safeCommand, "failed (fast path): $detail", "Android fast path", 0)
                             _state.value = AgentState.Error(detail)
                         }
@@ -147,7 +148,8 @@ SCREEN: {SCREEN_OCR}
 
                             if (!validation.isValid) {
                                 val reason = validation.errors.firstOrNull() ?: "Empty action plan"
-                                _state.value = AgentState.Error("Invalid AI action plan: $reason")
+                                AgentDiagnostics.record(context, "response-validation", safeCommand, reason, rawJson)
+                                _state.value = AgentState.Error("AI response invalid: $reason")
                                 graphifyRepo.logTask(safeCommand, "failed: validation error", universalAdapter.getProviderName(), latency)
                                 return@fold
                             }
@@ -160,6 +162,8 @@ SCREEN: {SCREEN_OCR}
 
                             val executionSucceeded = executeActions(actions)
                             if (!executionSucceeded || _state.value is AgentState.Error) {
+                                val failure = (_state.value as? AgentState.Error)?.message ?: "Action execution returned false"
+                                AgentDiagnostics.record(context, "action-execution", safeCommand, failure, rawJson)
                                 graphifyRepo.logTask(safeCommand, "failed: action execution", universalAdapter.getProviderName(), latency)
                                 return@fold
                             }
@@ -202,6 +206,7 @@ SCREEN: {SCREEN_OCR}
                                 }
                             }
 
+                            AgentDiagnostics.record(context, "ollama-request", safeCommand, msg, error = error)
                             _state.value = AgentState.Error(msg)
 
                             graphifyRepo.logTask(
@@ -220,6 +225,7 @@ SCREEN: {SCREEN_OCR}
                     val errorMessage = if (universalAdapter.getProviderName() == "Ollama (Local)") {
                         "Ollama error: $detail"
                     } else detail.ifBlank { "Unknown error" }
+                    AgentDiagnostics.record(context, "agent-crash", cleanCommand, errorMessage, error = e)
                     _state.value = AgentState.Error(errorMessage)
 
                     graphifyRepo.logTask(
