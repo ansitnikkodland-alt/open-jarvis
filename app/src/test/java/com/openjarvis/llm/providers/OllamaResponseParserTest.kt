@@ -7,6 +7,40 @@ import org.junit.Assert.fail
 import org.junit.Test
 
 class OllamaResponseParserTest {
+    @Test fun emptyBaseUrlReportsUrlMissing() {
+        try {
+            OllamaResponseParser.normalizeBaseUrl("   ")
+            fail("Expected URL missing")
+        } catch (error: IllegalArgumentException) {
+            assertEquals("URL missing", error.message)
+        }
+    }
+
+    @Test fun addsHttpSchemeWhenMissing() {
+        assertEquals(
+            "http://127.0.0.1:11434",
+            OllamaResponseParser.normalizeBaseUrl("127.0.0.1:11434")
+        )
+    }
+
+    @Test fun removesTrailingSlash() {
+        assertEquals(
+            "http://127.0.0.1:11434",
+            OllamaResponseParser.normalizeBaseUrl("http://127.0.0.1:11434/")
+        )
+    }
+
+    @Test fun preservesNormalHttpAndHttpsUrls() {
+        assertEquals(
+            "https://localhost:11434",
+            OllamaResponseParser.normalizeBaseUrl("  https://localhost:11434  ")
+        )
+        assertEquals(
+            "http://127.0.0.1:11434",
+            OllamaResponseParser.normalizeBaseUrl("http://127.0.0.1:11434")
+        )
+    }
+
     @Test fun removesThinkBlockAndKeepsFinalAnswer() {
         val result = OllamaResponseParser.parseChatContent(
             """{"message":{"content":"<think>private reasoning</think>Namaste! Ready."}}"""
