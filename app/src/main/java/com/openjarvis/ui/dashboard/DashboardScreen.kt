@@ -143,7 +143,7 @@ fun DashboardScreen(
             containerColor = VoidColor.Violet,
             contentColor = Color.White
         ) {
-            Text("J", fontWeight = FontWeight.Bold)
+            Text("🤖", fontSize = 24.sp)
         }
     }
 }
