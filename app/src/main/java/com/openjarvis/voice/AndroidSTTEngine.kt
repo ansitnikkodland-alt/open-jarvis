@@ -96,15 +96,20 @@ class AndroidSTTEngine(private val context: Context) : STTEngine {
                 }
                 override fun onResults(results: Bundle?) {
                     _isListening.value = false
-                    sessionActive = false
                     retryRunnable?.let(mainHandler::removeCallbacks)
                     retryRunnable = null
-                    retryAttempt = 0
                     val matches = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
                     val text = matches?.firstOrNull()?.trim()
                     pendingResult = text
-                    if (!text.isNullOrBlank()) currentCallback?.invoke(text)
-                    else currentErrorCallback?.invoke("RETRYING: No speech detected")
+                    if (!text.isNullOrBlank()) {
+                        sessionActive = false
+                        retryAttempt = 0
+                        currentCallback?.invoke(text)
+                    } else {
+                        sessionActive = true
+                        currentErrorCallback?.invoke("RETRYING: No speech detected")
+                        scheduleRetry(SpeechRecognizer.ERROR_NO_MATCH)
+                    }
                 }
                 override fun onPartialResults(partialResults: Bundle?) {}
                 override fun onEvent(eventType: Int, params: Bundle?) {}
