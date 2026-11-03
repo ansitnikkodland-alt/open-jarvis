@@ -155,7 +155,7 @@ class OverlayService : Service() {
                         true
                     }
                     MotionEvent.ACTION_UP -> {
-                        if (!dragged) togglePanel()
+                        if (!dragged) startVoiceListening()
                         true
                     }
                     else -> true
@@ -249,6 +249,19 @@ class OverlayService : Service() {
         } catch (e: Exception) {
             android.util.Log.e("OpenJarvis", "Unable to attach assistant overlay", e)
         }
+    }
+
+    private fun startVoiceListening() {
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+            statusText?.text = "Microphone permission missing. Allow it in Android app settings."
+            Toast.makeText(this, "Allow Jarvis microphone permission first", Toast.LENGTH_LONG).show()
+            return
+        }
+        // Tapping the floating Jarvis icon is an explicit request to use the microphone.
+        voiceManager.setVoiceEnabled(true)
+        voiceManager.resetState()
+        statusText?.text = "Listening… speak your command"
+        voiceManager.startListening()
     }
 
     private fun togglePanel() {
