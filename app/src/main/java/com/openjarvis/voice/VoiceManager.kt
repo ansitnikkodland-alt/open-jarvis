@@ -74,6 +74,13 @@ class VoiceManager(private val context: Context) {
         armWakeWord()
     }
 
+    fun pauseWakeWordListening() {
+        if (!wakeWordMode) return
+        wakeLoopJob?.cancel()
+        wakeLoopJob = null
+        sttEngine.stop()
+    }
+
     fun stopWakeWordMode() {
         wakeWordMode = false
         wakeLoopJob?.cancel()
