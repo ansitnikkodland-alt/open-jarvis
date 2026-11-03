@@ -82,12 +82,14 @@ class OverlayService : Service() {
                     is com.openjarvis.agent.AgentState.Idle -> statusText?.text = "Ready — type a command or use mic"
                     is com.openjarvis.agent.AgentState.Running -> statusText?.text = state.step
                     is com.openjarvis.agent.AgentState.Done -> {
-                        statusText?.text = state.result
+                        statusText?.text = "Done — tap Mic to give the next command"
                         voiceManager.speak(if (responseLanguage == "mr") "काम पूर्ण झाले आहे" else "काम पूरा हुआ")
+                        voiceManager.resetState()
                     }
                     is com.openjarvis.agent.AgentState.Error -> {
-                        statusText?.text = "Jarvis error: ${state.message}"
+                        statusText?.text = "Command failed — tap Mic to try again"
                         voiceManager.speak(if (responseLanguage == "mr") "कमांड पूर्ण झाली नाही. ${state.message}" else "कमांड पूरी नहीं हुई। ${state.message}")
+                        voiceManager.resetState()
                     }
                 }
             }
