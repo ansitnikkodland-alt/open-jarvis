@@ -25,9 +25,10 @@ class AgentReEvaluationPolicyTest {
         )
     }
 
-    @Test fun neverReplansFailedClickOrTextEntry() {
+    @Test fun neverReplansFailedClickTextEntryOrAppLaunch() {
         assertFalse(AgentReEvaluationPolicy.canReplan(emptyList(), Action(Action.CLICK, text = "Send")))
         assertFalse(AgentReEvaluationPolicy.canReplan(emptyList(), Action(Action.TYPE_TEXT, value = "message")))
+        assertFalse(AgentReEvaluationPolicy.canReplan(emptyList(), Action(Action.OPEN_APP, label = "WhatsApp")))
     }
 
     @Test fun rejectsEmptyRefusalAndRepeatedFailedStep() {
