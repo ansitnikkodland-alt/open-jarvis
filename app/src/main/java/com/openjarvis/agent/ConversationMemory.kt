@@ -14,8 +14,8 @@ internal class ConversationMemory(context: Context) {
             val array = JSONArray(raw)
             (0 until array.length()).map { index ->
                 val item = array.getJSONObject(index)
-                "User: \${item.optString("user")}\\nJarvis: \${item.optString("assistant")}"
-            }.joinToString("\\n")
+                "User: ${item.optString("user")}\nJarvis: ${item.optString("assistant")}"
+            }.joinToString("\n")
         }.getOrDefault("")
     }
 
