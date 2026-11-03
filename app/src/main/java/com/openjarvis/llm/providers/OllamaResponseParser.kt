@@ -44,7 +44,7 @@ internal object OllamaResponseParser {
             put("think", false)
             put("keep_alive", "30m")
             put("options", JSONObject().apply {
-                put("num_ctx", 1536)
+                put("num_ctx", 2048)
                 put("num_predict", 192)
                 put("temperature", 0.1)
             })
