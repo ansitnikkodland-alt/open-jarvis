@@ -74,10 +74,18 @@ fun SettingsScreen(
         "llama-3.1-70b-versatile", "llama-3.3-70b-versatile", "llama-3.1-8b-instant"
     )) "openai/gpt-oss-120b" else savedModel.ifBlank { UniversalAdapter.getDefaultModel(savedProvider) }
     var selectedProvider by remember { mutableStateOf(savedProvider) }
-    var baseUrl by remember { mutableStateOf(providerPrefs.getString("provider_base_url", "") ?: "") }
+    var baseUrl by remember {
+        mutableStateOf(
+            (providerPrefs.getString("provider_base_url", "") ?: "").ifBlank {
+                if (savedProvider == "Ollama (Local)") "http://127.0.0.1:11434" else ""
+            }
+        )
+    }
     var apiKey by remember { mutableStateOf(providerPrefs.getString("provider_api_key", "") ?: "") }
-    var model by remember { mutableStateOf(migratedModel) }
-    var showBaseUrlField by remember { mutableStateOf(false) }
+    var model by remember {
+        mutableStateOf(if (savedProvider == "Ollama (Local)") "qwen3:1.7b" else migratedModel)
+    }
+    var showBaseUrlField by remember { mutableStateOf(savedProvider == "Custom" || savedProvider == "Ollama (Local)") }
     var showProvidersDropdown by remember { mutableStateOf(false) }
     var showPassword by remember { mutableStateOf(false) }
     var lastSaved by remember { mutableStateOf(0L) }
@@ -88,7 +96,11 @@ fun SettingsScreen(
     var sttMode by remember { mutableStateOf("Push to Talk") }
     
     LaunchedEffect(selectedProvider) {
-        showBaseUrlField = selectedProvider == "Custom"
+        showBaseUrlField = selectedProvider == "Custom" || selectedProvider == "Ollama (Local)"
+        if (selectedProvider == "Ollama (Local)") {
+            if (baseUrl.isBlank()) baseUrl = "http://127.0.0.1:11434"
+            model = "qwen3:1.7b"
+        }
     }
     
     val scrollState = rememberScrollState()
@@ -121,6 +133,10 @@ fun SettingsScreen(
                     onToggle = { showProvidersDropdown = !showProvidersDropdown },
                     onSelect = { provider ->
                         selectedProvider = provider
+                        if (provider == "Ollama (Local)") {
+                            if (baseUrl.isBlank()) baseUrl = "http://127.0.0.1:11434"
+                            model = "qwen3:1.7b"
+                        }
                         showProvidersDropdown = false
                     }
                 )
@@ -142,6 +158,7 @@ fun SettingsScreen(
                     isFocused = false,
                     isPassword = true,
                     showPassword = showPassword,
+                    visible = selectedProvider != "Ollama (Local)",
                     onTogglePassword = { showPassword = !showPassword }
                 )
                 
@@ -170,7 +187,12 @@ fun SettingsScreen(
                     baseUrl = baseUrl,
                     model = model,
                     onSave = { name, url, key, mdl ->
-                        onSaveProvider(name, url, key, mdl)
+                        val savedUrl = if (name == "Ollama (Local)") {
+                            com.openjarvis.llm.providers.OllamaResponseParser.normalizeBaseUrl(url)
+                        } else url
+                        val savedKey = if (name == "Ollama (Local)") "" else key
+                        val savedModel = if (name == "Ollama (Local)") "qwen3:1.7b" else mdl
+                        onSaveProvider(name, savedUrl, savedKey, savedModel)
                         lastSaved = System.currentTimeMillis()
                         savedVisible = true
                     }
