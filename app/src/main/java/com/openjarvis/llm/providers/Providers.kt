@@ -259,16 +259,57 @@ class OllamaProvider(
                 .url(OllamaResponseParser.buildUrl(baseUrl, "/api/chat"))
                 .addHeader("Content-Type", "application/json")
                 .post(
-                    OllamaResponseParser.buildChatRequestBody(
-                        model = model,
-                        systemPrompt = systemPrompt,
-                        userMessage = userMessage
-                    ).toRequestBody("application/json".toMediaType())
+                    OllamaResponseParser.buildChatRequestBody(model, systemPrompt, userMessage)
+                        .toRequestBody("application/json".toMediaType())
                 )
                 .build()
-
-            val body = executeWithRetry(request)
-            OllamaResponseParser.parseChatContent(body)
+            val started = System.nanoTime()
+            try {
+                client.newCall(request).execute().use { response ->
+                    val body = response.body ?: throw java.io.IOException("Empty Ollama response")
+                    if (!response.isSuccessful) {
+                        throw IllegalStateException(OllamaResponseParser.httpError(response.code, body.string()))
+                    }
+                    val source = body.source()
+                    val answer = StringBuilder()
+                    var firstTokenMs = -1L
+                    var promptTokens = -1
+                    var promptEvalMs = -1L
+                    var generationMs = -1L
+                    var outputTokens = 0
+                    while (!source.exhausted()) {
+                        val line = source.readUtf8Line() ?: break
+                        if (line.isBlank()) continue
+                        val chunk = JSONObject(line)
+                        val piece = chunk.optJSONObject("message")?.optString("content").orEmpty()
+                        if (piece.isNotEmpty()) {
+                            if (firstTokenMs < 0) firstTokenMs = (System.nanoTime() - started) / 1_000_000
+                            answer.append(piece)
+                        }
+                        if (chunk.optBoolean("done", false)) {
+                            promptTokens = chunk.optInt("prompt_eval_count", -1)
+                            promptEvalMs = chunk.optLong("prompt_eval_duration", 0L) / 1_000_000
+                            generationMs = chunk.optLong("eval_duration", 0L) / 1_000_000
+                            outputTokens = chunk.optInt("eval_count", 0)
+                        }
+                    }
+                    val totalMs = (System.nanoTime() - started) / 1_000_000
+                    val cleaned = OllamaResponseParser.stripThinkBlocks(answer.toString())
+                    if (cleaned.isBlank()) throw IllegalStateException("Ollama returned no answer.")
+                    appContext?.let { ctx ->
+                        val prefs = ctx.getSharedPreferences("ollama_diagnostics", android.content.Context.MODE_PRIVATE)
+                        val old = prefs.getString("recent_requests", "").orEmpty()
+                        val log = "Prompt: $promptTokens tokens | first token: $firstTokenMs ms | total: $totalMs ms | prompt eval: $promptEvalMs ms | generation: $generationMs ms | output: $outputTokens tokens"
+                        prefs.edit().putString("recent_requests", (listOf(log) + old.lineSequence().filter { it.isNotBlank() }.take(11)).joinToString("\n")).apply()
+                        android.util.Log.i("OllamaPerf", log)
+                    }
+                    cleaned
+                }
+            } catch (error: java.net.SocketTimeoutException) {
+                throw IllegalStateException("Ollama slow hai, 180s mein jawab nahi aaya", error)
+            } catch (error: java.io.IOException) {
+                throw IllegalStateException("Ollama not reachable - Termux mein ollama serve chalao. ${error.message.orEmpty()}", error)
+            }
         }
     }
 
