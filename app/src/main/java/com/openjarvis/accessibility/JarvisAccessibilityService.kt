@@ -100,6 +100,62 @@ class JarvisAccessibilityService : AccessibilityService() {
     fun pressHome() = performGlobalAction(GLOBAL_ACTION_HOME)
     fun pressRecents() = performGlobalAction(GLOBAL_ACTION_RECENTS)
 
+    /** Scroll the first visible scrollable container in the requested direction. */
+    fun scrollScreen(direction: String): Boolean {
+        val root = rootInActiveWindow ?: return false
+        val queue = ArrayDeque<AccessibilityNodeInfo>()
+        queue.add(root)
+        while (queue.isNotEmpty()) {
+            val node = queue.removeFirst()
+            if (node.isVisibleToUser && node.isScrollable) {
+                val forward = direction.equals("down", ignoreCase = true) ||
+                    direction.equals("forward", ignoreCase = true)
+                val action = if (forward) AccessibilityNodeInfo.ACTION_SCROLL_FORWARD
+                    else AccessibilityNodeInfo.ACTION_SCROLL_BACKWARD
+                val success = node.performAction(action)
+                node.recycle()
+                while (queue.isNotEmpty()) queue.removeFirst().recycle()
+                return success
+            }
+            for (index in 0 until node.childCount) {
+                node.getChild(index)?.let(queue::add)
+            }
+            node.recycle()
+        }
+        return false
+    }
+
+    fun isPackageActive(packageName: String): Boolean {
+        val root = rootInActiveWindow ?: return false
+        val active = root.packageName?.toString() == packageName
+        root.recycle()
+        return active
+    }
+
+    fun containsVisibleText(expected: String): Boolean {
+        if (expected.isBlank()) return false
+        val root = rootInActiveWindow ?: return false
+        val queue = ArrayDeque<AccessibilityNodeInfo>()
+        queue.add(root)
+        while (queue.isNotEmpty()) {
+            val node = queue.removeFirst()
+            val matches = node.isVisibleToUser && (
+                node.text?.toString()?.contains(expected, ignoreCase = true) == true ||
+                node.contentDescription?.toString()?.contains(expected, ignoreCase = true) == true
+            )
+            if (matches) {
+                node.recycle()
+                while (queue.isNotEmpty()) queue.removeFirst().recycle()
+                return true
+            }
+            for (index in 0 until node.childCount) {
+                node.getChild(index)?.let(queue::add)
+            }
+            node.recycle()
+        }
+        return false
+    }
+
     private fun findNodeByText(root: AccessibilityNodeInfo, text: String): AccessibilityNodeInfo? {
         val normalizedText = text.lowercase()
         
