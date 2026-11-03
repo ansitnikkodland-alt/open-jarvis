@@ -104,32 +104,4 @@ jobs:
           api-level: 34
           arch: x86_64
           profile: pixel_2
-          script: |
-            adb install -r app/build/outputs/apk/debug/app-debug.apk
-            adb shell pm grant com.openjarvis android.permission.RECORD_AUDIO
-            adb shell settings put secure enabled_accessibility_services com.openjarvis/com.openjarvis.accessibility.JarvisAccessibilityService
-            adb shell settings put secure accessibility_enabled 1
-            adb shell am start -W -n com.openjarvis/.ui.MainActivity
-            sleep 6
-            adb shell dumpsys accessibility | grep -F 'JarvisAccessibilityService'
-            adb shell pidof com.openjarvis >/dev/null || { adb logcat -d -t 1500; exit 1; }
-            adb shell dumpsys activity activities | grep -F 'com.openjarvis/.ui.MainActivity'
-            adb shell uiautomator dump /sdcard/window.xml >/dev/null
-            adb shell cat /sdcard/window.xml > /tmp/jarvis-window.xml
-            python3 - <<'PY'
-            import re
-            import subprocess
-            import xml.etree.ElementTree as ET
-            root = ET.parse("/tmp/jarvis-window.xml").getroot()
-            target = next((node for node in root.iter("node")
-                           if "EURONICS SERVICE REPORT" in (node.attrib.get("text") or "").upper()), None)
-            if target is None:
-                raise SystemExit("Euronics dashboard entry not found in UI hierarchy")
-            match = re.fullmatch(r"\[(\d+),(\d+)\]\[(\d+),(\d+)\]", target.attrib["bounds"])
-            if not match:
-                raise SystemExit("Could not parse Euronics button bounds")
-            left, top, right, bottom = map(int, match.groups())
-            subprocess.run(["adb", "shell", "input", "tap", str((left + right) // 2), str((top + bottom) // 2)], check=True)
-            PY
-            sleep 15
-            adb logcat -d | grep -F 'EURONICS_HTML_TITLE:'
+          script: bash scripts/euronics-smoke.sh
