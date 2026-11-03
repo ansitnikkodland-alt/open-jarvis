@@ -92,7 +92,9 @@ class OllamaResponseParserTest {
         )
         assertEquals("qwen3:1.7b", request.getString("model"))
         assertFalse(request.getBoolean("think"))
-        assertFalse(request.getBoolean("stream"))
+        assertTrue(request.getBoolean("stream"))
+        assertEquals("30m", request.getString("keep_alive"))
+        assertEquals(2048, request.getJSONObject("options").getInt("num_ctx"))
     }
 
     @Test fun stripsThinkBlocksEvenWhenTheyAreSurroundedByWhitespace() {
