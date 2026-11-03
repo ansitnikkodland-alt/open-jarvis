@@ -85,11 +85,16 @@ fun SettingsScreen(
     }
     var apiKey by remember { mutableStateOf(providerPrefs.getString("provider_api_key", "") ?: "") }
     var model by remember {
-        mutableStateOf(if (savedProvider == "Ollama (Local)") OllamaProvider.DEFAULT_MODEL else migratedModel)
+        mutableStateOf(
+            if (savedProvider == "Ollama (Local)") {
+                savedModel.takeIf { it in OllamaProvider.AVAILABLE_MODELS } ?: OllamaProvider.DEFAULT_MODEL
+            } else migratedModel
+        )
     }
     var showBaseUrlField by remember { mutableStateOf(savedProvider == "Custom" || savedProvider == "Ollama (Local)") }
     var showProvidersDropdown by remember { mutableStateOf(false) }
     var showPassword by remember { mutableStateOf(false) }
+    var showOllamaModelMenu by remember { mutableStateOf(false) }
     var lastSaved by remember { mutableStateOf(0L) }
     var savedVisible by remember { mutableStateOf(false) }
     var voiceEnabled by remember { mutableStateOf(voicePrefs.getBoolean("voice_enabled", false)) }
@@ -101,13 +106,14 @@ fun SettingsScreen(
         showBaseUrlField = selectedProvider == "Custom" || selectedProvider == "Ollama (Local)"
         if (selectedProvider == "Ollama (Local)") {
             if (baseUrl.isBlank()) baseUrl = OllamaProvider.DEFAULT_BASE_URL
-            model = OllamaProvider.DEFAULT_MODEL
+            model = providerPrefs.getString("provider_model", "").orEmpty()
+                .takeIf { it in OllamaProvider.AVAILABLE_MODELS } ?: OllamaProvider.DEFAULT_MODEL
             apiKey = ""
             providerPrefs.edit().apply {
                 putString("provider_name", selectedProvider)
                 putString("provider_base_url", baseUrl.trim())
                 putString("provider_api_key", "")
-                putString("provider_model", OllamaProvider.DEFAULT_MODEL)
+                putString("provider_model", model)
                 apply()
             }
         }
@@ -145,13 +151,14 @@ fun SettingsScreen(
                         selectedProvider = provider
                         if (provider == "Ollama (Local)") {
                             if (baseUrl.isBlank()) baseUrl = OllamaProvider.DEFAULT_BASE_URL
-                            model = OllamaProvider.DEFAULT_MODEL
+                            model = providerPrefs.getString("provider_model", "").orEmpty()
+                                .takeIf { it in OllamaProvider.AVAILABLE_MODELS } ?: OllamaProvider.DEFAULT_MODEL
                             apiKey = ""
                             providerPrefs.edit().apply {
                                 putString("provider_name", provider)
                                 putString("provider_base_url", baseUrl.trim())
                                 putString("provider_api_key", "")
-                                putString("provider_model", OllamaProvider.DEFAULT_MODEL)
+                                putString("provider_model", model)
                                 apply()
                             }
                         } else {
@@ -188,20 +195,38 @@ fun SettingsScreen(
                     onTogglePassword = { showPassword = !showPassword }
                 )
                 
-                FloatingLabelTextField(
-                    value = model,
-                    onValueChange = {
-                        if (selectedProvider == "Ollama (Local)") {
-                            model = OllamaProvider.DEFAULT_MODEL
-                            providerPrefs.edit().putString("provider_model", OllamaProvider.DEFAULT_MODEL).apply()
-                        } else {
+                if (selectedProvider == "Ollama (Local)") {
+                    Box(modifier = Modifier.fillMaxWidth()) {
+                        TextButton(onClick = { showOllamaModelMenu = true }) {
+                            Text("Ollama model: $model  ▾")
+                        }
+                        DropdownMenu(
+                            expanded = showOllamaModelMenu,
+                            onDismissRequest = { showOllamaModelMenu = false }
+                        ) {
+                            OllamaProvider.AVAILABLE_MODELS.forEach { availableModel ->
+                                DropdownMenuItem(
+                                    text = { Text(availableModel) },
+                                    onClick = {
+                                        model = availableModel
+                                        providerPrefs.edit().putString("provider_model", availableModel).apply()
+                                        showOllamaModelMenu = false
+                                    }
+                                )
+                            }
+                        }
+                    }
+                } else {
+                    FloatingLabelTextField(
+                        value = model,
+                        onValueChange = {
                             model = it
                             providerPrefs.edit().putString("provider_model", it.trim()).apply()
-                        }
-                    },
-                    label = "Model",
-                    isFocused = false
-                )
+                        },
+                        label = "Model",
+                        isFocused = false
+                    )
+                }
                 
                 Text(
                     text = "Works with any OpenAI-compatible API",
@@ -225,7 +250,9 @@ fun SettingsScreen(
                             OllamaResponseParser.normalizeBaseUrl(url)
                         } else url.trim()
                         val savedKey = if (name == "Ollama (Local)") "" else key
-                        val savedModel = if (name == "Ollama (Local)") OllamaProvider.DEFAULT_MODEL else mdl
+                        val savedModel = if (name == "Ollama (Local)") {
+                            mdl.trim().takeIf { it in OllamaProvider.AVAILABLE_MODELS } ?: OllamaProvider.DEFAULT_MODEL
+                        } else mdl
                         providerPrefs.edit().apply {
                             putString("provider_name", name)
                             putString("provider_base_url", savedUrl)
