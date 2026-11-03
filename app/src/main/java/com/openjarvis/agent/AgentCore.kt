@@ -1,6 +1,7 @@
 package com.openjarvis.agent
 
 import android.content.Context
+import android.util.Log
 import android.content.Intent
 import android.content.pm.ResolveInfo
 import com.openjarvis.accessibility.JarvisAccessibilityService
@@ -110,14 +111,17 @@ MEMORY: {GRAPHIFY_CONTEXT}
 
                     _state.value = AgentState.Running("reading screen...")
 
-                    val screenText = withContext(Dispatchers.IO) {
-                        screenReader.extractAllText()
-                    }
+                    val screenText = runCatching {
+                        withContext(Dispatchers.IO) { screenReader.extractAllText() }
+                    }.onFailure { Log.e(TAG, "Screen extraction failed; continuing without OCR", it) }
+                        .getOrDefault("")
 
                     _state.value = AgentState.Running("getting context...")
 
-                    val memoryContext =
+                    val memoryContext = runCatching {
                         graphifyRepo.buildMemoryContext(safeCommand)
+                    }.onFailure { Log.e(TAG, "Memory context failed; continuing without memory", it) }
+                        .getOrDefault("")
 
                     val fullSystem = systemPrompt
                         .replace("{SCREEN_OCR}", screenText.take(800))
@@ -175,7 +179,8 @@ MEMORY: {GRAPHIFY_CONTEXT}
                                 latencyMs = latency
                             )
 
-                            analysisEngine.analyzeLastTask()
+                            runCatching { analysisEngine.analyzeLastTask() }
+                                .onFailure { Log.e(TAG, "Post-task analysis failed", it) }
 
                             _state.value =
                                 AgentState.Done("done in ${latency}ms")
@@ -216,6 +221,7 @@ MEMORY: {GRAPHIFY_CONTEXT}
                         }
                     )
                 } catch (e: Exception) {
+                    Log.e(TAG, "Task execution crashed for command: $cleanCommand", e)
                     val detail = e.message?.takeIf { it.isNotBlank() }
                         ?: e.cause?.message?.takeIf { it.isNotBlank() }
                         ?: e.javaClass.simpleName
@@ -407,6 +413,10 @@ MEMORY: {GRAPHIFY_CONTEXT}
             context.startActivity(launchIntent)
             target
         }.getOrNull()
+    }
+
+    companion object {
+        private const val TAG = "OpenJarvisAgent"
     }
 
     private fun findPackageByLabel(label: String): String? {
