@@ -68,12 +68,14 @@ object LLMResponseValidator {
     private fun normalizeAction(raw: String): String {
         val key = raw.trim().lowercase().replace('-', '_').replace(' ', '_')
         return when (key) {
-            "tap", "click", "click_text", "tap_text" -> Action.CLICK
-            "type", "type_text", "enter_text", "input_text" -> Action.TYPE_TEXT
-            "press_back", "go_back", "back" -> Action.BACK
-            "press_home", "go_home", "home" -> Action.HOME
-            "wait_for", "wait" -> Action.WAIT
-            "read_screen", "readscreen", "screen_read" -> Action.READ_SCREEN
+            "tap", "click", "click_text", "tap_text", "tap_on", "click_element", "press" -> Action.CLICK
+            "type", "type_text", "enter_text", "input_text", "input", "enter" -> Action.TYPE_TEXT
+            "press_back", "go_back", "back", "navigate_back" -> Action.BACK
+            "press_home", "go_home", "home", "go_to_home" -> Action.HOME
+            "wait_for", "wait", "pause" -> Action.WAIT
+            "read_screen", "readscreen", "screen_read", "get_screen_text" -> Action.READ_SCREEN
+            "launch_app", "open", "open_application", "start_app" -> Action.OPEN_APP
+            "swipe", "scroll_screen", "scroll_page" -> Action.SCROLL
             else -> key
         }
     }
