@@ -240,7 +240,6 @@ class OllamaProvider(
     private val model: String = DEFAULT_MODEL
 ) : LLMProvider {
 
-    private val endpointBaseUrl = baseUrl.trim().trimEnd('/').ifBlank { DEFAULT_BASE_URL }
     private val client = okhttp3.OkHttpClient.Builder()
         .connectTimeout(10, java.util.concurrent.TimeUnit.SECONDS)
         .readTimeout(180, java.util.concurrent.TimeUnit.SECONDS)
@@ -271,7 +270,7 @@ class OllamaProvider(
             }.toString()
 
             val request = Request.Builder()
-                .url("$endpointBaseUrl/api/chat")
+                .url("${OllamaResponseParser.normalizeBaseUrl(baseUrl)}/api/chat")
                 .addHeader("Content-Type", "application/json")
                 .post(requestBody.toRequestBody("application/json".toMediaType()))
                 .build()
@@ -285,14 +284,14 @@ class OllamaProvider(
         runCatching {
             val startTime = System.currentTimeMillis()
             val request = Request.Builder()
-                .url("$endpointBaseUrl/api/tags")
+                .url("${OllamaResponseParser.normalizeBaseUrl(baseUrl)}/api/tags")
                 .get()
                 .build()
 
             val body = executeWithRetry(request)
             if (!OllamaResponseParser.hasModel(body, model)) {
                 throw IllegalStateException(
-                    "Ollama is reachable, but model '$model' is not installed. In Termux run: ollama pull $model"
+                    "Model not found: '$model'. In Termux run: ollama pull $model"
                 )
             }
             System.currentTimeMillis() - startTime
@@ -324,7 +323,7 @@ class OllamaProvider(
 
         val detail = lastError?.message.orEmpty()
         throw IllegalStateException(
-            "Cannot reach Ollama at $endpointBaseUrl. Keep 'ollama serve' running in Termux and check the Base URL. $detail",
+            "Ollama not reachable (Termux chal raha hai?). Check 'ollama serve' and Base URL. $detail",
             lastError
         )
     }
