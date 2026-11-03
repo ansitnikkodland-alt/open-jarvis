@@ -146,7 +146,12 @@ fun DashboardScreen(
             containerColor = VoidColor.Violet,
             contentColor = Color.White
         ) {
-            Image(\n                painter = painterResource(id = com.openjarvis.R.drawable.jarvis_robot),\n                contentDescription = "Jarvis robot",\n                modifier = Modifier.size(52.dp).clip(RoundedCornerShape(50)),\n                contentScale = ContentScale.Crop\n            )
+            Image(
+                painter = painterResource(id = com.openjarvis.R.drawable.jarvis_robot),
+                contentDescription = "Jarvis robot",
+                modifier = Modifier.size(52.dp).clip(RoundedCornerShape(50)),
+                contentScale = ContentScale.Crop
+            )
         }
     }
 }
