@@ -43,7 +43,11 @@ internal object OllamaResponseParser {
             put("stream", true)
             put("think", false)
             put("keep_alive", "30m")
-            put("options", JSONObject().put("num_ctx", 2048))
+            put("options", JSONObject().apply {
+                put("num_ctx", 1536)
+                put("num_predict", 192)
+                put("temperature", 0.1)
+            })
         }.toString()
 
     fun stripThinkBlocks(content: String): String = thinkBlock.replace(content, "").trim()
