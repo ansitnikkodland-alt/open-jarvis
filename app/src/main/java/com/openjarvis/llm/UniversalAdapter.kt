@@ -66,7 +66,7 @@ class UniversalAdapter(private val context: Context) {
         private var modelManager: ModelManager? = null
         
         const val DEFAULT_OLLAMA_URL = "http://127.0.0.1:11434"
-        const val DEFAULT_OLLAMA_MODEL = "qwen2.5:1.5b"
+        const val DEFAULT_OLLAMA_MODEL = "qwen3:1.7b"
 
         val AVAILABLE_PROVIDERS = listOf("Ollama (Local)")
         
