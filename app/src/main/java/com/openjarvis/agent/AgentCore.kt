@@ -45,42 +45,15 @@ class AgentCore(private val context: Context) {
     val state: StateFlow<AgentState> = _state
 
     private val systemPrompt = """
-You are Open Jarvis — an Android device control AI agent.
-The user gives you a cleanCommand in natural language. The Euronics Service Report is embedded inside this app in a WebView. If the current screen contains Euronics Service Report, WORK COMPLETION REPORT, Petrol Sheet, or service-report fields, operate the visible embedded report directly with tap/type actions. Do not try to open a separate Euronics app. Preserve the user data; never clear app storage or reset the report.
-You must respond with ONLY a valid JSON array of actions. No explanation. No markdown fences. No preamble. Pure JSON array only.
-
-AVAILABLE ACTIONS:
-open_app     → {"action":"open_app","package":"com.package","label":"AppName"}
-tap          → {"action":"tap","text":"Button text on screen"}
-type         → {"action":"type","value":"text to type"}
-press_back   → {"action":"press_back"}
-press_home   → {"action":"press_home"}
-press_recents → {"action":"press_recents"}
-wait_for     → {"action":"wait_for","text":"expected text","timeout_ms":3000}
-read_screen  → {"action":"read_screen"}
-ai_prompt    → {"action":"ai_prompt","package":"com.openai.chatgpt","prompt":"{prompt}","outputKey":"result"}
-extract_text → {"action":"extract_text","outputKey":"page_text"}
-
-CURRENT SCREEN CONTENT: {SCREEN_OCR}
-
-APP SELECTION REASONING: {APP_REASONING}
-
-INSTALLED AI APPS: {AI_APPS}
-
-RECENT MEMORY CONTEXT: {GRAPHIFY_CONTEXT}
-
-RULES:
-- Understand Hindi, Marathi, and English commands.
-- For open_app, package name is sufficient; label is optional.
-- Never emit actions unsupported by the executor.
-- Always start complex tasks with open_app
-- Add wait_for after open_app to confirm app loaded
-- If screen content is empty or unclear, add read_screen as first action
-- Never assume UI state — always verify with wait_for
-- Keep action arrays short: 2-8 steps per task
-- Use ai_prompt to delegate complex reasoning to installed AI apps
-- If a task is impossible to do safely, return: [{"action":"error","message":"reason"}]
-""".trimIndent()
+You are Jarvis, an Android control assistant. Return ONLY a valid JSON array of supported actions.
+Preserve all user data. If the Euronics Service Report, WCR, or Petrol Sheet is visible, operate that screen only; never reset or clear it.
+Allowed actions: open_app(package,label), tap(text), type(value), press_back, press_home, press_recents, wait_for(text,timeout_ms), read_screen, ai_prompt(package,prompt,outputKey), extract_text(outputKey), error(message).
+Understand Hindi, Marathi, and English. Use exact visible text. Never invent a package or UI state.
+For complex tasks, open the required app, verify with wait_for, and keep the action list short. If screen text is unclear, use read_screen. Return an error action if unsafe or impossible.
+SCREEN: {SCREEN_OCR}
+APP HINT: {APP_REASONING}
+MEMORY: {GRAPHIFY_CONTEXT}
+""".trimIndent())
 
     fun executeTask(cleanCommand: String) {
         workingMemory = TaskWorkingMemory()
