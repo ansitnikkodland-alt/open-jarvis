@@ -55,6 +55,7 @@ class OverlayService : Service() {
     private lateinit var voiceManager: VoiceManager
     private lateinit var graphifyRepo: GraphifyRepository
     private var wakeWordController: PorcupineWakeWordController? = null
+    private var wakeWordControllerKey: String? = null
     private val mainHandler = Handler(Looper.getMainLooper())
     private var wakeWordCommandPending = false
     private var wakeWordResponsePending = false
@@ -293,13 +294,17 @@ class OverlayService : Service() {
             val types = ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE or ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE
             ServiceCompat.startForeground(this, NOTIFICATION_ID, createNotification(), types)
         }
-        if (wakeWordController == null) {
+        // Settings can update the key while this foreground service remains alive.
+        // Porcupine captures its AccessKey at construction, so rebuild it when the key changes.
+        if (wakeWordController == null || wakeWordControllerKey != accessKey) {
+            wakeWordController?.stop()
             wakeWordController = PorcupineWakeWordController(
                 this,
                 accessKey,
                 onWakeWord = { mainHandler.post { handleWakeWordDetected() } },
                 onError = { message -> mainHandler.post { statusText?.text = "Wake-word error: $message" } }
             )
+            wakeWordControllerKey = accessKey
         }
         val error = wakeWordController?.start()
         statusText?.text = error ?: "Standby — say Hey Jarvis (offline)"
