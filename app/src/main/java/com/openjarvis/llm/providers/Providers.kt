@@ -254,25 +254,16 @@ class OllamaProvider(
         userMessage: String
     ): Result<String> = withContext(Dispatchers.IO) {
         runCatching {
-            val requestBody = JSONObject().apply {
-                put("model", model)
-                put("messages", JSONArray().apply {
-                    put(JSONObject().apply {
-                        put("role", "system")
-                        put("content", systemPrompt)
-                    })
-                    put(JSONObject().apply {
-                        put("role", "user")
-                        put("content", userMessage)
-                    })
-                })
-                put("stream", false)
-            }.toString()
-
             val request = Request.Builder()
-                .url("${OllamaResponseParser.normalizeBaseUrl(baseUrl)}/api/chat")
+                .url(OllamaResponseParser.buildUrl(baseUrl, "/api/chat"))
                 .addHeader("Content-Type", "application/json")
-                .post(requestBody.toRequestBody("application/json".toMediaType()))
+                .post(
+                    OllamaResponseParser.buildChatRequestBody(
+                        model = model,
+                        systemPrompt = systemPrompt,
+                        userMessage = userMessage
+                    ).toRequestBody("application/json".toMediaType())
+                )
                 .build()
 
             val body = executeWithRetry(request)
@@ -284,15 +275,13 @@ class OllamaProvider(
         runCatching {
             val startTime = System.currentTimeMillis()
             val request = Request.Builder()
-                .url("${OllamaResponseParser.normalizeBaseUrl(baseUrl)}/api/tags")
+                .url(OllamaResponseParser.buildUrl(baseUrl, "/api/tags"))
                 .get()
                 .build()
 
             val body = executeWithRetry(request)
             if (!OllamaResponseParser.hasModel(body, model)) {
-                throw IllegalStateException(
-                    "Model not found: '$model'. In Termux run: ollama pull $model"
-                )
+                throw IllegalStateException("Model $model not found. Termux mein 'ollama pull $model' chalao.")
             }
             System.currentTimeMillis() - startTime
         }
@@ -306,12 +295,17 @@ class OllamaProvider(
                     val body = response.body?.string().orEmpty()
                     if (!response.isSuccessful) {
                         val message = OllamaResponseParser.httpError(response.code, body)
+                        if (response.code == 404 && message.contains("model", ignoreCase = true)) {
+                            throw IllegalStateException("Model $model not found. Termux mein 'ollama pull $model' chalao.")
+                        }
                         if (response.code == 429 || response.code >= 500) {
                             throw java.io.IOException(message)
                         }
                         throw IllegalStateException(message)
                     }
-                    if (body.isBlank()) throw java.io.IOException("Ollama returned an empty HTTP response.")
+                    if (body.isBlank()) {
+                        throw java.io.IOException("Ollama returned an empty HTTP response.")
+                    }
                     return body
                 }
             } catch (error: java.io.IOException) {
@@ -323,7 +317,7 @@ class OllamaProvider(
 
         val detail = lastError?.message.orEmpty()
         throw IllegalStateException(
-            "Ollama not reachable (Termux chal raha hai?). Check 'ollama serve' and Base URL. $detail",
+            "Ollama not reachable - Termux mein ollama serve chalao. $detail",
             lastError
         )
     }
