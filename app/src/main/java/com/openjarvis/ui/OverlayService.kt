@@ -53,7 +53,7 @@ class OverlayService : Service() {
     private lateinit var graphifyRepo: GraphifyRepository
     private var recentTasks = emptyList<TaskNode>()
     private val serviceScope = CoroutineScope(Dispatchers.Main + SupervisorJob())
-    private var isExpanded = false
+    private var isExpanded = true
     private var responseLanguage = "hi"
 
     override fun onCreate() {
@@ -165,7 +165,7 @@ class OverlayService : Service() {
 
             val commandPanel = LinearLayout(this).apply {
                 orientation = LinearLayout.VERTICAL
-                visibility = android.view.View.GONE
+                visibility = android.view.View.VISIBLE
                 setPadding(12, 12, 12, 12)
                 background = rounded(Color.rgb(20, 18, 35), 20)
                 elevation = 12f
@@ -189,6 +189,12 @@ class OverlayService : Service() {
                 maxLines = 4
                 inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_FLAG_MULTI_LINE
                 imeOptions = EditorInfo.IME_ACTION_SEND
+                setOnEditorActionListener { _, actionId, _ ->
+                    if (actionId == EditorInfo.IME_ACTION_SEND) {
+                        submitCommand()
+                        true
+                    } else false
+                }
                 setPadding(12, 8, 12, 8)
                 background = rounded(Color.rgb(42, 38, 58), 12)
             }
