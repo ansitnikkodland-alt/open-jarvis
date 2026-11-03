@@ -188,15 +188,27 @@ class JarvisAccessibilityService : AccessibilityService() {
     }
 
     fun isPackageActive(packageName: String): Boolean {
-        // Prefer the live active window. Floating assistant overlays can temporarily
-        // make rootInActiveWindow null or expose the overlay instead of the launched app.
+        // The floating JARVIS overlay can be the active root while the target app
+        // is already visible underneath it. Inspect all interactive windows too.
         val root = rootInActiveWindow
         val rootPackage = root?.packageName?.toString()
         root?.recycle()
         if (rootPackage == packageName) return true
 
-        // Fall back to the most recent Android window-state event, but only briefly
-        // so a stale previous app cannot make a later launch look successful.
+        val visibleInWindow = runCatching {
+            windows.any { window ->
+                val windowRoot = window.root
+                try {
+                    windowRoot?.packageName?.toString() == packageName
+                } finally {
+                    windowRoot?.recycle()
+                }
+            }
+        }.getOrDefault(false)
+        if (visibleInWindow) return true
+
+        // Accessibility window-state events are the final fallback. Keep the
+        // freshness bound so an old foreground event cannot verify a new launch.
         val eventPackage = lastWindowStatePackage
         val eventAgeMs = System.currentTimeMillis() - lastWindowStateAtMs
         return eventPackage == packageName && eventAgeMs in 0..5000
