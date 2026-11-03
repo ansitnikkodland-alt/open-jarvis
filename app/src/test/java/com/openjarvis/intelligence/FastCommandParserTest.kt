@@ -37,6 +37,13 @@ class FastCommandParserTest {
         assertEquals(FastCommandParser.Command.OpenSettings("notifications"), FastCommandParser.parse("open notification access settings"))
     }
 
+    @Test fun recognizesExplicitPersonalMemoryCommands() {
+        assertEquals(FastCommandParser.Command.Remember("I prefer Marathi"), FastCommandParser.parse("remember that I prefer Marathi"))
+        assertEquals(FastCommandParser.Command.Forget("Marathi"), FastCommandParser.parse("forget Marathi"))
+        assertTrue(FastCommandParser.parse("show my memory") is FastCommandParser.Command.ShowMemory)
+        assertEquals(FastCommandParser.Command.Remember("मला मराठी आवडते"), FastCommandParser.parse("लक्षात ठेव मला मराठी आवडते"))
+    }
+
     @Test fun recognizesDialNumberWithoutPlacingCall() {
         assertEquals(FastCommandParser.Command.Dial("+919876543210"), FastCommandParser.parse("call +91 98765 43210"))
     }

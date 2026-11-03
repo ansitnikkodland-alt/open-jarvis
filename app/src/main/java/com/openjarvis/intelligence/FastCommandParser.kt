@@ -13,6 +13,9 @@ internal object FastCommandParser {
         data class Scroll(val direction: String) : Command()
         data class OpenSettings(val action: String) : Command()
         data class Dial(val number: String) : Command()
+        data class Remember(val fact: String) : Command()
+        data class Forget(val query: String) : Command()
+        object ShowMemory : Command()
     }
 
     private val englishOpen = Regex("^(?:please\\s+)?(?:open|launch|start)\\s+(.+)$", RegexOption.IGNORE_CASE)
@@ -23,6 +26,14 @@ internal object FastCommandParser {
     fun parse(command: String): Command? {
         val normalized = normalize(command)
         if (normalized.isBlank()) return null
+
+        if (Regex("^(?:show|read) (?:my )?memory$|^what do you remember$|^मुझे क्या याद है$|^मला काय लक्षात आहे$", RegexOption.IGNORE_CASE).matches(normalized)) {
+            return Command.ShowMemory
+        }
+        val remember = Regex("^(?:remember(?: that)?|yaad rakhna(?: ki)?|yaad rakho(?: ki)?|याद रखना|लक्षात ठेव)\\s+(.+)$", RegexOption.IGNORE_CASE).matchEntire(normalized)
+        if (remember != null) return Command.Remember(remember.groupValues[1].trim())
+        val forget = Regex("^(?:forget|bhool jao|bhul jao|भूल जाओ|विसर)\\s+(.+)$", RegexOption.IGNORE_CASE).matchEntire(normalized)
+        if (forget != null) return Command.Forget(forget.groupValues[1].trim())
 
         if (close.matches(normalized)) return Command.CloseCurrentApp
         if (normalized.matches(Regex("^(?:back|go back|pichhe|peeche|wapas|वापस)$", RegexOption.IGNORE_CASE))) return Command.Back
