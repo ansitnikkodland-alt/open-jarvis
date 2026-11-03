@@ -205,8 +205,14 @@ RULES:
                                 error.message?.contains("Unable to resolve") == true ->
                                     "Network error — check connection"
 
-                                else ->
-                                    error.message ?: "Unknown error"
+                                else -> {
+                                    val detail = error.message?.takeIf { it.isNotBlank() }
+                                        ?: error.cause?.message?.takeIf { it.isNotBlank() }
+                                        ?: error.javaClass.simpleName
+                                    if (universalAdapter.getProviderName() == "Ollama (Local)") {
+                                        "Ollama error: $detail"
+                                    } else detail.ifBlank { "Unknown error" }
+                                }
                             }
 
                             _state.value = AgentState.Error(msg)
@@ -220,13 +226,17 @@ RULES:
                         }
                     )
                 } catch (e: Exception) {
-                    _state.value = AgentState.Error(
-                        e.message ?: "Unknown error"
-                    )
+                    val detail = e.message?.takeIf { it.isNotBlank() }
+                        ?: e.cause?.message?.takeIf { it.isNotBlank() }
+                        ?: e.javaClass.simpleName
+                    val errorMessage = if (universalAdapter.getProviderName() == "Ollama (Local)") {
+                        "Ollama error: $detail"
+                    } else detail.ifBlank { "Unknown error" }
+                    _state.value = AgentState.Error(errorMessage)
 
                     graphifyRepo.logTask(
                         cleanCommand,
-                        "failed: ${e.message}",
+                        "failed: $errorMessage",
                         "",
                         0
                     )
