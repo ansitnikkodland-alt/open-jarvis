@@ -41,7 +41,7 @@ class PorcupineWakeWordController(
             val sdkMessage = error.message?.takeIf { it.isNotBlank() } ?: error.javaClass.simpleName
             // Keep the SDK diagnostic for debugging, but never expose or log the full token.
             val safeDiagnostic = sdkMessage.replace(key, "${key.take(4)}…")
-            Log.e(TAG, "Porcupine initialization failed (${WakeWordConfig.accessKeyDiagnostic(key)}): $safeDiagnostic", error)
+            Log.e(TAG, "Porcupine initialization failed (${WakeWordConfig.accessKeyDiagnostic(key)}): $safeDiagnostic (${error.javaClass.simpleName})")
             val friendly = "Picovoice wake word start nahi hua. AccessKey ko console.picovoice.ai se dobara copy karke Settings mein paste karo."
             onError(friendly)
             friendly
