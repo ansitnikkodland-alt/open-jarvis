@@ -42,7 +42,10 @@ class UniversalAdapter(private val context: Context) {
             "OpenRouter" -> OpenRouterProvider(apiKey, model)
             "Anthropic Claude" -> AnthropicProvider(apiKey, model)
             "OpenAI" -> OpenAIProvider(apiKey, model)
-            "Ollama (Local)" -> OllamaProvider(baseUrl, model)
+            "Ollama (Local)" -> OllamaProvider(
+                baseUrl.ifBlank { OllamaProvider.DEFAULT_BASE_URL },
+                OllamaProvider.DEFAULT_MODEL
+            )
             "Local (LlamaCpp)" -> {
                 val mm = getModelManager(context)
                 val tier = mm.getDownloadedTier() ?: ModelManager.ModelTier.MINIMUM
@@ -105,7 +108,7 @@ class UniversalAdapter(private val context: Context) {
             "OpenRouter" -> "meta-llama/llama-3-8b-instruct:free"
             "Anthropic Claude" -> "claude-haiku-4-20250514"
             "OpenAI" -> "gpt-4o-mini"
-            "Ollama (Local)" -> "llama3"
+            "Ollama (Local)" -> OllamaProvider.DEFAULT_MODEL
             else -> "gpt-4o-mini"
         }
     }
