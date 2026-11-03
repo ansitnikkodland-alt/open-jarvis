@@ -5,95 +5,119 @@ import org.json.JSONException
 import org.json.JSONObject
 
 object LLMResponseValidator {
-    
     private val knownActions = setOf(
-        "open_app", "tap", "type", "press_back", "press_home",
-        "press_recents", "wait_for", "read_screen", "ai_prompt",
-        "extract_text", "error"
+        Action.OPEN_APP, Action.CLICK, Action.TAP, Action.TYPE_TEXT, Action.TYPE,
+        Action.SCROLL, Action.BACK, Action.PRESS_BACK, Action.HOME, Action.PRESS_HOME,
+        Action.PRESS_RECENTS, Action.WAIT, Action.WAIT_FOR, Action.READ_SCREEN,
+        Action.AI_PROMPT, Action.EXTRACT_TEXT, Action.ERROR
     )
-    
+
     fun validate(rawResponse: String): ValidationResult {
-        val errors = mutableListOf<String>()
-        
-        val clean = rawResponse
-            .trim()
-            .removePrefix("```json")
-            .removePrefix("```")
-            .removeSuffix("```")
-            .trim()
-        
-        if (!clean.startsWith("[") && !clean.startsWith("{")) {
-            errors.add("Response is not JSON")
-            return ValidationResult(false, emptyList(), errors, false)
-        }
-        
+        val clean = extractJson(rawResponse)
+            ?: return invalid("Response is not JSON: no action array/object found")
+
         val parsed = try {
-            if (clean.startsWith("{")) {
-                JSONArray("[$clean]")
-            } else {
-                JSONArray(clean)
+            when {
+                clean.startsWith("[") -> JSONArray(clean)
+                clean.startsWith("{") -> {
+                    val root = JSONObject(clean)
+                    when {
+                        root.optJSONArray("actions") != null -> root.getJSONArray("actions")
+                        root.optJSONArray("steps") != null -> root.getJSONArray("steps")
+                        root.has("action") || root.has("type") -> JSONArray().put(root)
+                        else -> return invalid("JSON object must contain an actions array")
+                    }
+                }
+                else -> return invalid("Response is not JSON")
             }
-        } catch (e: JSONException) {
-            errors.add("Invalid JSON: ${e.message}")
-            return ValidationResult(false, emptyList(), errors, false)
+        } catch (error: JSONException) {
+            return invalid("Invalid JSON: ${error.message ?: "malformed response"}")
         }
-        
+
+        if (parsed.length() == 0) return invalid("Empty action plan")
+        if (parsed.length() > 50) return invalid("Action plan too long (${parsed.length()} steps); maximum is 50")
+
         val actions = mutableListOf<Action>()
-        
-        for (i in 0 until parsed.length()) {
-            val obj = try {
-                parsed.getJSONObject(i)
-            } catch (e: Exception) {
-                errors.add("Item $i is not an object")
-                return ValidationResult(false, emptyList(), errors, false)
-            }
-            
-            val actionType = obj.optString("action", "")
-            if (actionType.isBlank()) {
-                errors.add("Item $i missing 'action' field")
-                return ValidationResult(false, emptyList(), errors, false)
-            }
-            
-            if (actionType !in knownActions) {
-                errors.add("Unsupported action type: $actionType")
-                return ValidationResult(false, emptyList(), errors, false)
-            }
-            
-            actions.add(parseAction(obj))
+        for (index in 0 until parsed.length()) {
+            val item = parsed.opt(index)
+            if (item !is JSONObject) return invalid("Item $index is not an object")
+            val rawType = firstString(item, "action", "type", "command")
+            if (rawType.isBlank()) return invalid("Item $index missing 'action' field")
+            val type = normalizeAction(rawType)
+            if (type !in knownActions) return invalid("Unsupported action type: $rawType")
+            actions.add(parseAction(item, type))
         }
-        
-        if (actions.size > 50) {
-            errors.add("Suspiciously long action plan (${actions.size} steps) — capped at 50")
-            return ValidationResult(true, actions.take(50), errors, true)
-        }
-        
-        return ValidationResult(
-            isValid = actions.isNotEmpty(),
-            actions = actions,
-            errors = errors,
-            wasRepaired = errors.isNotEmpty() && actions.isNotEmpty()
-        )
+        return ValidationResult(true, actions, emptyList(), false)
     }
-    
-    private fun parseAction(obj: JSONObject): Action {
+
+    private fun extractJson(raw: String): String? {
+        val withoutFence = raw.trim()
+            .replace(Regex("^\\s*```(?:json)?\\s*", RegexOption.IGNORE_CASE), "")
+            .replace(Regex("\\s*```\\s*$"), "")
+            .trim()
+        val arrayStart = withoutFence.indexOf('[')
+        val objectStart = withoutFence.indexOf('{')
+        val start = listOf(arrayStart, objectStart).filter { it >= 0 }.minOrNull() ?: return null
+        val open = withoutFence[start]
+        val close = if (open == '[') ']' else '}'
+        val end = withoutFence.lastIndexOf(close)
+        if (end < start) return null
+        return withoutFence.substring(start, end + 1)
+    }
+
+    private fun normalizeAction(raw: String): String {
+        val key = raw.trim().lowercase().replace('-', '_').replace(' ', '_')
+        return when (key) {
+            "tap", "click", "click_text", "tap_text" -> Action.CLICK
+            "type", "type_text", "enter_text", "input_text" -> Action.TYPE_TEXT
+            "press_back", "go_back", "back" -> Action.BACK
+            "press_home", "go_home", "home" -> Action.HOME
+            "wait_for", "wait" -> Action.WAIT
+            "read_screen", "readscreen", "screen_read" -> Action.READ_SCREEN
+            else -> key
+        }
+    }
+
+    private fun parseAction(obj: JSONObject, type: String): Action {
+        val target = firstString(obj, "text", "target", "element", "label").takeIf { it.isNotBlank() }
+        val value = firstString(obj, "value", "text", "input").takeIf { it.isNotBlank() }
         return Action(
-            action = obj.getString("action"),
-            packageName = obj.optString("package", null).takeIf { it.isNotBlank() },
-            label = obj.optString("label", null).takeIf { it.isNotBlank() },
-            text = obj.optString("text", null).takeIf { it.isNotBlank() },
-            value = obj.optString("value", null).takeIf { it.isNotBlank() },
-            hint = obj.optString("hint", null).takeIf { it.isNotBlank() },
-            direction = obj.optString("direction", null).takeIf { it.isNotBlank() },
-            x = if (obj.has("x")) obj.getInt("x") else null,
-            y = if (obj.has("y")) obj.getInt("y") else null,
-            distance = obj.optString("distance", null).takeIf { it.isNotBlank() },
-            timeoutMs = obj.optLong("timeout_ms", 3000L),
-            message = obj.optString("message", null).takeIf { it.isNotBlank() },
-            prompt = obj.optString("prompt", null).takeIf { it.isNotBlank() },
-            outputKey = obj.optString("outputKey", null).takeIf { it.isNotBlank() }
+            action = type,
+            packageName = firstString(obj, "package", "packageName", "package_name").takeIf { it.isNotBlank() },
+            label = firstString(obj, "label", "app", "app_name").takeIf { it.isNotBlank() },
+            text = target,
+            value = value,
+            hint = firstString(obj, "hint").takeIf { it.isNotBlank() },
+            direction = firstString(obj, "direction", "scroll_direction").takeIf { it.isNotBlank() },
+            distance = firstString(obj, "distance").takeIf { it.isNotBlank() },
+            timeoutMs = firstLong(obj, 3000L, "timeout_ms", "timeoutMs", "duration_ms"),
+            message = firstString(obj, "message", "reason").takeIf { it.isNotBlank() },
+            prompt = firstString(obj, "prompt").takeIf { it.isNotBlank() },
+            outputKey = firstString(obj, "outputKey", "output_key").takeIf { it.isNotBlank() }
         )
     }
-    
+
+    private fun firstString(obj: JSONObject, vararg keys: String): String {
+        for (key in keys) {
+            val value = obj.opt(key)
+            if (value is String && value.isNotBlank()) return value.trim()
+        }
+        return ""
+    }
+
+    private fun firstLong(obj: JSONObject, fallback: Long, vararg keys: String): Long {
+        for (key in keys) {
+            if (obj.has(key)) {
+                val value = obj.optLong(key, fallback)
+                if (value > 0L) return value
+            }
+        }
+        return fallback
+    }
+
+    private fun invalid(message: String) =
+        ValidationResult(false, emptyList(), listOf(message), false)
+
     data class ValidationResult(
         val isValid: Boolean,
         val actions: List<Action>,
