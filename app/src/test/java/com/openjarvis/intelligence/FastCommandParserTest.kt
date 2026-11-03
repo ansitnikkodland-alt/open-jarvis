@@ -13,6 +13,11 @@ class FastCommandParserTest {
         assertEquals(FastCommandParser.Command.OpenApp("YouTube"), FastCommandParser.parse("launch YouTube"))
     }
 
+    @Test fun keepsCompoundAppTasksInTheAiActionPlanner() {
+        assertEquals(FastCommandParser.Command.OpenApp("WhatsApp"), FastCommandParser.parse("open WhatsApp"))
+        assertNull(FastCommandParser.parse("open WhatsApp and send a message to Rahul"))
+    }
+
     @Test fun recognizesBackHomeAndClose() {
         assertTrue(FastCommandParser.parse("go back") is FastCommandParser.Command.Back)
         assertTrue(FastCommandParser.parse("wapas") is FastCommandParser.Command.Back)
