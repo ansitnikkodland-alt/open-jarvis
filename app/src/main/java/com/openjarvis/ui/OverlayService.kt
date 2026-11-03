@@ -93,6 +93,7 @@ class OverlayService : Service() {
                         statusText?.text = state.message
                         if (wakeWordCommandPending) {
                             wakeWordCommandPending = false
+                            wakeWordResponsePending = false
                             voiceManager.stopListening()
                             serviceScope.launch { delay(700); startWakeWordListening() }
                         }
