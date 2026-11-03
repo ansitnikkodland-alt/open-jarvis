@@ -101,6 +101,10 @@ fun SettingsScreen(
     var speakResults by remember { mutableStateOf(voicePrefs.getBoolean("speak_results", true)) }
     var speechRate by remember { mutableStateOf(1.05f) }
     var sttMode by remember { mutableStateOf("Push to Talk") }
+    val ollamaDebugLogs = remember(selectedProvider) {
+        context.getSharedPreferences("ollama_diagnostics", android.content.Context.MODE_PRIVATE)
+            .getString("recent_requests", "").orEmpty().lineSequence().filter { it.isNotBlank() }.take(5).toList()
+    }
     
     LaunchedEffect(selectedProvider) {
         showBaseUrlField = selectedProvider == "Custom" || selectedProvider == "Ollama (Local)"
@@ -268,6 +272,29 @@ fun SettingsScreen(
                 
                 Spacer(modifier = Modifier.height(32.dp))
                 
+                if (selectedProvider == "Ollama (Local)") {
+                    SectionLabel("OLLAMA DEBUG LOG")
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Surface(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(16.dp),
+                        color = VoidColor.Void900,
+                        border = BorderStroke(1.dp, VoidColor.BorderSubtle)
+                    ) {
+                        Column(modifier = Modifier.padding(14.dp)) {
+                            if (ollamaDebugLogs.isEmpty()) {
+                                Text("No Ollama chat timings yet.", color = VoidColor.TextDisabled, fontSize = 12.sp)
+                            } else {
+                                ollamaDebugLogs.forEach { entry ->
+                                    Text(entry, color = VoidColor.TextSecondary, fontSize = 11.sp)
+                                    Spacer(modifier = Modifier.height(6.dp))
+                                }
+                            }
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(24.dp))
+                }
+
                 SectionLabel("VOICE")
                 
                 Spacer(modifier = Modifier.height(12.dp))
