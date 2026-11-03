@@ -3,6 +3,7 @@ package com.openjarvis.ui.dashboard
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -26,6 +27,8 @@ import androidx.compose.ui.draw.scale
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.withStyle
@@ -143,7 +146,7 @@ fun DashboardScreen(
             containerColor = VoidColor.Violet,
             contentColor = Color.White
         ) {
-            Text("🤖", fontSize = 24.sp)
+            Image(\n                painter = painterResource(id = com.openjarvis.R.drawable.jarvis_robot),\n                contentDescription = "Jarvis robot",\n                modifier = Modifier.size(52.dp).clip(RoundedCornerShape(50)),\n                contentScale = ContentScale.Crop\n            )
         }
     }
 }
