@@ -187,9 +187,9 @@ fun SettingsScreen(
                     baseUrl = baseUrl,
                     model = model,
                     onSave = { name, url, key, mdl ->
-                        val savedUrl = if (name == "Ollama (Local)") {
+                        val savedUrl = if (name == "Ollama (Local)" && url.isNotBlank()) {
                             com.openjarvis.llm.providers.OllamaResponseParser.normalizeBaseUrl(url)
-                        } else url
+                        } else url.trim()
                         val savedKey = if (name == "Ollama (Local)") "" else key
                         val savedModel = if (name == "Ollama (Local)") "qwen3:1.7b" else mdl
                         onSaveProvider(name, savedUrl, savedKey, savedModel)
