@@ -119,7 +119,9 @@ class OverlayService : Service() {
                 elevation = 18f
             }
             val pill = TextView(this).apply {
-                text = "🤖  JARVIS  ▾"
+                text = "JARVIS  ▾"
+                setCompoundDrawablesWithIntrinsicBounds(R.drawable.jarvis_robot, 0, 0, 0)
+                compoundDrawablePadding = 10
                 textSize = 15f
                 setTextColor(Color.WHITE)
                 gravity = Gravity.CENTER
@@ -171,6 +173,8 @@ class OverlayService : Service() {
                     } else if (!voiceManager.isVoiceEnabled()) {
                         status.text = "Enable Voice Assistant in Jarvis Settings first"
                     } else {
+                        voiceManager.resetState()
+                        status.text = "Listening… speak now"
                         voiceManager.startListening()
                     }
                 }
