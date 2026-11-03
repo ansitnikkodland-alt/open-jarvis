@@ -325,6 +325,10 @@ class OllamaProvider(
     companion object {
         const val DEFAULT_MODEL = "qwen3:1.7b"
         const val DEFAULT_BASE_URL = "http://127.0.0.1:11434"
+        val AVAILABLE_MODELS = listOf(
+            "qwen3:1.7b",
+            "qwen2.5:1.5b"
+        )
     }
 }
 
