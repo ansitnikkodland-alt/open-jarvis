@@ -279,7 +279,6 @@ MEMORY: {GRAPHIFY_CONTEXT}
 
     private suspend fun executeActions(actions: List<Action>): Boolean {
         val results = mutableListOf<String>()
-        val service = JarvisAccessibilityService.instance
 
         suspend fun executeOnce(action: Action): String? {
             val activeService = JarvisAccessibilityService.instance
@@ -405,10 +404,29 @@ MEMORY: {GRAPHIFY_CONTEXT}
     }
 
     private suspend fun executeFastCommand(command: FastCommandParser.Command): String {
+        var lastFailure = "Command could not be verified"
+        for (attempt in 1..2) {
+            try {
+                return executeFastCommandOnce(command)
+            } catch (error: Exception) {
+                lastFailure = error.message?.takeIf { it.isNotBlank() } ?: error.javaClass.simpleName
+                Log.w(TAG, "Fast command attempt $attempt failed: $lastFailure")
+                if (attempt == 1) kotlinx.coroutines.delay(400)
+            }
+        }
+        throw IllegalStateException("Command failed after one retry: $lastFailure")
+    }
+
+    private suspend fun executeFastCommandOnce(command: FastCommandParser.Command): String {
         return when (command) {
             is FastCommandParser.Command.OpenApp -> {
                 val opened = tryFastOpenApp("open ${command.target}")
                     ?: throw IllegalStateException("App not found or could not be launched: ${command.target}")
+                kotlinx.coroutines.delay(800)
+                val packageName = findPackageByLabel(command.target)
+                if (packageName != null && JarvisAccessibilityService.instance?.isPackageActive(packageName) != true) {
+                    throw IllegalStateException("Launch requested for ${command.target}, but foreground app verification failed")
+                }
                 "Opened ${opened}"
             }
             FastCommandParser.Command.CloseCurrentApp -> {
@@ -442,6 +460,8 @@ MEMORY: {GRAPHIFY_CONTEXT}
                     else -> Settings.ACTION_SETTINGS
                 }
                 context.startActivity(Intent(action).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                kotlinx.coroutines.delay(700)
+                if (screenReader.extractAllText().isBlank()) throw IllegalStateException("Settings opened, but the screen could not be verified")
                 "Opened ${command.action} settings"
             }
             is FastCommandParser.Command.Dial -> {
@@ -449,6 +469,8 @@ MEMORY: {GRAPHIFY_CONTEXT}
                     Intent(Intent.ACTION_DIAL, Uri.fromParts("tel", command.number, null))
                         .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                 )
+                kotlinx.coroutines.delay(700)
+                if (screenReader.extractAllText().isBlank()) throw IllegalStateException("Dialer opened, but the screen could not be verified")
                 "Opened dialer for ${command.number} (call not placed)"
             }
         }
