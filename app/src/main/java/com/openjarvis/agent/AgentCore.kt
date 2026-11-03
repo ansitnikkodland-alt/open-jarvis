@@ -271,10 +271,10 @@ SCREEN: {SCREEN_OCR}
                     if (packageName.isNullOrBlank()) return "App not found: ${label ?: "package missing"}"
                     if (activeService == null || !activeService.openAppByPackage(packageName)) return "Could not start app: ${label ?: packageName}"
                     var foregroundConfirmed = false
-                    repeat(16) {
+                    for (check in 0 until 16) {
                         if (activeService.isPackageActive(packageName)) {
                             foregroundConfirmed = true
-                            return@repeat
+                            break
                         }
                         kotlinx.coroutines.delay(250)
                     }
@@ -434,10 +434,10 @@ SCREEN: {SCREEN_OCR}
                 }
 
                 var foregroundConfirmed = false
-                repeat(16) {
+                for (check in 0 until 16) {
                     if (JarvisAccessibilityService.instance?.isPackageActive(packageName) == true) {
                         foregroundConfirmed = true
-                        return@repeat
+                        break
                     }
                     kotlinx.coroutines.delay(250)
                 }
