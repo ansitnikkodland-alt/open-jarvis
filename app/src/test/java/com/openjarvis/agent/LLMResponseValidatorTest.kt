@@ -35,6 +35,17 @@ class LLMResponseValidatorTest {
         assertEquals(6000L, result.actions[1].timeoutMs)
     }
 
+    @Test fun normalizesCommonModelActionSynonymsToExecutorActions() {
+        val result = LLMResponseValidator.validate(
+            """[{"type":"swipe","direction":"down"},{"action":"tap_on","target":"Search"},{"command":"launch_app","app":"YouTube"},{"action":"input","value":"hello"}]"""
+        )
+        assertTrue(result.errors.toString(), result.isValid)
+        assertEquals(Action.SCROLL, result.actions[0].action)
+        assertEquals(Action.CLICK, result.actions[1].action)
+        assertEquals(Action.OPEN_APP, result.actions[2].action)
+        assertEquals(Action.TYPE_TEXT, result.actions[3].action)
+    }
+
     @Test fun rejectsUnknownActionsAndEmptyPlansClearly() {
         val unknown = LLMResponseValidator.validate("""[{"action":"launch_moon"}]""")
         assertFalse(unknown.isValid)
