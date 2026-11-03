@@ -31,12 +31,17 @@ internal object AgentReEvaluationPolicy {
         failedAction.action in replanSafeActions &&
             completedActions.all { it.action in replanSafeActions }
 
-    fun isAcceptableReplan(actions: List<Action>, failedAction: Action): Boolean {
+    fun isAcceptableReplan(
+        actions: List<Action>,
+        completedActions: List<Action>,
+        failedAction: Action
+    ): Boolean {
         if (actions.isEmpty()) return false
         if (actions.any { it.action == Action.ERROR || it.action == Action.READ_SCREEN || it.action == Action.EXTRACT_TEXT }) {
             return false
         }
-        return !sameStep(actions.first(), failedAction)
+        val previousSteps = completedActions + failedAction
+        return actions.none { candidate -> previousSteps.any { previous -> sameStep(candidate, previous) } }
     }
 
     private fun sameStep(left: Action, right: Action): Boolean =
