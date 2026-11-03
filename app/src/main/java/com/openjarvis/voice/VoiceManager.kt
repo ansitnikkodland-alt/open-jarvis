@@ -140,6 +140,8 @@ class VoiceManager(private val context: Context) {
 
     fun startListening() {
         resetState()
+        wakeLoopJob?.cancel()
+        wakeLoopJob = null
         sttEngine.stop()
         if (!isVoiceEnabled()) {
             _state.value = VoiceState.Error("Voice disabled in settings")
