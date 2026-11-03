@@ -532,6 +532,7 @@ SCREEN: {SCREEN_OCR}
                     "location" -> Settings.ACTION_LOCATION_SOURCE_SETTINGS
                     "accessibility" -> Settings.ACTION_ACCESSIBILITY_SETTINGS
                     "apps" -> Settings.ACTION_APPLICATION_SETTINGS
+                    "notifications" -> Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS
                     else -> Settings.ACTION_SETTINGS
                 }
                 context.startActivity(Intent(action).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
