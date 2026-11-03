@@ -119,8 +119,8 @@ class OverlayService : Service() {
                 elevation = 18f
             }
             val pill = TextView(this).apply {
-                text = "●  JARVIS  ▾"
-                textSize = 14f
+                text = "🤖  JARVIS  ▾"
+                textSize = 15f
                 setTextColor(Color.WHITE)
                 gravity = Gravity.CENTER
                 setPadding(22, 14, 22, 14)
