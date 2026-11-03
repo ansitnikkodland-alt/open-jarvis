@@ -34,6 +34,7 @@ class FastCommandParserTest {
         assertEquals(FastCommandParser.Command.OpenSettings("general"), FastCommandParser.parse("open settings"))
         assertEquals(FastCommandParser.Command.OpenSettings("wifi"), FastCommandParser.parse("wifi settings kholo"))
         assertEquals(FastCommandParser.Command.OpenSettings("bluetooth"), FastCommandParser.parse("bluetooth settings"))
+        assertEquals(FastCommandParser.Command.OpenSettings("notifications"), FastCommandParser.parse("open notification access settings"))
     }
 
     @Test fun recognizesDialNumberWithoutPlacingCall() {
