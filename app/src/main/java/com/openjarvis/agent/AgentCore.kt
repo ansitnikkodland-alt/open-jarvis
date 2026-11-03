@@ -49,25 +49,19 @@ class AgentCore(private val context: Context) {
     val state: StateFlow<AgentState> = _state
 
     private val systemPrompt = """
-You are Jarvis, an Android control assistant. Return ONLY a JSON array of action objects. Do not include markdown or explanations.
-Preserve all user data. If the Euronics Service Report, WCR, or Petrol Sheet is visible, operate that screen only; never reset, clear, submit, or delete its data unless the user explicitly requested that exact operation.
-Supported actions and exact fields:
-- {"action":"open_app","package":"known.package","label":"App"}
-- {"action":"click","text":"exact visible button or item"}
-- {"action":"type_text","value":"text to enter"}
-- {"action":"scroll","direction":"up|down"}
-- {"action":"back"}
-- {"action":"home"}
-- {"action":"wait","text":"visible text","timeout_ms":5000}
-- {"action":"read_screen"}
-- {"action":"ai_prompt","package":"known AI app package","prompt":"...","outputKey":"result"}
-- {"action":"extract_text","outputKey":"page_text"}
-- {"action":"error","message":"clear reason"}
-Understand Hindi, Marathi, Hinglish, and English. Use only exact visible text. Never invent a package, contact, or UI state.
-Use the shortest safe action list. After navigation use wait or read_screen before interacting. If a target is ambiguous, read the screen instead of guessing. Return an error action if unsafe or impossible.
+You are Jarvis, an Android command executor. Return ONLY a JSON array. No markdown, reasoning, or prose.
+Use ONLY these actions:
+{"action":"open_app","label":"App"}
+{"action":"click","text":"visible UI text"}
+{"action":"type_text","value":"text"}
+{"action":"scroll","direction":"up|down"}
+{"action":"back"}
+{"action":"home"}
+{"action":"wait","text":"visible text","timeout_ms":3000}
+{"action":"read_screen"}
+{"action":"error","message":"reason"}
+Understand Hindi, Marathi, Hinglish, and English. Convert user intent into the shortest safe action list. Never invent visible text or app names. Use read_screen when the target is unclear. Never clear, submit, reset, or delete user data unless explicitly requested. If the task cannot be done safely, return one error action.
 SCREEN: {SCREEN_OCR}
-APP HINT: {APP_REASONING}
-MEMORY: {GRAPHIFY_CONTEXT}
 """.trimIndent()
 
     fun executeTask(cleanCommand: String) {
@@ -123,34 +117,16 @@ MEMORY: {GRAPHIFY_CONTEXT}
                         return@withLock
                     }
 
-                    val plan = taskRouter.analyze(safeCommand)
-
                     _state.value = AgentState.Running("reading screen...")
-
+                    // Keep local-model command planning lean: app ranking and graph-memory
+                    // retrieval were adding latency before every request.
                     val screenText = runCatching {
-                        withContext(Dispatchers.IO) { screenReader.extractAllText() }
+                        screenReader.extractAllText()
                     }.onFailure { Log.e(TAG, "Screen extraction failed; continuing without OCR", it) }
                         .getOrDefault("")
 
-                    _state.value = AgentState.Running("getting context...")
-
-                    val memoryContext = runCatching {
-                        graphifyRepo.buildMemoryContext(safeCommand)
-                    }.onFailure { Log.e(TAG, "Memory context failed; continuing without memory", it) }
-                        .getOrDefault("")
-
                     val fullSystem = systemPrompt
-                        .replace("{SCREEN_OCR}", screenText.take(800))
-                        .replace("{APP_REASONING}", plan.reasoning.take(200))
-                        .replace("{AI_APPS}", getInstalledAIApps())
-                        .replace(
-                            "{GRAPHIFY_CONTEXT}",
-                            if (memoryContext.isBlank()) {
-                                "No recent tasks"
-                            } else {
-                                memoryContext.take(250)
-                            }
-                        )
+                        .replace("{SCREEN_OCR}", screenText.take(450))
 
                     _state.value = AgentState.Running("Soch raha hoon...")
 
