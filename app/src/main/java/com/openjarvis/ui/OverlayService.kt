@@ -69,7 +69,7 @@ class OverlayService : Service() {
                         statusText?.text = "Voice captured — executing command…"
                         submitCommand(state.text)
                     }
-                    is VoiceManager.VoiceState.Error -> statusText?.text = state.result
+                    is VoiceManager.VoiceState.Error -> statusText?.text = state.message
                     is VoiceManager.VoiceState.Recording -> statusText?.text = "Listening… speak now"
                     is VoiceManager.VoiceState.Transcribing -> statusText?.text = "Transcribing…"
                     is VoiceManager.VoiceState.Idle -> Unit
