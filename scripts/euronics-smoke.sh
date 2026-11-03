@@ -44,11 +44,11 @@ adb shell settings put secure enabled_accessibility_services com.openjarvis/com.
 adb shell settings put secure accessibility_enabled 1
 adb shell am start -n com.openjarvis/.ui.MainActivity
 
-echo "Waiting up to 60 seconds for mResumedActivity=MainActivity."
+echo "Waiting up to 60 seconds for MainActivity to be resumed."
 RESUMED=""
 for ((second=1; second<=60; second++)); do
   ACTIVITY_STATE="$(adb shell dumpsys activity activities | tr -d '\r')"
-  if RESUMED="$(printf '%s\n' "$ACTIVITY_STATE" | grep -F 'mResumedActivity' | grep -F 'com.openjarvis/.ui.MainActivity')"; then
+  if RESUMED="$(printf '%s\n' "$ACTIVITY_STATE" | grep -E 'mResumedActivity|topResumedActivity' | grep -F 'com.openjarvis/.ui.MainActivity')"; then
     :
   else
     RESUMED=""
@@ -60,7 +60,7 @@ for ((second=1; second<=60; second++)); do
   sleep 1
 done
 [[ -n "$RESUMED" ]] || {
-  echo "MainActivity did not reach mResumedActivity within 60 seconds."
+  echo "MainActivity did not reach a resumed state within 60 seconds."
   adb shell dumpsys activity activities
   exit 11
 }
