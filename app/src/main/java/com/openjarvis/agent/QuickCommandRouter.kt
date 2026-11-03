@@ -1,21 +1,32 @@
 package com.openjarvis.agent
 
 /**
- * Detects unambiguous, single-intent app-launch commands that do not need LLM
- * reasoning, screen OCR, or retrieval context.
+ * Routes unambiguous single-app launch requests locally, without spending an
+ * Ollama inference. Supports English, Roman Hindi/Marathi and Devanagari verbs.
  */
 internal object QuickCommandRouter {
-    private val openAppPattern = Regex(
-        "^(?:please\\s+)?(?:open|launch|start)\\s+([a-zA-Z0-9][a-zA-Z0-9 ._-]{0,49})$",
-        RegexOption.IGNORE_CASE
+    private val patterns = listOf(
+        Regex("^(?:please\\s+)?(?:open|launch|start)\\s+(.+)$", RegexOption.IGNORE_CASE),
+        Regex("^(.+?)\\s+(?:kholo|khol|khol do|ughad|ughaḍ|open karo|open kar)$", RegexOption.IGNORE_CASE),
+        Regex("^(?:मुझे\\s+|मला\\s+)?(.+?)\\s+(?:खोलो|खोल दो|उघडा|उघड|उघडून दे)$")
     )
 
     fun parse(command: String): Action? {
-        val match = openAppPattern.matchEntire(command.trim()) ?: return null
-        val label = match.groupValues[1].trim().trimEnd('.', '!', '?')
-        if (label.isBlank()) return null
-        // A conjunction usually signals a multi-step request, not an app name.
-        if (Regex("\\b(and|then|after|before)\\b", RegexOption.IGNORE_CASE).containsMatchIn(label)) return null
+        val normalized = command.trim().trimEnd('.', '!', '?')
+        val label = patterns.firstNotNullOfOrNull { pattern ->
+            pattern.matchEntire(normalized)?.groupValues?.getOrNull(1)?.trim()
+        } ?: return null
+        if (label.isBlank() || label.length > 50) return null
+
+        // Do not mistake compound tasks for a simple app launch.
+        val compound = Regex(
+            "\\b(and|then|after|before|aur|phir|uske baad|ani|mag|nantar)\\b",
+            RegexOption.IGNORE_CASE
+        )
+        if (compound.containsMatchIn(label)) return null
+        if (label.any { it in '\\u0900'..'\\u097F' } &&
+            listOf("और", "फिर", "नंतर", "आणि", "मग").any { label.contains(it) }) return null
+
         return Action(action = Action.OPEN_APP, label = label)
     }
 }
