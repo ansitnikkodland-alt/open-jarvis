@@ -34,6 +34,8 @@ import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.openjarvis.llm.UniversalAdapter
+import com.openjarvis.llm.providers.OllamaProvider
+import com.openjarvis.llm.providers.OllamaResponseParser
 import com.openjarvis.ui.theme.VoidColor
 import kotlinx.coroutines.launch
 
@@ -77,13 +79,13 @@ fun SettingsScreen(
     var baseUrl by remember {
         mutableStateOf(
             (providerPrefs.getString("provider_base_url", "") ?: "").ifBlank {
-                if (savedProvider == "Ollama (Local)") "http://127.0.0.1:11434" else ""
+                if (savedProvider == "Ollama (Local)") OllamaProvider.DEFAULT_BASE_URL else ""
             }
         )
     }
     var apiKey by remember { mutableStateOf(providerPrefs.getString("provider_api_key", "") ?: "") }
     var model by remember {
-        mutableStateOf(if (savedProvider == "Ollama (Local)") "qwen3:1.7b" else migratedModel)
+        mutableStateOf(if (savedProvider == "Ollama (Local)") OllamaProvider.DEFAULT_MODEL else migratedModel)
     }
     var showBaseUrlField by remember { mutableStateOf(savedProvider == "Custom" || savedProvider == "Ollama (Local)") }
     var showProvidersDropdown by remember { mutableStateOf(false) }
@@ -98,8 +100,16 @@ fun SettingsScreen(
     LaunchedEffect(selectedProvider) {
         showBaseUrlField = selectedProvider == "Custom" || selectedProvider == "Ollama (Local)"
         if (selectedProvider == "Ollama (Local)") {
-            if (baseUrl.isBlank()) baseUrl = "http://127.0.0.1:11434"
-            model = "qwen3:1.7b"
+            if (baseUrl.isBlank()) baseUrl = OllamaProvider.DEFAULT_BASE_URL
+            model = OllamaProvider.DEFAULT_MODEL
+            apiKey = ""
+            providerPrefs.edit().apply {
+                putString("provider_name", selectedProvider)
+                putString("provider_base_url", baseUrl.trim())
+                putString("provider_api_key", "")
+                putString("provider_model", OllamaProvider.DEFAULT_MODEL)
+                apply()
+            }
         }
     }
     
@@ -134,8 +144,18 @@ fun SettingsScreen(
                     onSelect = { provider ->
                         selectedProvider = provider
                         if (provider == "Ollama (Local)") {
-                            if (baseUrl.isBlank()) baseUrl = "http://127.0.0.1:11434"
-                            model = "qwen3:1.7b"
+                            if (baseUrl.isBlank()) baseUrl = OllamaProvider.DEFAULT_BASE_URL
+                            model = OllamaProvider.DEFAULT_MODEL
+                            apiKey = ""
+                            providerPrefs.edit().apply {
+                                putString("provider_name", provider)
+                                putString("provider_base_url", baseUrl.trim())
+                                putString("provider_api_key", "")
+                                putString("provider_model", OllamaProvider.DEFAULT_MODEL)
+                                apply()
+                            }
+                        } else {
+                            providerPrefs.edit().putString("provider_name", provider).apply()
                         }
                         showProvidersDropdown = false
                     }
@@ -145,7 +165,13 @@ fun SettingsScreen(
                 
                 FloatingLabelTextField(
                     value = baseUrl,
-                    onValueChange = { baseUrl = it },
+                    onValueChange = {
+                        baseUrl = it
+                        if (selectedProvider == "Ollama (Local)") {
+                            // Persist each edit; normalize immediately before every request.
+                            providerPrefs.edit().putString("provider_base_url", it.trim()).apply()
+                        }
+                    },
                     label = "Base URL",
                     isFocused = showBaseUrlField,
                     visible = showBaseUrlField
@@ -164,7 +190,15 @@ fun SettingsScreen(
                 
                 FloatingLabelTextField(
                     value = model,
-                    onValueChange = { model = it },
+                    onValueChange = {
+                        if (selectedProvider == "Ollama (Local)") {
+                            model = OllamaProvider.DEFAULT_MODEL
+                            providerPrefs.edit().putString("provider_model", OllamaProvider.DEFAULT_MODEL).apply()
+                        } else {
+                            model = it
+                            providerPrefs.edit().putString("provider_model", it.trim()).apply()
+                        }
+                    },
                     label = "Model",
                     isFocused = false
                 )
@@ -188,10 +222,17 @@ fun SettingsScreen(
                     model = model,
                     onSave = { name, url, key, mdl ->
                         val savedUrl = if (name == "Ollama (Local)" && url.isNotBlank()) {
-                            com.openjarvis.llm.providers.OllamaResponseParser.normalizeBaseUrl(url)
+                            OllamaResponseParser.normalizeBaseUrl(url)
                         } else url.trim()
                         val savedKey = if (name == "Ollama (Local)") "" else key
-                        val savedModel = if (name == "Ollama (Local)") "qwen3:1.7b" else mdl
+                        val savedModel = if (name == "Ollama (Local)") OllamaProvider.DEFAULT_MODEL else mdl
+                        providerPrefs.edit().apply {
+                            putString("provider_name", name)
+                            putString("provider_base_url", savedUrl)
+                            putString("provider_api_key", savedKey)
+                            putString("provider_model", savedModel)
+                            apply()
+                        }
                         onSaveProvider(name, savedUrl, savedKey, savedModel)
                         lastSaved = System.currentTimeMillis()
                         savedVisible = true
