@@ -3,6 +3,14 @@ package com.openjarvis.llm.providers
 import org.json.JSONObject
 
 internal object OllamaResponseParser {
+    fun normalizeBaseUrl(raw: String): String {
+        val trimmed = raw.trim()
+        require(trimmed.isNotEmpty()) { "URL missing" }
+        val withScheme = if (trimmed.startsWith("http://", ignoreCase = true) ||
+            trimmed.startsWith("https://", ignoreCase = true)) trimmed else "http://$trimmed"
+        return withScheme.trimEnd('/')
+    }
+
     private val thinkBlock = Regex("(?is)<think>.*?</think>")
 
     fun parseChatContent(body: String): String {
