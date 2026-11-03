@@ -33,15 +33,15 @@ class AgentReEvaluationPolicyTest {
 
     @Test fun rejectsEmptyRefusalAndRepeatedFailedStep() {
         val failed = Action(Action.WAIT, text = "Inbox")
-        assertFalse(AgentReEvaluationPolicy.isAcceptableReplan(emptyList(), failed))
+        assertFalse(AgentReEvaluationPolicy.isAcceptableReplan(emptyList(), emptyList(), failed))
         assertFalse(
             AgentReEvaluationPolicy.isAcceptableReplan(
-                listOf(Action(Action.ERROR, message = "not safe")), failed
+                listOf(Action(Action.ERROR, message = "not safe")), emptyList(), failed
             )
         )
         assertFalse(
             AgentReEvaluationPolicy.isAcceptableReplan(
-                listOf(Action(Action.WAIT, text = "Inbox")), failed
+                listOf(Action(Action.WAIT, text = "Inbox")), emptyList(), failed
             )
         )
     }
@@ -50,7 +50,19 @@ class AgentReEvaluationPolicyTest {
         val failed = Action(Action.WAIT, text = "Inbox")
         assertTrue(
             AgentReEvaluationPolicy.isAcceptableReplan(
-                listOf(Action(Action.CLICK, text = "Chats")), failed
+                listOf(Action(Action.CLICK, text = "Chats")), emptyList(), failed
+            )
+        )
+    }
+
+    @Test fun rejectsAReplanThatRepeatsACompletedStep() {
+        val completed = Action(Action.SCROLL, direction = "down")
+        val failed = Action(Action.WAIT, text = "Inbox")
+        assertFalse(
+            AgentReEvaluationPolicy.isAcceptableReplan(
+                listOf(Action(Action.SCROLL, direction = "down"), Action(Action.CLICK, text = "Chats")),
+                listOf(completed),
+                failed
             )
         )
     }
