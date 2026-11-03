@@ -34,7 +34,7 @@ class WakeWordConfigTest {
     }
 
     @Test fun diagnosticsExposeOnlyPrefixAndLength() {
-        assertEquals("keyPrefix=abcd, keyLength=32",
+        assertEquals("keyPrefix=abcd, keyLength=30",
             WakeWordConfig.accessKeyDiagnostic("abcd0123456789abcdef0123456789"))
     }
 
