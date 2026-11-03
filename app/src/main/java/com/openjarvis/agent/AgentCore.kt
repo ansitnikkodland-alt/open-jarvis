@@ -121,6 +121,39 @@ RULES:
                         else -> cleanCommand
                     }
 
+                    if (!isDeviceActionRequest(safeCommand)) {
+                        currentStage = "conversation"
+                        _state.value = AgentState.Running("Jarvis soch raha hai...")
+                        val history = ConversationMemory(context).recentContext()
+                        val conversationPrompt = """
+You are Jarvis, the user's personal local assistant and conversational companion.
+Speak naturally like a practical, candid Indian friend. Default language: simple Hinglish (Hindi in Roman script with everyday English). If the user speaks Marathi, reply in natural Marathi; if English, reply in English.
+Be warm but not fake, concise but thoughtful. Understand mood and context. Ask one useful follow-up only when needed. Give honest disagreement with reasons; never flatter, blindly agree, or pretend certainty.
+Use the user profile as communication and work-style context, not as permission to act. Maintain continuity using the recent conversation.
+This is conversation only: no JSON, action plans, markdown headings, or claims that you performed device actions. Explain errors in simple Hinglish and give the next practical step.
+USER PROFILE:
+\${UserProfileContext.prompt}
+RECENT CONVERSATION:
+\${history.ifBlank { "This is the start of the conversation." }}
+""".trimIndent()
+                        val chatStart = System.currentTimeMillis()
+                        val replyResult = universalAdapter.complete(conversationPrompt, safeCommand)
+                        val reply = replyResult.getOrElse { error ->
+                            val friendly = friendlyError(error)
+                            _state.value = AgentState.Error(friendly)
+                            graphifyRepo.logTask(safeCommand, "conversation failed: $friendly", universalAdapter.getProviderName(), System.currentTimeMillis() - chatStart)
+                            return@withLock
+                        }.trim().take(1800)
+                        if (reply.isBlank()) {
+                            _state.value = AgentState.Error("Jarvis ko abhi jawab nahi mila. Ek baar phir bol ya type kar.")
+                            return@withLock
+                        }
+                        ConversationMemory(context).remember(safeCommand, reply)
+                        graphifyRepo.logTask(safeCommand, "conversation: $reply", universalAdapter.getProviderName(), System.currentTimeMillis() - chatStart)
+                        _state.value = AgentState.Done(reply)
+                        return@withLock
+                    }
+
                     // Simple, unambiguous app launches do not need model inference,
                     // OCR, or graph retrieval. Resolve the installed app locally and execute.
                     val quickAction = QuickCommandRouter.parse(safeCommand)
@@ -357,6 +390,29 @@ Preserve the user's original intent. Never invent a destructive or sensitive act
     }
 
     fun getStateFlow(): StateFlow<AgentState> = state
+
+    private fun isDeviceActionRequest(command: String): Boolean {
+        val text = command.trim().lowercase()
+        val patterns = listOf(
+            Regex("^(please\\s+)?(open|launch|start|close|exit|force stop|tap|click|press|type|enter|scroll|swipe|search|send|call|dial|install|uninstall|download|upload|share|save|delete|turn on|turn off|enable|disable|set|change|navigate|go to)\\b"),
+            Regex("^(खोल|उघड|चालू कर|बंद कर|दाब|टॅप कर|लिही|टाइप कर|पाठव|कॉल कर|शोध|सेव्ह कर|डिलीट कर)"),
+            Regex("^(मला .* उघड|.* उघडून दे|.* चालू कर|.* बंद कर|.* पाठवून दे|.* कॉल लाव)")
+        )
+        return patterns.any { it.containsMatchIn(text) }
+    }
+
+    private fun friendlyError(error: Throwable): String {
+        val raw = error.message.orEmpty().lowercase()
+        return when {
+            raw.contains("connection") || raw.contains("refused") || raw.contains("ollama") ->
+                "Bhai, local AI se connection nahi ho raha. Ollama aur qwen2.5:1.5b running hain ya nahi, check kar."
+            raw.contains("timeout") ->
+                "Jawab dene mein zyada time lag gaya. Ek baar phir try kar."
+            raw.contains("permission") ->
+                "Is kaam ke liye permission nahi mili. Android Settings mein Jarvis ki permission check kar."
+            else -> "Bhai, abhi jawab generate nahi hua (\${error.javaClass.simpleName}). Thodi der baad dobara try kar."
+        }
+    }
 
     private fun getInstalledAIApps(): String {
         return "External AI apps disabled — use local Ollama only"
