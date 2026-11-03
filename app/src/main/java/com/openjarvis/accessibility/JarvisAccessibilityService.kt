@@ -147,13 +147,13 @@ class JarvisAccessibilityService : AccessibilityService() {
         }
         root.recycle()
         val target = editor ?: return false
-        val focused = target.performAction(AccessibilityNodeInfo.ACTION_FOCUS)
+        if (!target.isFocused) target.performAction(AccessibilityNodeInfo.ACTION_FOCUS)
         val arguments = android.os.Bundle().apply {
             putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, text)
         }
         val changed = target.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, arguments)
         target.recycle()
-        return changed || focused && false
+        return changed
     }
 
     fun pressBack() = performGlobalAction(GLOBAL_ACTION_BACK)
