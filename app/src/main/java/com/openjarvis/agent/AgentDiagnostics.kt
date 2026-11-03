@@ -12,14 +12,23 @@ object AgentDiagnostics {
     private const val KEY_LATEST = "latest_report"
     private const val TAG = "JarvisDiagnostics"
 
-    fun record(context: Context, stage: String, command: String, reason: String, rawResponse: String = "", error: Throwable? = null) {
+    fun record(
+        context: Context,
+        stage: String,
+        command: String,
+        reason: String,
+        rawResponse: String = "",
+        error: Throwable? = null,
+        provider: String = "Not identified",
+        model: String = "Not applicable"
+    ) {
         val timestamp = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US).format(Date())
         val report = buildString {
             appendLine("OPEN JARVIS DEBUG REPORT")
             appendLine("Time: $timestamp")
             appendLine("Stage: $stage")
-            appendLine("Provider: Ollama (Local)")
-            appendLine("Model: qwen3:1.7b")
+            appendLine("Provider: $provider")
+            appendLine("Model: $model")
             appendLine("Command: ${command.take(240)}")
             appendLine("Reason: ${reason.take(1200)}")
             if (rawResponse.isNotBlank()) {
