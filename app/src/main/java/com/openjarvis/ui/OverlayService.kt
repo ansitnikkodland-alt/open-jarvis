@@ -83,7 +83,7 @@ class OverlayService : Service() {
         serviceScope.launch {
             agentCore.state.collect { state ->
                 when (state) {
-                    is com.openjarvis.agent.AgentState.Idle -> statusText?.text = "Ready — type a command or use mic"
+                    is com.openjarvis.agent.AgentState.Idle -> statusText?.text = "Standby — say Hey Jarvis"
                     is com.openjarvis.agent.AgentState.Running -> statusText?.text = state.step
                     is com.openjarvis.agent.AgentState.Done -> {
                         statusText?.text = "Done — standby. Say Hey Jarvis."
@@ -322,7 +322,7 @@ class OverlayService : Service() {
         )
         return NotificationCompat.Builder(this, CHANNEL_ID)
             .setContentTitle("Open Jarvis")
-            .setContentText("Assistant is running — tap the floating Jarvis button")
+            .setContentText("Assistant is running — say Hey Jarvis")
             .setSmallIcon(R.drawable.ic_notification)
             .setContentIntent(pendingIntent)
             .setOngoing(true)
