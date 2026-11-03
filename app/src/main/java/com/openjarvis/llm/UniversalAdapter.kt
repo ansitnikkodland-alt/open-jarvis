@@ -44,7 +44,7 @@ class UniversalAdapter(private val context: Context) {
             "OpenAI" -> OpenAIProvider(apiKey, model)
             "Ollama (Local)" -> OllamaProvider(
                 baseUrl.ifBlank { OllamaProvider.DEFAULT_BASE_URL },
-                OllamaProvider.DEFAULT_MODEL
+                savedModel.ifBlank { OllamaProvider.DEFAULT_MODEL }
             )
             "Local (LlamaCpp)" -> {
                 val mm = getModelManager(context)
