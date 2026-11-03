@@ -228,8 +228,9 @@ SCREEN: {SCREEN_OCR}
 
                             var execution = executeActions(actions)
                             var reEvaluationResponse = ""
-                            if (!execution.succeeded && execution.failedAction != null &&
-                                AgentReEvaluationPolicy.canReplan(execution.completedActions, execution.failedAction)
+                            val failedActionForReplan = execution.failedAction
+                            if (!execution.succeeded && failedActionForReplan != null &&
+                                AgentReEvaluationPolicy.canReplan(execution.completedActions, failedActionForReplan)
                             ) {
                                 _state.value = AgentState.Running("checking why the step failed...")
                                 val freshScreen = runCatching { screenReader.extractAllText() }.getOrDefault("")
@@ -241,7 +242,7 @@ SCREEN: {SCREEN_OCR}
                                         .replace("{SCREEN_OCR}", freshScreen.take(1200)) +
                                         "\n\nAGENT RE-EVALUATION: The original goal is still: $safeCommand. " +
                                         "Already completed steps: $completedSummary. " +
-                                        "The last safe navigation/observation step failed: ${execution.failedAction.action}. " +
+                                        "The last safe navigation/observation step failed: ${failedActionForReplan.action}. " +
                                         "Failure: ${execution.failure ?: "verification failed"}. " +
                                         "Re-plan ONLY the remaining work from the fresh screen above. " +
                                         "Do not repeat completed steps or repeat the failed step. Return only a non-empty JSON action array."
@@ -250,7 +251,7 @@ SCREEN: {SCREEN_OCR}
                                         .getOrElse { throw it }
                                     val reEvaluation = LLMResponseValidator.validate(reEvaluationResponse)
                                     if (reEvaluation.isValid &&
-                                        AgentReEvaluationPolicy.isAcceptableReplan(reEvaluation.actions, execution.completedActions, execution.failedAction)
+                                        AgentReEvaluationPolicy.isAcceptableReplan(reEvaluation.actions, execution.completedActions, failedActionForReplan)
                                     ) {
                                         latency = System.currentTimeMillis() - startTime
                                         _state.value = AgentState.Running("executing revised plan...")
