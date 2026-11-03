@@ -36,6 +36,7 @@ import androidx.compose.ui.unit.sp
 import com.openjarvis.llm.UniversalAdapter
 import com.openjarvis.llm.providers.OllamaProvider
 import com.openjarvis.llm.providers.OllamaResponseParser
+import com.openjarvis.voice.WakeWordConfig
 import com.openjarvis.ui.theme.VoidColor
 import kotlinx.coroutines.launch
 
@@ -90,7 +91,7 @@ fun SettingsScreen(
     var lastSaved by remember { mutableStateOf(0L) }
     var savedVisible by remember { mutableStateOf(false) }
     var voiceEnabled by remember { mutableStateOf(voicePrefs.getBoolean("voice_enabled", false)) }
-    var wakeWordAccessKey by remember { mutableStateOf(voicePrefs.getString("picovoice_access_key", "") ?: "") }
+    var wakeWordAccessKey by remember { mutableStateOf(voicePrefs.getString(WakeWordConfig.PREFERENCE_KEY, "") ?: "") }
     var showWakeWordKey by remember { mutableStateOf(false) }
     var speakResults by remember { mutableStateOf(voicePrefs.getBoolean("speak_results", true)) }
     var speechRate by remember { mutableStateOf(1.05f) }
@@ -303,7 +304,10 @@ fun SettingsScreen(
                         value = wakeWordAccessKey,
                         onValueChange = {
                             wakeWordAccessKey = it
-                            voicePrefs.edit().putString("picovoice_access_key", it.trim()).apply()
+                            voicePrefs.edit().putString(
+                                WakeWordConfig.PREFERENCE_KEY,
+                                WakeWordConfig.normalizeAccessKey(it)
+                            ).apply()
                         },
                         label = "Picovoice AccessKey (free)",
                         isFocused = false,
