@@ -201,29 +201,44 @@ class JarvisAccessibilityService : AccessibilityService() {
     fun pressHome() = performGlobalAction(GLOBAL_ACTION_HOME)
     fun pressRecents() = performGlobalAction(GLOBAL_ACTION_RECENTS)
 
-    /** Scroll the first visible scrollable container in the requested direction. */
+    /** Scroll the first target-app scrollable container, not the floating overlay. */
     fun scrollScreen(direction: String): Boolean {
-        val root = rootInActiveWindow ?: return false
-        val queue = ArrayDeque<AccessibilityNodeInfo>()
-        queue.add(root)
-        while (queue.isNotEmpty()) {
-            val node = queue.removeFirst()
-            if (node.isVisibleToUser && node.isScrollable) {
-                val forward = direction.equals("down", ignoreCase = true) ||
-                    direction.equals("forward", ignoreCase = true)
-                val action = if (forward) AccessibilityNodeInfo.ACTION_SCROLL_FORWARD
-                    else AccessibilityNodeInfo.ACTION_SCROLL_BACKWARD
-                val success = node.performAction(action)
-                node.recycle()
-                while (queue.isNotEmpty()) queue.removeFirst().recycle()
-                return success
+        val roots = interactionRoots()
+        val forward = direction.equals("down", ignoreCase = true) ||
+            direction.equals("forward", ignoreCase = true)
+        val action = if (forward) AccessibilityNodeInfo.ACTION_SCROLL_FORWARD
+            else AccessibilityNodeInfo.ACTION_SCROLL_BACKWARD
+        for (index in roots.indices) {
+            if (scrollInRoot(roots[index], action)) {
+                for (remaining in index + 1 until roots.size) roots[remaining].recycle()
+                return true
             }
-            for (index in 0 until node.childCount) {
-                node.getChild(index)?.let(queue::add)
-            }
-            node.recycle()
         }
         return false
+    }
+
+    private fun scrollInRoot(root: AccessibilityNodeInfo, action: Int): Boolean {
+        val queue = ArrayDeque<AccessibilityNodeInfo>()
+        queue.add(root)
+        try {
+            while (queue.isNotEmpty()) {
+                val node = queue.removeFirst()
+                if (node.isVisibleToUser && node.isEnabled && node.isScrollable) {
+                    val success = node.performAction(action)
+                    node.recycle()
+                    while (queue.isNotEmpty()) queue.removeFirst().recycle()
+                    return success
+                }
+                for (index in 0 until node.childCount) {
+                    node.getChild(index)?.let(queue::add)
+                }
+                node.recycle()
+            }
+            return false
+        } finally {
+            root.recycle()
+            while (queue.isNotEmpty()) queue.removeFirst().recycle()
+        }
     }
 
     fun isPackageActive(packageName: String): Boolean {
@@ -255,26 +270,41 @@ class JarvisAccessibilityService : AccessibilityService() {
 
     fun containsVisibleText(expected: String): Boolean {
         if (expected.isBlank()) return false
-        val root = rootInActiveWindow ?: return false
-        val queue = ArrayDeque<AccessibilityNodeInfo>()
-        queue.add(root)
-        while (queue.isNotEmpty()) {
-            val node = queue.removeFirst()
-            val matches = node.isVisibleToUser && (
-                node.text?.toString()?.contains(expected, ignoreCase = true) == true ||
-                node.contentDescription?.toString()?.contains(expected, ignoreCase = true) == true
-            )
-            if (matches) {
-                node.recycle()
-                while (queue.isNotEmpty()) queue.removeFirst().recycle()
+        val roots = interactionRoots()
+        for (index in roots.indices) {
+            if (containsTextInRoot(roots[index], expected)) {
+                for (remaining in index + 1 until roots.size) roots[remaining].recycle()
                 return true
             }
-            for (index in 0 until node.childCount) {
-                node.getChild(index)?.let(queue::add)
-            }
-            node.recycle()
         }
         return false
+    }
+
+    private fun containsTextInRoot(root: AccessibilityNodeInfo, expected: String): Boolean {
+        val queue = ArrayDeque<AccessibilityNodeInfo>()
+        queue.add(root)
+        try {
+            while (queue.isNotEmpty()) {
+                val node = queue.removeFirst()
+                val matches = node.isVisibleToUser && (
+                    node.text?.toString()?.contains(expected, ignoreCase = true) == true ||
+                    node.contentDescription?.toString()?.contains(expected, ignoreCase = true) == true
+                )
+                if (matches) {
+                    node.recycle()
+                    while (queue.isNotEmpty()) queue.removeFirst().recycle()
+                    return true
+                }
+                for (index in 0 until node.childCount) {
+                    node.getChild(index)?.let(queue::add)
+                }
+                node.recycle()
+            }
+            return false
+        } finally {
+            root.recycle()
+            while (queue.isNotEmpty()) queue.removeFirst().recycle()
+        }
     }
 
     private fun findNodeByText(root: AccessibilityNodeInfo, text: String): AccessibilityNodeInfo? {
