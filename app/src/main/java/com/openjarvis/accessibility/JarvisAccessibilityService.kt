@@ -92,17 +92,19 @@ class JarvisAccessibilityService : AccessibilityService() {
             )
             if (matches) {
                 var candidate: AccessibilityNodeInfo? = AccessibilityNodeInfo.obtain(node)
-                repeat(6) {
-                    val current = candidate ?: return@repeat
+                for (depth in 0..5) {
+                    val current = candidate ?: break
                     if (current.isVisibleToUser && current.isEnabled && current.isClickable) {
                         val clicked = current.performAction(AccessibilityNodeInfo.ACTION_CLICK)
                         current.recycle()
-                        node.recycle()
-                        root.recycle()
-                        while (queue.isNotEmpty()) queue.removeFirst().recycle()
-                        if (clicked) return true
                         candidate = null
-                        return@repeat
+                        if (clicked) {
+                            node.recycle()
+                            root.recycle()
+                            while (queue.isNotEmpty()) queue.removeFirst().recycle()
+                            return true
+                        }
+                        break
                     }
                     val parent = current.parent
                     current.recycle()
