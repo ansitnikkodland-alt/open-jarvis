@@ -417,9 +417,10 @@ SCREEN: {SCREEN_OCR}
         for ((index, action) in actions.withIndex()) {
             var failure: String? = null
             var completed = false
-            for (attempt in 1..2) {
+            val maxAttempts = ActionRetryPolicy.maxAttempts(action)
+            for (attempt in 1..maxAttempts) {
                 _state.value = AgentState.Running(
-                    "Action ${index + 1}/${actions.size}: ${action.action} (attempt $attempt/2)"
+                    "Action ${index + 1}/${actions.size}: ${action.action} (attempt $attempt/$maxAttempts)"
                 )
                 failure = try {
                     executeOnce(action)
@@ -430,12 +431,13 @@ SCREEN: {SCREEN_OCR}
                     completed = true
                     break
                 }
-                Log.w(TAG, "Action ${index + 1} ${action.action} attempt $attempt failed: $failure")
-                if (attempt == 1) kotlinx.coroutines.delay(400)
+                Log.w(TAG, "Action ${index + 1} ${action.action} attempt $attempt/$maxAttempts failed: $failure")
+                if (ActionRetryPolicy.shouldRetry(action, attempt)) kotlinx.coroutines.delay(400)
             }
 
             if (!completed) {
-                val message = "Action ${index + 1}/${actions.size} (${action.action}) failed after one retry: ${failure ?: "verification failed"}"
+                val retryNote = if (maxAttempts > 1) "after one safe retry" else "without retry (to prevent duplicate side effects)"
+                val message = "Action ${index + 1}/${actions.size} (${action.action}) failed $retryNote: ${failure ?: "verification failed"}"
                 results.add(message)
                 Log.e(TAG, message)
                 _state.value = AgentState.Error(message)
