@@ -51,12 +51,13 @@ fun DashboardScreen(
     onOpenSettings: () -> Unit,
     onOpenEuronics: () -> Unit,
     graphifyRepo: GraphifyRepository,
+    isSystemActive: Boolean,
     modifier: Modifier = Modifier
 ) {
     var recentTasks by remember { mutableStateOf<List<TaskNode>>(emptyList()) }
     var mostUsedApps by remember { mutableStateOf<List<AppNode>>(emptyList()) }
+    var totalAppCount by remember { mutableIntStateOf(0) }
     var activePatternCount by remember { mutableIntStateOf(0) }
-    var isSystemActive by remember { mutableStateOf(true) }
     
     var heroAlpha by remember { mutableFloatStateOf(0f) }
     var statsAlpha by remember { mutableFloatStateOf(0f) }
@@ -66,6 +67,7 @@ fun DashboardScreen(
     LaunchedEffect(Unit) {
         recentTasks = graphifyRepo.getRecentTasks(10)
         mostUsedApps = graphifyRepo.getMostUsedApps(4)
+        totalAppCount = graphifyRepo.getMostUsedApps(1000).size
         activePatternCount = graphifyRepo.getAllPatterns().size
     }
     
@@ -100,7 +102,7 @@ fun DashboardScreen(
             HeroSection(
                 isSystemActive = isSystemActive,
                 taskCount = recentTasks.size,
-                appCount = mostUsedApps.size
+                appCount = totalAppCount
             )
 
             Spacer(modifier = Modifier.height(16.dp))
@@ -117,7 +119,7 @@ fun DashboardScreen(
             
             StatsRow(
                 tasks = recentTasks,
-                appCount = mostUsedApps.size,
+                appCount = totalAppCount,
                 patternCount = activePatternCount,
                 alpha = statsAlpha
             )
