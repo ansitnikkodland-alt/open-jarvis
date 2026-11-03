@@ -237,7 +237,8 @@ class OpenAIProvider(
 
 class OllamaProvider(
     override val baseUrl: String,
-    private val model: String = DEFAULT_MODEL
+    private val model: String = DEFAULT_MODEL,
+    private val appContext: android.content.Context? = null
 ) : LLMProvider {
 
     private val client = okhttp3.OkHttpClient.Builder()
