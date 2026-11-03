@@ -12,6 +12,7 @@ class WakeWordConfigTest {
     }
 
     @Test fun emptyKeyIsRejected() {
+        assertEquals("Add your Picovoice AccessKey in Settings.", WakeWordConfig.validateAccessKey(null))
         assertEquals("Add your Picovoice AccessKey in Settings.", WakeWordConfig.validateAccessKey(""))
         assertEquals("Add your Picovoice AccessKey in Settings.", WakeWordConfig.validateAccessKey("  \n "))
     }
