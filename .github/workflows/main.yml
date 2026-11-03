@@ -5,6 +5,7 @@ on:
   pull_request:
     branches:
       - feature/jarvis-stable-1.0
+      - feature/jarvis-stable-1.0-phase2-wakeword
 
 permissions:
   contents: read
