@@ -10,8 +10,8 @@ class AndroidTTSEngine(private val context: Context) {
 
     private var tts: TextToSpeech? = null
     private var isReady = false
-    private var speechRate = 1.05f
-    private var pitch = 0.95f
+    private var speechRate = 0.96f
+    private var pitch = 1.12f
 
     init {
         tts = TextToSpeech(context) { status ->
