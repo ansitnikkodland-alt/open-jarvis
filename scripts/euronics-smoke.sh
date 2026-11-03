@@ -48,7 +48,11 @@ echo "Waiting up to 60 seconds for mResumedActivity=MainActivity."
 RESUMED=""
 for ((second=1; second<=60; second++)); do
   ACTIVITY_STATE="$(adb shell dumpsys activity activities | tr -d '\r')"
-  RESUMED="$(printf '%s\n' "$ACTIVITY_STATE" | grep -F 'mResumedActivity' | grep -F 'com.openjarvis/.ui.MainActivity' || true)"
+  if RESUMED="$(printf '%s\n' "$ACTIVITY_STATE" | grep -F 'mResumedActivity' | grep -F 'com.openjarvis/.ui.MainActivity')"; then
+    :
+  else
+    RESUMED=""
+  fi
   if [[ -n "$RESUMED" ]]; then
     echo "MainActivity resumed after ${second}s: $RESUMED"
     break
