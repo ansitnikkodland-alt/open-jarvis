@@ -16,11 +16,13 @@ import android.os.Build
 import android.os.IBinder
 import android.provider.Settings
 import android.view.Gravity
+import android.view.MotionEvent
 import android.view.WindowManager
 import android.view.inputmethod.EditorInfo
 import android.widget.Button
 import android.widget.EditText
 import android.widget.LinearLayout
+import android.widget.ImageView
 import android.widget.TextView
 import android.widget.Toast
 import androidx.core.app.NotificationCompat
@@ -114,27 +116,59 @@ class OverlayService : Service() {
             windowManager = getSystemService(WINDOW_SERVICE) as WindowManager
             val root = LinearLayout(this).apply {
                 orientation = LinearLayout.VERTICAL
-                setPadding(10, 8, 10, 8)
-                background = rounded(Color.rgb(20, 18, 35), 24)
-                elevation = 18f
+                setPadding(0, 0, 0, 0)
+                setBackgroundColor(Color.TRANSPARENT)
+                elevation = 8f
             }
-            val pill = TextView(this).apply {
-                text = "JARVIS  ▾"
-                setCompoundDrawablesWithIntrinsicBounds(R.drawable.jarvis_robot, 0, 0, 0)
-                compoundDrawablePadding = 10
-                textSize = 15f
-                setTextColor(Color.WHITE)
-                gravity = Gravity.CENTER
-                setPadding(22, 14, 22, 14)
-                background = rounded(Color.rgb(55, 35, 95), 40)
-                setOnClickListener { togglePanel() }
+            // Compact transparent robot-only launcher. Drag to reposition; tap to expand.
+            val robot = ImageView(this).apply {
+                setImageResource(R.drawable.jarvis_robot)
+                scaleType = android.widget.ImageView.ScaleType.FIT_CENTER
+                contentDescription = "Open Jarvis"
+                layoutParams = LinearLayout.LayoutParams(dp(48), dp(48))
             }
-            root.addView(pill, LinearLayout.LayoutParams(-2, -2))
+            var downRawX = 0f
+            var downRawY = 0f
+            var startX = 0
+            var startY = 0
+            var dragged = false
+            robot.setOnTouchListener { _, event ->
+                val params = windowParams
+                when (event.action) {
+                    MotionEvent.ACTION_DOWN -> {
+                        downRawX = event.rawX
+                        downRawY = event.rawY
+                        startX = params?.x ?: 0
+                        startY = params?.y ?: 0
+                        dragged = false
+                        true
+                    }
+                    MotionEvent.ACTION_MOVE -> {
+                        val dx = event.rawX - downRawX
+                        val dy = event.rawY - downRawY
+                        if (kotlin.math.abs(dx) > 5 || kotlin.math.abs(dy) > 5) dragged = true
+                        if (dragged && params != null) {
+                            params.x = (startX - dx.toInt()).coerceAtLeast(0)
+                            params.y = (startY + dy.toInt()).coerceAtLeast(0)
+                            try { windowManager?.updateViewLayout(root, params) } catch (_: Exception) { }
+                        }
+                        true
+                    }
+                    MotionEvent.ACTION_UP -> {
+                        if (!dragged) togglePanel()
+                        true
+                    }
+                    else -> true
+                }
+            }
+            root.addView(robot, LinearLayout.LayoutParams(dp(48), dp(48)))
 
             val commandPanel = LinearLayout(this).apply {
                 orientation = LinearLayout.VERTICAL
                 visibility = android.view.View.GONE
-                setPadding(4, 12, 4, 4)
+                setPadding(12, 12, 12, 12)
+                background = rounded(Color.rgb(20, 18, 35), 20)
+                elevation = 12f
             }
             val status = TextView(this).apply {
                 text = "Ready — type a command or use mic"
@@ -241,6 +275,8 @@ class OverlayService : Service() {
         agentCore.executeTask(command)
         commandInput?.text?.clear()
     }
+
+    private fun dp(value: Int): Int = (value * resources.displayMetrics.density).toInt()
 
     private fun rounded(color: Int, radius: Int) = GradientDrawable().apply {
         setColor(color)
