@@ -1,0 +1,52 @@
+package com.openjarvis.agent
+
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
+import org.junit.Test
+
+class LLMResponseValidatorTest {
+    @Test fun acceptsCanonicalM4Actions() {
+        val result = LLMResponseValidator.validate(
+            """[{"action":"click","text":"Search"},{"action":"type_text","value":"weather"},{"action":"scroll","direction":"down"},{"action":"back"},{"action":"home"},{"action":"wait","text":"Done"},{"action":"read_screen"}]"""
+        )
+        assertTrue(result.errors.toString(), result.isValid)
+        assertEquals(7, result.actions.size)
+    }
+
+    @Test fun acceptsFencedArrayWithIntroText() {
+        val result = LLMResponseValidator.validate(
+            """Here is the plan:
+            ```json
+            [{"action":"tap","text":"Search"},{"action":"type","value":"hello"}]
+            ```"""
+        )
+        assertTrue(result.errors.toString(), result.isValid)
+        assertEquals(Action.CLICK, result.actions[0].action)
+        assertEquals(Action.TYPE_TEXT, result.actions[1].action)
+    }
+
+    @Test fun acceptsWrappedActionsObjectAndFieldAliases() {
+        val result = LLMResponseValidator.validate(
+            """{"actions":[{"type":"click","target":"Settings"},{"command":"wait","text":"Network","timeoutMs":6000}]}"""
+        )
+        assertTrue(result.errors.toString(), result.isValid)
+        assertEquals("Settings", result.actions[0].text)
+        assertEquals(6000L, result.actions[1].timeoutMs)
+    }
+
+    @Test fun rejectsUnknownActionsAndEmptyPlansClearly() {
+        val unknown = LLMResponseValidator.validate("""[{"action":"launch_moon"}]""")
+        assertFalse(unknown.isValid)
+        assertTrue(unknown.errors.first().contains("Unsupported action type"))
+        val empty = LLMResponseValidator.validate("[]")
+        assertFalse(empty.isValid)
+        assertEquals("Empty action plan", empty.errors.first())
+    }
+
+    @Test fun reportsNonObjectItemsWithoutCrashing() {
+        val result = LLMResponseValidator.validate("""["click"]""")
+        assertFalse(result.isValid)
+        assertEquals("Item 0 is not an object", result.errors.first())
+    }
+}
