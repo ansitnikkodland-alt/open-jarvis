@@ -74,13 +74,7 @@ fun SettingsScreen(
     val savedModel = OllamaProvider.DEFAULT_MODEL
     val migratedModel = OllamaProvider.DEFAULT_MODEL
     var selectedProvider by remember { mutableStateOf(savedProvider) }
-    var baseUrl by remember {
-        mutableStateOf(
-            (providerPrefs.getString("provider_base_url", "") ?: "").ifBlank {
-                if (savedProvider == "Ollama (Local)") OllamaProvider.DEFAULT_BASE_URL else ""
-            }
-        )
-    }
+    var baseUrl by remember { mutableStateOf(OllamaProvider.DEFAULT_BASE_URL) }
     var apiKey by remember { mutableStateOf("") }
     var model by remember {
         mutableStateOf(
@@ -176,14 +170,8 @@ fun SettingsScreen(
                 
                 FloatingLabelTextField(
                     value = baseUrl,
-                    onValueChange = {
-                        baseUrl = it
-                        if (selectedProvider == "Ollama (Local)") {
-                            // Persist each edit; normalize immediately before every request.
-                            providerPrefs.edit().putString("provider_base_url", it.trim()).apply()
-                        }
-                    },
-                    label = "Base URL",
+                    onValueChange = { baseUrl = OllamaProvider.DEFAULT_BASE_URL },
+                    label = "Local Base URL (fixed)",
                     isFocused = showBaseUrlField,
                     visible = showBaseUrlField
                 )
