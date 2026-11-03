@@ -55,6 +55,7 @@ fun DashboardScreen(
 ) {
     var recentTasks by remember { mutableStateOf<List<TaskNode>>(emptyList()) }
     var mostUsedApps by remember { mutableStateOf<List<AppNode>>(emptyList()) }
+    var activePatternCount by remember { mutableIntStateOf(0) }
     var isSystemActive by remember { mutableStateOf(true) }
     
     var heroAlpha by remember { mutableFloatStateOf(0f) }
@@ -65,6 +66,7 @@ fun DashboardScreen(
     LaunchedEffect(Unit) {
         recentTasks = graphifyRepo.getRecentTasks(10)
         mostUsedApps = graphifyRepo.getMostUsedApps(4)
+        activePatternCount = graphifyRepo.getAllPatterns().size
     }
     
     LaunchedEffect(Unit) {
@@ -113,7 +115,12 @@ fun DashboardScreen(
 
             Spacer(modifier = Modifier.height(16.dp))
             
-            StatsRow(tasks = recentTasks, alpha = statsAlpha)
+            StatsRow(
+                tasks = recentTasks,
+                appCount = mostUsedApps.size,
+                patternCount = activePatternCount,
+                alpha = statsAlpha
+            )
             
             Spacer(modifier = Modifier.height(24.dp))
             
@@ -280,7 +287,7 @@ private fun HeroSection(isSystemActive: Boolean, taskCount: Int, appCount: Int) 
             border = androidx.compose.foundation.BorderStroke(1.dp, VoidColor.BorderGlow)
         ) {
             Text(
-                text = "AI AGENT v0.1",
+                text = "JARVIS STABLE 1.0",
                 style = TextStyle(
                     fontFamily = FontFamily.Default,
                     fontWeight = FontWeight(500),
@@ -399,11 +406,21 @@ private fun StatusBadge(isActive: Boolean) {
 }
 
 @Composable
-private fun StatsRow(tasks: List<TaskNode>, alpha: Float) {
+private fun StatsRow(tasks: List<TaskNode>, appCount: Int, patternCount: Int, alpha: Float) {
     val animatedCount by animateIntAsState(
         targetValue = tasks.size.coerceAtLeast(0),
         animationSpec = tween(500, easing = EaseOutQuart),
         label = "count"
+    )
+    val animatedApps by animateIntAsState(
+        targetValue = appCount.coerceAtLeast(0),
+        animationSpec = tween(500, easing = EaseOutQuart),
+        label = "apps_count"
+    )
+    val animatedPatterns by animateIntAsState(
+        targetValue = patternCount.coerceAtLeast(0),
+        animationSpec = tween(500, easing = EaseOutQuart),
+        label = "patterns_count"
     )
     
     Column(modifier = Modifier.alpha(alpha)) {
@@ -417,12 +434,12 @@ private fun StatsRow(tasks: List<TaskNode>, alpha: Float) {
                 modifier = Modifier.weight(1f)
             )
             StatCard(
-                count = 0,
+                count = animatedApps,
                 label = "Apps Used",
                 modifier = Modifier.weight(1f)
             )
             StatCard(
-                count = 0,
+                count = animatedPatterns,
                 label = "Patterns",
                 modifier = Modifier.weight(1f)
             )
@@ -515,7 +532,9 @@ private fun RecentTasksSection(tasks: List<TaskNode>, alpha: Float) {
 
 @Composable
 private fun TaskCard(task: TaskNode) {
-    val isSuccess = task.result.contains("Opened") || task.result.contains("Success")
+    val isSuccess = task.result.contains("opened", ignoreCase = true) ||
+        task.result.contains("success", ignoreCase = true) ||
+        task.result.contains("completed", ignoreCase = true)
     val outcomeColor = if (isSuccess) VoidColor.Green else VoidColor.Red
     
     Surface(

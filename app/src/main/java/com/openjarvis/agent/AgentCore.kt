@@ -102,11 +102,18 @@ SCREEN: {SCREEN_OCR}
 
                     val fastCommand = FastCommandParser.parse(safeCommand)
                     if (fastCommand != null) {
+                        val historyCommand = when (fastCommand) {
+                            is FastCommandParser.Command.Remember -> "remember [encrypted local note]"
+                            is FastCommandParser.Command.Forget -> "forget [local memory query]"
+                            else -> safeCommand
+                        }
+                        val hideMemoryResult = fastCommand is FastCommandParser.Command.Remember ||
+                            fastCommand is FastCommandParser.Command.Forget
                         try {
                             val result = executeFastCommand(fastCommand)
                             graphifyRepo.logTask(
-                                command = safeCommand,
-                                result = "success (fast path accepted): $result",
+                                command = historyCommand,
+                                result = if (hideMemoryResult) "success (local memory updated)" else "success (fast path accepted): $result",
                                 provider = "Android fast path",
                                 latencyMs = 0
                             )
@@ -114,7 +121,7 @@ SCREEN: {SCREEN_OCR}
                         } catch (error: Exception) {
                             val detail = error.message?.takeIf { it.isNotBlank() } ?: error.javaClass.simpleName
                             AgentDiagnostics.record(context, "fast-command-execution", safeCommand, detail, error = error, provider = "Android fast path", model = "Not used")
-                            graphifyRepo.logTask(safeCommand, "failed (fast path): $detail", "Android fast path", 0)
+                            graphifyRepo.logTask(historyCommand, "failed (fast path): $detail", "Android fast path", 0)
                             _state.value = AgentState.Error(detail)
                         }
                         return@withLock
