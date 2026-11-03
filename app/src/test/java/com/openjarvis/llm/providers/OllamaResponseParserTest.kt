@@ -71,4 +71,35 @@ class OllamaResponseParserTest {
             OllamaResponseParser.httpError(404, """{"error":"model not found"}""")
         )
     }
+    @Test fun buildsEveryEndpointFromTheNormalizedBaseUrl() {
+        assertEquals(
+            "http://127.0.0.1:11434/api/chat",
+            OllamaResponseParser.buildUrl("  127.0.0.1:11434/  ", "/api/chat")
+        )
+        assertEquals(
+            "https://localhost:11434/api/tags",
+            OllamaResponseParser.buildUrl("https://localhost:11434/", "api/tags")
+        )
+    }
+
+    @Test fun chatRequestAlwaysDisablesQwenThinking() {
+        val request = org.json.JSONObject(
+            OllamaResponseParser.buildChatRequestBody(
+                model = "qwen3:1.7b",
+                systemPrompt = "system",
+                userMessage = "hello"
+            )
+        )
+        assertEquals("qwen3:1.7b", request.getString("model"))
+        assertFalse(request.getBoolean("think"))
+        assertFalse(request.getBoolean("stream"))
+    }
+
+    @Test fun stripsThinkBlocksEvenWhenTheyAreSurroundedByWhitespace() {
+        assertEquals(
+            "Final answer",
+            OllamaResponseParser.stripThinkBlocks("  <think>hidden</think>  Final answer  ")
+        )
+    }
+
 }
