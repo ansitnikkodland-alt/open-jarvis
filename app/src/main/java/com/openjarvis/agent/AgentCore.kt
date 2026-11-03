@@ -111,7 +111,7 @@ SCREEN: {SCREEN_OCR}
                             _state.value = AgentState.Done(result)
                         } catch (error: Exception) {
                             val detail = error.message?.takeIf { it.isNotBlank() } ?: error.javaClass.simpleName
-                            AgentDiagnostics.record(context, "fast-command-execution", safeCommand, detail, error = error)
+                            AgentDiagnostics.record(context, "fast-command-execution", safeCommand, detail, error = error, provider = "Android fast path", model = "Not used")
                             graphifyRepo.logTask(safeCommand, "failed (fast path): $detail", "Android fast path", 0)
                             _state.value = AgentState.Error(detail)
                         }
@@ -269,9 +269,19 @@ SCREEN: {SCREEN_OCR}
                     val label = action.label
                     val packageName = action.packageName ?: label?.let { findPackageByLabel(it) }
                     if (packageName.isNullOrBlank()) return "App not found: ${label ?: "package missing"}"
-                    if (activeService == null || !activeService.openAppByPackage(packageName)) return "Could not open app: ${label ?: packageName}"
-                    kotlinx.coroutines.delay(900)
-                    if (activeService.isPackageActive(packageName)) null else "App launch was sent, but Android did not verify the app is foreground"
+                    if (activeService == null || !activeService.openAppByPackage(packageName)) return "Could not start app: ${label ?: packageName}"
+                    var foregroundConfirmed = false
+                    repeat(16) {
+                        if (activeService.isPackageActive(packageName)) {
+                            foregroundConfirmed = true
+                            return@repeat
+                        }
+                        kotlinx.coroutines.delay(250)
+                    }
+                    if (!foregroundConfirmed) {
+                        Log.w(TAG, "App launch accepted for $packageName; foreground confirmation unavailable. Continuing action plan.")
+                    }
+                    null
                 }
 
                 Action.CLICK, Action.TAP -> {
@@ -377,7 +387,12 @@ SCREEN: {SCREEN_OCR}
                 _state.value = AgentState.Error(message)
                 return false
             }
-            results.add("Action ${index + 1}/${actions.size} ${action.action}: verified")
+            val actionResult = if (action.action == Action.OPEN_APP) {
+                "Action ${index + 1}/${actions.size} ${action.action}: launch accepted"
+            } else {
+                "Action ${index + 1}/${actions.size} ${action.action}: completed"
+            }
+            results.add(actionResult)
             Log.i(TAG, results.last())
             kotlinx.coroutines.delay(250)
         }
@@ -386,6 +401,11 @@ SCREEN: {SCREEN_OCR}
     }
 
     private suspend fun executeFastCommand(command: FastCommandParser.Command): String {
+        // An app launch is not safe to retry after startActivity succeeds: a failed
+        // foreground observation must never launch the same app a second time.
+        if (command is FastCommandParser.Command.OpenApp) {
+            return executeFastCommandOnce(command)
+        }
         var lastFailure = "Command could not be verified"
         for (attempt in 1..2) {
             try {
@@ -402,14 +422,31 @@ SCREEN: {SCREEN_OCR}
     private suspend fun executeFastCommandOnce(command: FastCommandParser.Command): String {
         return when (command) {
             is FastCommandParser.Command.OpenApp -> {
-                val opened = tryFastOpenApp("open ${command.target}")
-                    ?: throw IllegalStateException("App not found or could not be launched: ${command.target}")
-                kotlinx.coroutines.delay(800)
-                val packageName = findPackageByLabel(command.target)
-                if (packageName != null && JarvisAccessibilityService.instance?.isPackageActive(packageName) != true) {
-                    throw IllegalStateException("Launch requested for ${command.target}, but foreground app verification failed")
+                val packageName = resolveAppPackage(command.target)
+                    ?: throw IllegalStateException("App not found: ${command.target}")
+                val launchIntent = context.packageManager.getLaunchIntentForPackage(packageName)
+                    ?: throw IllegalStateException("No launch activity available for ${command.target} ($packageName)")
+                try {
+                    launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    context.startActivity(launchIntent)
+                } catch (error: Exception) {
+                    throw IllegalStateException("Android could not launch ${command.target}: ${error.message ?: error.javaClass.simpleName}", error)
                 }
-                "Opened ${opened}"
+
+                var foregroundConfirmed = false
+                repeat(16) {
+                    if (JarvisAccessibilityService.instance?.isPackageActive(packageName) == true) {
+                        foregroundConfirmed = true
+                        return@repeat
+                    }
+                    kotlinx.coroutines.delay(250)
+                }
+                if (foregroundConfirmed) {
+                    "Opened ${command.target} (foreground confirmed)"
+                } else {
+                    Log.w(TAG, "Launch accepted for ${command.target} ($packageName), but foreground confirmation was unavailable")
+                    "Launch sent to ${command.target}; Android foreground confirmation unavailable"
+                }
             }
             FastCommandParser.Command.CloseCurrentApp -> {
                 val service = JarvisAccessibilityService.instance
@@ -458,19 +495,9 @@ SCREEN: {SCREEN_OCR}
         }
     }
 
-    private fun tryFastOpenApp(command: String): String? {
-        val target = FastCommandParser.openAppTarget(command) ?: return null
-        val packageName = if (target.equals("settings", ignoreCase = true)) {
-            "com.android.settings"
-        } else {
-            findPackageByLabel(target)
-        } ?: return null
-        val launchIntent = context.packageManager.getLaunchIntentForPackage(packageName) ?: return null
-        return runCatching {
-            launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            context.startActivity(launchIntent)
-            target
-        }.getOrNull()
+    private fun resolveAppPackage(label: String): String? {
+        if (label.equals("settings", ignoreCase = true)) return "com.android.settings"
+        return findPackageByLabel(label)
     }
 
     companion object {
@@ -488,20 +515,25 @@ SCREEN: {SCREEN_OCR}
             pm.queryIntentActivities(intent, 0)
 
         val normalizedLabel = label.lowercase().trim()
+        if (normalizedLabel.isBlank()) return null
 
-        for (app in apps) {
-            val appLabel =
-                app.loadLabel(pm).toString().lowercase()
+        val candidates = apps.map { app ->
+            app.loadLabel(pm).toString().lowercase().trim() to app.activityInfo.packageName
+        }.distinctBy { it.second }
 
-            if (
-                appLabel == normalizedLabel ||
-                appLabel.contains(normalizedLabel) ||
-                normalizedLabel.contains(appLabel)
-            ) {
-                return app.activityInfo.packageName
-            }
+        // Prefer an exact launcher-label match. Never let a short substring such as
+        // "app" accidentally select an unrelated installed application.
+        candidates.firstOrNull { it.first == normalizedLabel }?.let { return it.second }
+
+        val prefixMatches = candidates.filter { (appLabel, _) ->
+            appLabel.startsWith(normalizedLabel) && normalizedLabel.length >= 3
         }
+        if (prefixMatches.size == 1) return prefixMatches.first().second
 
-        return null
+        val containsMatches = candidates.filter { (appLabel, _) ->
+            normalizedLabel.length >= 4 &&
+                (appLabel.contains(normalizedLabel) || normalizedLabel.contains(appLabel) && appLabel.length >= 4)
+        }
+        return containsMatches.singleOrNull()?.second
     }
 }
