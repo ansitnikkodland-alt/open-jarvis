@@ -36,6 +36,7 @@ import com.openjarvis.graphify.GraphifyRepository
 import com.openjarvis.graphify.nodes.TaskNode
 import com.openjarvis.voice.VoiceManager
 import com.openjarvis.voice.PorcupineWakeWordController
+import com.openjarvis.voice.WakeWordConfig
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -190,8 +191,8 @@ class OverlayService : Service() {
                 setTextColor(Color.WHITE)
                 setHintTextColor(Color.GRAY)
                 setSingleLine(false)
-                minLines = 2
-                maxLines = 4
+                minLines = 1
+                maxLines = 2
                 inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_FLAG_MULTI_LINE
                 imeOptions = EditorInfo.IME_ACTION_SEND
                 setPadding(dp(10), dp(8), dp(10), dp(8))
