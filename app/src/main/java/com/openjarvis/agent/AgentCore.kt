@@ -60,7 +60,7 @@ Use ONLY these actions:
 {"action":"wait","text":"visible text","timeout_ms":3000}
 {"action":"read_screen"}
 {"action":"error","message":"reason"}
-Understand Hindi, Marathi, Hinglish, and English. Convert user intent into the shortest safe action list. Never invent visible text or app names. Use read_screen when the target is unclear. Never clear, submit, reset, or delete user data unless explicitly requested. If the task cannot be done safely, return one error action.
+Understand Hindi, Marathi, Hinglish, and English. Convert user intent into the shortest safe action list. Never invent visible text or app names. The current screen text is already supplied below: do NOT emit read_screen or extract_text. If screen text is insufficient, return one error action with a concrete user-facing reason, never a placeholder such as 'reason' or 'error'. Never clear, submit, reset, or delete user data unless explicitly requested. If the task cannot be done safely, return one error action.
 SCREEN: {SCREEN_OCR}
 """.trimIndent()
 
@@ -140,21 +140,75 @@ SCREEN: {SCREEN_OCR}
 
                     result.fold(
                         onSuccess = { rawJson ->
-                            val latency =
-                                System.currentTimeMillis() - startTime
-
-                            val validation =
-                                LLMResponseValidator.validate(rawJson)
+                            var effectiveRawJson = rawJson
+                            var latency = System.currentTimeMillis() - startTime
+                            var validation = LLMResponseValidator.validate(effectiveRawJson)
 
                             if (!validation.isValid) {
                                 val reason = validation.errors.firstOrNull() ?: "Empty action plan"
-                                AgentDiagnostics.record(context, "response-validation", safeCommand, reason, rawJson, provider = universalAdapter.getProviderName(), model = "qwen3:1.7b")
+                                AgentDiagnostics.record(context, "response-validation", safeCommand, reason, effectiveRawJson, provider = universalAdapter.getProviderName(), model = "qwen3:1.7b")
                                 _state.value = AgentState.Error("AI response invalid: $reason")
                                 graphifyRepo.logTask(safeCommand, "failed: validation error", universalAdapter.getProviderName(), latency)
                                 return@fold
                             }
 
-                            val actions = validation.actions
+                            var actions = validation.actions
+
+                            // A read_screen action cannot work as a later step in the same
+                            // generated plan: the model has already finished planning before
+                            // Android executes it. Read the screen locally, then ask the model
+                            // once more with that actual text before executing any actions.
+                            if (actions.any { it.action == Action.READ_SCREEN || it.action == Action.EXTRACT_TEXT }) {
+                                _state.value = AgentState.Running("updating screen context...")
+                                val refreshedScreen = runCatching { screenReader.extractAllText() }
+                                    .getOrDefault("")
+                                if (refreshedScreen.isBlank()) {
+                                    val reason = "Android accessibility returned no readable screen text. Open the target app and make sure Jarvis Accessibility is enabled."
+                                    AgentDiagnostics.record(context, "screen-context-refresh", safeCommand, reason, effectiveRawJson, provider = universalAdapter.getProviderName(), model = "qwen3:1.7b")
+                                    _state.value = AgentState.Error(reason)
+                                    graphifyRepo.logTask(safeCommand, "failed: screen context unavailable", universalAdapter.getProviderName(), latency)
+                                    return@fold
+                                }
+
+                                val refreshedPrompt = systemPrompt.replace("{SCREEN_OCR}", refreshedScreen.take(1200)) +
+                                    "\n\nThe screen text above is the fresh current screen. Now produce executable actions directly. Do not return read_screen or extract_text."
+                                _state.value = AgentState.Running("screen samajh kar action bana raha hoon...")
+                                effectiveRawJson = universalAdapter.complete(refreshedPrompt, safeCommand).getOrElse { throw it }
+                                latency = System.currentTimeMillis() - startTime
+                                validation = LLMResponseValidator.validate(effectiveRawJson)
+                                if (!validation.isValid) {
+                                    val reason = validation.errors.firstOrNull() ?: "The refreshed action plan was empty"
+                                    AgentDiagnostics.record(context, "screen-replan-validation", safeCommand, reason, effectiveRawJson, provider = universalAdapter.getProviderName(), model = "qwen3:1.7b")
+                                    _state.value = AgentState.Error("AI could not create an action plan: $reason")
+                                    graphifyRepo.logTask(safeCommand, "failed: refreshed plan invalid", universalAdapter.getProviderName(), latency)
+                                    return@fold
+                                }
+                                actions = validation.actions
+                            }
+
+                            // An explicit model refusal is not an Android action and must
+                            // never be retried by the executor as if it were a device failure.
+                            val refusal = actions.firstOrNull { it.action == Action.ERROR }
+                            if (refusal != null) {
+                                val rawReason = refusal.message.orEmpty().trim()
+                                val reason = if (rawReason.isBlank() || rawReason.lowercase() in setOf("reason", "error", "unknown", "unknown error")) {
+                                    "I couldn't determine a safe action from the current screen. Make sure the target app is open and give Jarvis a specific instruction."
+                                } else rawReason
+                                AgentDiagnostics.record(context, "action-planning-refusal", safeCommand, reason, effectiveRawJson, provider = universalAdapter.getProviderName(), model = "qwen3:1.7b")
+                                _state.value = AgentState.Error(reason)
+                                graphifyRepo.logTask(safeCommand, "failed: model could not plan an action", universalAdapter.getProviderName(), latency)
+                                return@fold
+                            }
+
+                            // A second observation request means the model still has not
+                            // produced executable work. Stop with a useful explanation.
+                            if (actions.any { it.action == Action.READ_SCREEN || it.action == Action.EXTRACT_TEXT }) {
+                                val reason = "The local model requested another screen read instead of choosing an action. Try a more specific command or reopen the target app."
+                                AgentDiagnostics.record(context, "screen-replan-loop", safeCommand, reason, effectiveRawJson, provider = universalAdapter.getProviderName(), model = "qwen3:1.7b")
+                                _state.value = AgentState.Error(reason)
+                                graphifyRepo.logTask(safeCommand, "failed: repeated screen observation request", universalAdapter.getProviderName(), latency)
+                                return@fold
+                            }
 
                             _state.value = AgentState.Running(
                                 "executing ${actions.size} actions..."
@@ -163,7 +217,7 @@ SCREEN: {SCREEN_OCR}
                             val executionSucceeded = executeActions(actions)
                             if (!executionSucceeded || _state.value is AgentState.Error) {
                                 val failure = (_state.value as? AgentState.Error)?.message ?: "Action execution returned false"
-                                AgentDiagnostics.record(context, "action-execution", safeCommand, failure, rawJson, provider = universalAdapter.getProviderName(), model = "qwen3:1.7b")
+                                AgentDiagnostics.record(context, "action-execution", safeCommand, failure, effectiveRawJson, provider = universalAdapter.getProviderName(), model = "qwen3:1.7b")
                                 graphifyRepo.logTask(safeCommand, "failed: action execution", universalAdapter.getProviderName(), latency)
                                 return@fold
                             }
