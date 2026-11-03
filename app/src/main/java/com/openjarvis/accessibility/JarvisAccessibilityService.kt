@@ -102,7 +102,7 @@ class JarvisAccessibilityService : AccessibilityService() {
 
     private fun tapInRoot(root: AccessibilityNodeInfo, needle: String): Boolean {
         val queue = ArrayDeque<AccessibilityNodeInfo>()
-        queue.add(root)
+        queue.add(AccessibilityNodeInfo.obtain(root))
         try {
             while (queue.isNotEmpty()) {
                 val node = queue.removeFirst()
@@ -219,7 +219,7 @@ class JarvisAccessibilityService : AccessibilityService() {
 
     private fun scrollInRoot(root: AccessibilityNodeInfo, action: Int): Boolean {
         val queue = ArrayDeque<AccessibilityNodeInfo>()
-        queue.add(root)
+        queue.add(AccessibilityNodeInfo.obtain(root))
         try {
             while (queue.isNotEmpty()) {
                 val node = queue.removeFirst()
@@ -282,7 +282,7 @@ class JarvisAccessibilityService : AccessibilityService() {
 
     private fun containsTextInRoot(root: AccessibilityNodeInfo, expected: String): Boolean {
         val queue = ArrayDeque<AccessibilityNodeInfo>()
-        queue.add(root)
+        queue.add(AccessibilityNodeInfo.obtain(root))
         try {
             while (queue.isNotEmpty()) {
                 val node = queue.removeFirst()
