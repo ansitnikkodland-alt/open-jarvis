@@ -395,7 +395,11 @@ Preserve the user's original intent. Never invent a destructive or sensitive act
         val text = command.trim().lowercase()
         val patterns = listOf(
             Regex("^(please\\s+)?(open|launch|start|close|exit|force stop|tap|click|press|type|enter|scroll|swipe|search|send|call|dial|install|uninstall|download|upload|share|save|delete|turn on|turn off|enable|disable|set|change|navigate|go to)\\b"),
+            // Roman Hindi/Marathi action verbs are often spoken after the app or
+            // target name: "YouTube kholo", "torch chalu kar", "message bhej".
+            Regex("\\b(kholo|khol|khol do|ughad|ughaḍ|chalu kar|chalu karo|band kar|band karo|dabao|dabaa|bhej|bhejo|bhej do|search kar|dhundo|shodh|call laga|phone laga|message bhej|play karo|play kar)\\b"),
             Regex("^(खोल|उघड|चालू कर|बंद कर|दाब|टॅप कर|लिही|टाइप कर|पाठव|कॉल कर|शोध|सेव्ह कर|डिलीट कर)"),
+            Regex("(खोलो|खोल दो|उघडा|उघडून दे|चालू कर|चालू करो|बंद कर|बंद करो|पाठव|पाठवा|पाठवून दे|कॉल लाव|शोधा|चलाओ|प्ले करो)"),
             Regex("^(मला .* उघड|.* उघडून दे|.* चालू कर|.* बंद कर|.* पाठवून दे|.* कॉल लाव)")
         )
         return patterns.any { it.containsMatchIn(text) }
