@@ -125,7 +125,7 @@ jobs:
                            if "EURONICS SERVICE REPORT" in (node.attrib.get("text") or "").upper()), None)
             if target is None:
                 raise SystemExit("Euronics dashboard entry not found in UI hierarchy")
-            match = re.fullmatch(r"\\[(\\d+),(\\d+)\\]\\[(\\d+),(\\d+)\\]", target.attrib["bounds"])
+            match = re.fullmatch(r"\[(\d+),(\d+)\]\[(\d+),(\d+)\]", target.attrib["bounds"])
             if not match:
                 raise SystemExit("Could not parse Euronics button bounds")
             left, top, right, bottom = map(int, match.groups())
