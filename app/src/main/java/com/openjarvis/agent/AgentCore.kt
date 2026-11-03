@@ -104,7 +104,7 @@ SCREEN: {SCREEN_OCR}
                             val result = executeFastCommand(fastCommand)
                             graphifyRepo.logTask(
                                 command = safeCommand,
-                                result = "success (verified fast path): $result",
+                                result = "success (fast path accepted): $result",
                                 provider = "Android fast path",
                                 latencyMs = 0
                             )
@@ -179,7 +179,7 @@ SCREEN: {SCREEN_OCR}
                                 .onFailure { Log.e(TAG, "Post-task analysis failed", it) }
 
                             _state.value =
-                                AgentState.Done("Verified ${actions.size}/${actions.size} actions • done in ${latency}ms")
+                                AgentState.Done("Completed ${actions.size} actions • done in ${latency}ms")
                         },
 
                         onFailure = { error ->
