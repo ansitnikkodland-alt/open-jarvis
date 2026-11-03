@@ -56,8 +56,7 @@ internal object FastCommandParser {
         if (normalized.isBlank()) return null
         val match = englishOpen.matchEntire(normalized) ?: hindiOpen.matchEntire(normalized) ?: return null
         return match.groupValues[1].trim().takeIf {
-            it.isNotBlank() && it.length <= 60 &&
-                true
+            it.isNotBlank() && it.length <= 60
         }
     }
 
@@ -66,9 +65,9 @@ internal object FastCommandParser {
         return when {
             listOf("wifi", "wi-fi", "वाईफाई").any { q.contains(it) } && listOf("setting", "settings", "on karo", "kholo", "khol").any { q.contains(it) } -> "wifi"
             listOf("bluetooth", "ब्लूटूथ").any { q.contains(it) } && listOf("setting", "settings", "kholo", "khol").any { q.contains(it) } -> "bluetooth"
-            listOf("display", "brightness", "screen setting").any { q.contains(it) } -> "display"
-            listOf("sound", "volume", "audio setting").any { q.contains(it) } -> "sound"
-            listOf("location setting", "location settings", "gps setting").any { q.contains(it) } -> "location"
+            listOf("display settings", "display setting", "screen settings", "brightness settings").any { q.contains(it) } -> "display"
+            listOf("sound settings", "sound setting", "volume settings", "audio settings").any { q.contains(it) } -> "sound"
+            listOf("location setting", "location settings", "gps setting", "gps settings").any { q.contains(it) } -> "location"
             listOf("accessibility setting", "accessibility settings").any { q.contains(it) } -> "accessibility"
             listOf("app settings", "applications setting", "manage apps").any { q.contains(it) } -> "apps"
             q in listOf("settings", "open settings", "settings kholo", "settings khol do", "सेटिंग खोलो") -> "general"
