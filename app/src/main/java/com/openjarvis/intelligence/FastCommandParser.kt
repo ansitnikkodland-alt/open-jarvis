@@ -76,6 +76,7 @@ internal object FastCommandParser {
             listOf("sound settings", "sound setting", "volume settings", "audio settings").any { q.contains(it) } -> "sound"
             listOf("location setting", "location settings", "gps setting", "gps settings").any { q.contains(it) } -> "location"
             listOf("accessibility setting", "accessibility settings").any { q.contains(it) } -> "accessibility"
+            listOf("notification access", "notification listener", "notification settings", "notifications settings").any { q.contains(it) } -> "notifications"
             listOf("app settings", "applications setting", "manage apps").any { q.contains(it) } -> "apps"
             q in listOf("settings", "open settings", "settings kholo", "settings khol do", "सेटिंग खोलो") -> "general"
             else -> null
