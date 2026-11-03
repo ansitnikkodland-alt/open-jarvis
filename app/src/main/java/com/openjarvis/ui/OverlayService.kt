@@ -69,7 +69,7 @@ class OverlayService : Service() {
                         statusText?.text = "Voice captured — executing command…"
                         submitCommand(state.text)
                     }
-                    is VoiceManager.VoiceState.Error -> statusText?.text = state.message
+                    is VoiceManager.VoiceState.Error -> statusText?.text = state.result
                     is VoiceManager.VoiceState.Recording -> statusText?.text = "Listening… speak now"
                     is VoiceManager.VoiceState.Transcribing -> statusText?.text = "Transcribing…"
                     is VoiceManager.VoiceState.Idle -> Unit
@@ -83,7 +83,7 @@ class OverlayService : Service() {
                     is com.openjarvis.agent.AgentState.Running -> statusText?.text = state.step
                     is com.openjarvis.agent.AgentState.Done -> {
                         statusText?.text = "Done — tap Mic to give the next command"
-                        voiceManager.speak(state.message)
+                        voiceManager.speak(state.result)
                         voiceManager.resetState()
                     }
                     is com.openjarvis.agent.AgentState.Error -> {
