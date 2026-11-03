@@ -26,6 +26,13 @@ class JarvisAccessibilityService : AccessibilityService() {
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
+        if (event?.eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) {
+            val packageName = event.packageName?.toString()
+            if (!packageName.isNullOrBlank()) {
+                lastWindowStatePackage = packageName
+                lastWindowStateAtMs = System.currentTimeMillis()
+            }
+        }
     }
 
     override fun onInterrupt() {
@@ -126,10 +133,18 @@ class JarvisAccessibilityService : AccessibilityService() {
     }
 
     fun isPackageActive(packageName: String): Boolean {
-        val root = rootInActiveWindow ?: return false
-        val active = root.packageName?.toString() == packageName
-        root.recycle()
-        return active
+        // Prefer the live active window. Floating assistant overlays can temporarily
+        // make rootInActiveWindow null or expose the overlay instead of the launched app.
+        val root = rootInActiveWindow
+        val rootPackage = root?.packageName?.toString()
+        root?.recycle()
+        if (rootPackage == packageName) return true
+
+        // Fall back to the most recent Android window-state event, but only briefly
+        // so a stale previous app cannot make a later launch look successful.
+        val eventPackage = lastWindowStatePackage
+        val eventAgeMs = System.currentTimeMillis() - lastWindowStateAtMs
+        return eventPackage == packageName && eventAgeMs in 0..5000
     }
 
     fun containsVisibleText(expected: String): Boolean {
@@ -184,6 +199,12 @@ class JarvisAccessibilityService : AccessibilityService() {
         
         return null
     }
+
+    @Volatile
+    private var lastWindowStatePackage: String? = null
+
+    @Volatile
+    private var lastWindowStateAtMs: Long = 0L
 
     companion object {
         var instance: JarvisAccessibilityService? = null
