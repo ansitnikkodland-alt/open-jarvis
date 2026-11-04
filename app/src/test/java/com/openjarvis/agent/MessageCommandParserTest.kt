@@ -15,6 +15,13 @@ class MessageCommandParserTest {
         assertTrue(request?.sendNow == true)
     }
 
+    @Test fun stripsConversationalFillerBeforeContactName() {
+        val request = MessageCommandParser.parse("mujhe Rahul ko WhatsApp pe hello bhejo")
+        assertEquals("Rahul", request?.contactName)
+        assertEquals("hello", request?.message)
+        assertTrue(request?.sendNow == true)
+    }
+
     @Test fun whatsappWithoutSendMeansPrefillOnly() {
         val request = MessageCommandParser.parse("Rahul ko WhatsApp pe hello kal milte hain")
         assertEquals("Rahul", request?.contactName)
