@@ -36,6 +36,7 @@ class MainActivity : ComponentActivity() {
             if (granted) "Microphone enabled" else "Microphone permission is required for voice input",
             Toast.LENGTH_LONG
         ).show()
+        if (granted) requestNotificationPermissionIfNeeded()
     }
 
     private val requestNotificationPermission = registerForActivityResult(
@@ -56,10 +57,8 @@ class MainActivity : ComponentActivity() {
 
         if (checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
             requestMicPermission.launch(Manifest.permission.RECORD_AUDIO)
-        }
-        if (android.os.Build.VERSION.SDK_INT >= 33 &&
-            checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
-            requestNotificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
+        } else {
+            requestNotificationPermissionIfNeeded()
         }
         
         enableEdgeToEdge()
@@ -103,6 +102,13 @@ class MainActivity : ComponentActivity() {
         }
     }
     
+    private fun requestNotificationPermissionIfNeeded() {
+        if (android.os.Build.VERSION.SDK_INT >= 33 &&
+            checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+            requestNotificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
+        }
+    }
+
     private fun isAccessibilityServiceEnabled(): Boolean {
         val enabledServices = Settings.Secure.getString(
             contentResolver,
