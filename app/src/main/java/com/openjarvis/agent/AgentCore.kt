@@ -215,6 +215,23 @@ ${rawResponse.take(1000)}
                         return@withLock
                     }
 
+                    when (val messageRequest = MessageCommandParser.parse(safeCommand)) {
+                        null -> Unit
+                        else -> {
+                            try {
+                                val result = executeMessageRequest(messageRequest)
+                                Log.i(TAG, "path=rule skill=message channel=${messageRequest.channel} send=${messageRequest.sendNow}")
+                                graphifyRepo.logTask(safeCommand, "success (message intent prepared)", "Android messaging intent", 0)
+                                _state.value = AgentState.Done(result)
+                            } catch (error: Exception) {
+                                val detail = error.message?.takeIf { it.isNotBlank() } ?: error.javaClass.simpleName
+                                AgentDiagnostics.record(context, "message-intent", safeCommand, detail, error = error, provider = "Android messaging intent", model = "Not used")
+                                _state.value = AgentState.Error(detail)
+                            }
+                            return@withLock
+                        }
+                    }
+
                     when (val callRequest = ContactCommandParser.parse(safeCommand)) {
                         null -> Unit
                         else -> {
@@ -992,6 +1009,55 @@ ${rawResponse.take(1000)}
                 }
             }
         }
+    }
+
+    /**
+     * Messaging uses Android intents, never the LLM action planner.
+     * A send request is intentionally one-shot: no retry is permitted after opening
+     * the composer or attempting the Send control, preventing duplicate messages.
+     */
+    private suspend fun executeMessageRequest(request: MessageRequest): String {
+        val number = resolveContactNumber(request.contactName)
+        val digits = number.filter { it.isDigit() }
+        if (digits.length < 7) throw IllegalStateException("Contact number is not valid; check the saved phone number.")
+        val intent = when (request.channel) {
+            MessageRequest.Channel.WHATSAPP -> {
+                val whatsappPackage = "com.whatsapp"
+                val installed = runCatching { context.packageManager.getPackageInfo(whatsappPackage, 0) }.isSuccess
+                if (!installed) throw IllegalStateException("WhatsApp is not installed; install it or use SMS.")
+                val encoded = java.net.URLEncoder.encode(request.message, "UTF-8")
+                Intent(
+                    Intent.ACTION_VIEW,
+                    Uri.parse("https://wa.me/$digits?text=$encoded")
+                ).setPackage(whatsappPackage)
+            }
+            MessageRequest.Channel.SMS -> {
+                Intent(Intent.ACTION_SENDTO, Uri.parse("smsto:${Uri.encode(number)}"))
+                    .putExtra("sms_body", request.message)
+            }
+        }.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+
+        val resolved = intent.resolveActivity(context.packageManager)
+            ?: throw IllegalStateException("No app is available to open this message composer.")
+        context.startActivity(intent)
+        if (!request.sendNow) {
+            return when (request.channel) {
+                MessageRequest.Channel.WHATSAPP -> "WhatsApp chat opened for ${request.contactName}; message prefilled. Bhejne ke liye Send dabao."
+                MessageRequest.Channel.SMS -> "SMS composer opened for ${request.contactName}; message prefilled. Bhejne ke liye Send dabao."
+            }
+        }
+
+        // Give the target composer a moment to appear, then click at most once.
+        kotlinx.coroutines.delay(900)
+        val service = JarvisAccessibilityService.instance
+            ?: throw IllegalStateException("Message prefilled, but Accessibility is unavailable; message NOT sent.")
+        val sendClicked = service.tapByText("Send") ||
+            service.tapByText("भेजें") ||
+            service.tapByText("पाठवा")
+        if (!sendClicked) {
+            throw IllegalStateException("Message prefilled, but Send control was not verified; message NOT sent. Tap Send manually.")
+        }
+        return "Send control clicked once for ${request.contactName}. Check the messaging app to confirm delivery."
     }
 
     private suspend fun resolveContactNumber(requestedName: String): String {
