@@ -5,6 +5,7 @@ on:
   pull_request:
     branches:
       - feature/jarvis-opendroid-agent-loop
+      - feature/jarvis-deterministic-fast-skills
 
 permissions:
   contents: read
