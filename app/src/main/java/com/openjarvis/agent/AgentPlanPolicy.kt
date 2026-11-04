@@ -47,6 +47,14 @@ internal object AgentPlanPolicy {
 
     fun isExecutablePlan(actions: List<Action>, command: String): Boolean =
         isExecutablePlan(actions) && !isLikelyUnderPlanned(command, actions)
+
+    /** A single resolved launch is safe even when the current Accessibility tree is blank. */
+    fun canLaunchResolvedAppWithoutScreen(actions: List<Action>): Boolean =
+        actions.size == 1 &&
+            actions.single().action == Action.OPEN_APP &&
+            !AppTargetResolver.isPlaceholder(actions.single().label) &&
+            !actions.single().packageName.isNullOrBlank() &&
+            isExecutablePlan(actions)
     fun failureRule(actions: List<Action>, command: String): String? = when {
         actions.size > MAX_ACTIONS -> "RULE_MAX_ACTIONS"
         actions.any { it.action == Action.ERROR } && actions.any { it.action != Action.ERROR } -> "RULE_MIXED_ERROR"
