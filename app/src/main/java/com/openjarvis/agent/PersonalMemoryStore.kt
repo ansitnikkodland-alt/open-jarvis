@@ -42,7 +42,7 @@ internal object PersonalMemoryCodec {
     )
 
     private fun tokens(value: String): Set<String> =
-        Regex("[\\\\p{L}\\\\p{N}]{2,}")
+        Regex("[\\p{L}\\p{M}\\p{N}]{2,}")
             .findAll(value.lowercase())
             .map { it.value }
             .filterNot { it in stopWords }
