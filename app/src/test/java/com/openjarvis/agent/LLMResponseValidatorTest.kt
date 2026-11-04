@@ -60,4 +60,20 @@ class LLMResponseValidatorTest {
         assertFalse(result.isValid)
         assertEquals("Item 0 is not an object", result.errors.first())
     }
+    @Test fun repairsQwenSingleActionTupleFormattingWithoutGuessing() {
+        val result = LLMResponseValidator.validate("""["type_text","value":"hello"]""")
+        assertTrue(result.errors.toString(), result.isValid)
+        assertTrue("Repair must be reported", result.wasRepaired)
+        assertEquals(1, result.actions.size)
+        assertEquals(Action.TYPE_TEXT, result.actions[0].action)
+        assertEquals("hello", result.actions[0].value)
+    }
+
+    @Test fun doesNotRepairAmbiguousOrIncompleteTupleOutput() {
+        val missingValue = LLMResponseValidator.validate("""["type_text","value":]""")
+        assertFalse(missingValue.isValid)
+        val missingFields = LLMResponseValidator.validate("""["type_text"]""")
+        assertFalse(missingFields.isValid)
+    }
+
 }
