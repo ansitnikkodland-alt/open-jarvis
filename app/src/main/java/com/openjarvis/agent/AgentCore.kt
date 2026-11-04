@@ -318,6 +318,16 @@ ${rawResponse.take(4000)}
                                 return@fold
                             }
 
+                            // Final fail-closed gate: no unresolved app target or partial
+                            // observation plan may reach the Android action executor.
+                            if (!AgentPlanPolicy.isExecutablePlan(actions)) {
+                                val reason = "The local model did not produce a complete, grounded action plan. Name the target app explicitly and try again. No device action was run."
+                                AgentDiagnostics.record(context, "action-plan-final-guard", safeCommand, reason, effectiveRawJson, provider = universalAdapter.getProviderName(), model = "qwen3:1.7b")
+                                _state.value = AgentState.Error(reason)
+                                graphifyRepo.logTask(safeCommand, "failed: final plan guard rejected actions", universalAdapter.getProviderName(), latency)
+                                return@fold
+                            }
+
                             _state.value = AgentState.Running(
                                 "executing ${actions.size} actions..."
                             )
