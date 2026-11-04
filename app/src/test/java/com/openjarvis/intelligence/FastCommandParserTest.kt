@@ -35,6 +35,9 @@ class FastCommandParserTest {
         assertEquals(FastCommandParser.Command.OpenSettings("wifi"), FastCommandParser.parse("wifi settings kholo"))
         assertEquals(FastCommandParser.Command.OpenSettings("bluetooth"), FastCommandParser.parse("bluetooth settings"))
         assertEquals(FastCommandParser.Command.OpenSettings("notifications"), FastCommandParser.parse("open notification access settings"))
+        assertEquals(FastCommandParser.Command.OpenSettings("wifi"), FastCommandParser.parse("वायफाय सेटिंग्ज उघडा"))
+        assertEquals(FastCommandParser.Command.OpenSettings("bluetooth"), FastCommandParser.parse("ब्लूटूथ सेटिंग्ज उघडा"))
+        assertEquals(FastCommandParser.Command.OpenSettings("general"), FastCommandParser.parse("सेटिंग्ज उघडा"))
     }
 
     @Test fun recognizesExplicitPersonalMemoryCommands() {

@@ -8,8 +8,6 @@ import android.net.Uri
 import android.provider.Settings
 import android.provider.ContactsContract
 import android.content.pm.PackageManager
-import java.util.Locale
-import java.text.Normalizer
 import com.openjarvis.accessibility.JarvisAccessibilityService
 import com.openjarvis.accessibility.ScreenReader
 import com.openjarvis.graphify.AnalysisEngine
@@ -106,7 +104,7 @@ Every item in the output array must be a JSON object. Return ONLY a valid JSON a
 with double-quoted keys and string values. No markdown or explanation.
 Required shape example: [{"action":"type_text","value":"hello"}]
 Malformed response:
-${rawResponse.take(4000)}
+${rawResponse.take(1000)}
 """.trimIndent()
 
         val repairResult = completeWithinBudget(repairPrompt, userCommand, budgetStartMs)
@@ -267,7 +265,7 @@ ${rawResponse.take(4000)}
 
                                 val refreshedElements = runCatching { screenReader.extractInteractiveElements() }.getOrDefault("")
                                 val refreshedPrompt = systemPrompt
-                                    .replace("{PERSONAL_MEMORY}", personalMemoryStore.promptContext())
+                                    .replace("{PERSONAL_MEMORY}", memoryPrompt)
                                     .replace("{SCREEN_OCR}", refreshedScreen.take(300))
                                     .replace("{SCREEN_ELEMENTS}", refreshedElements.take(800))
                                     .replace("{INSTALLED_APPS}", installedAppsPrompt) +
@@ -301,7 +299,7 @@ ${rawResponse.take(4000)}
                                 val planElements = runCatching { screenReader.extractInteractiveElements() }.getOrDefault("")
                                 if (planScreen.isNotBlank()) {
                                     val compactPrompt = systemPrompt
-                                        .replace("{PERSONAL_MEMORY}", personalMemoryStore.promptContext())
+                                        .replace("{PERSONAL_MEMORY}", memoryPrompt)
                                         .replace("{SCREEN_OCR}", planScreen.take(300))
                                         .replace("{SCREEN_ELEMENTS}", planElements.take(800))
                                         .replace("{INSTALLED_APPS}", installedAppsPrompt) +
@@ -383,7 +381,7 @@ ${rawResponse.take(4000)}
                                         .ifBlank { "none" }
                                     val freshElements = runCatching { screenReader.extractInteractiveElements() }.getOrDefault("")
                                     val reEvaluationPrompt = systemPrompt
-                                        .replace("{PERSONAL_MEMORY}", personalMemoryStore.promptContext())
+                                        .replace("{PERSONAL_MEMORY}", memoryPrompt)
                                         .replace("{SCREEN_OCR}", freshScreen.take(300))
                                         .replace("{SCREEN_ELEMENTS}", freshElements.take(800))
                                         .replace("{INSTALLED_APPS}", installedAppsPrompt) +
@@ -880,30 +878,8 @@ ${rawResponse.take(4000)}
         return unique.single().second
     }
 
-    private fun contactNameMatches(requested: String, stored: String): Boolean {
-        val q = normalizeContactName(requested)
-        val n = normalizeContactName(stored)
-        return q.isNotBlank() && (n == q || n.startsWith("$q ") || n.startsWith("$q-"))
-    }
-
-    private fun normalizeContactName(value: String): String {
-        val s = Normalizer.normalize(value, Normalizer.Form.NFKC).lowercase(Locale.ROOT).trim()
-        val c = mapOf('क' to "k",'ख' to "kh",'ग' to "g",'घ' to "gh",'च' to "ch",'छ' to "chh",'ज' to "j",'झ' to "jh",'ट' to "t",'ठ' to "th",'ड' to "d",'ढ' to "dh",'त' to "t",'थ' to "th",'द' to "d",'ध' to "dh",'न' to "n",'प' to "p",'फ' to "ph",'ब' to "b",'भ' to "bh",'म' to "m",'य' to "y",'र' to "r",'ल' to "l",'व' to "v",'श' to "sh",'ष' to "sh",'स' to "s",'ह' to "h",'ण' to "n")
-        val v = mapOf('अ' to "a",'आ' to "a",'इ' to "i",'ई' to "i",'उ' to "u",'ऊ' to "u",'ए' to "e",'ऐ' to "ai",'ओ' to "o",'औ' to "au")
-        val m = mapOf('ा' to "a",'ि' to "i",'ी' to "i",'ु' to "u",'ू' to "u",'े' to "e",'ै' to "ai",'ो' to "o",'ौ' to "au")
-        val out = StringBuilder(); var pending = false
-        for (ch in s) when {
-            c.containsKey(ch) -> { if (pending) out.append('a'); out.append(c.getValue(ch)); pending = true }
-            v.containsKey(ch) -> { if (pending) out.append('a'); out.append(v.getValue(ch)); pending = false }
-            m.containsKey(ch) -> { out.append(m.getValue(ch)); pending = false }
-            ch == '्' -> pending = false
-            ch == 'ं' || ch == 'ँ' -> { out.append('m'); pending = false }
-            ch == ' ' || ch == '-' || ch == '\'' -> { if (pending) out.append('a'); out.append(ch); pending = false }
-            ch.code < 128 -> { if (pending) out.append('a'); out.append(ch); pending = false }
-        }
-        return Normalizer.normalize(out.toString().trim().removeSuffix("a"), Normalizer.Form.NFD)
-            .replace(Regex("\\p{M}+"), "").replace(Regex("[^\\p{L}0-9 ]"), "").replace(Regex("\\s+"), " ")
-    }
+    private fun contactNameMatches(requested: String, stored: String): Boolean =
+        ContactNameMatcher.matches(requested, stored)
 
     private fun resolveAppPackage(label: String): String? {
         if (AppTargetResolver.isPlaceholder(label)) return null
