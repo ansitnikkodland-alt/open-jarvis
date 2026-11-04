@@ -58,6 +58,18 @@ class OverlayService : Service() {
     private var windowParams: WindowManager.LayoutParams? = null
     private var commandInput: EditText? = null
     private var statusText: TextView? = null
+    private var waveformText: TextView? = null
+    private var visualState: String = "IDLE"
+    private var waveformFrame: Int = 0
+    private val waveformRunnable = object : Runnable {
+        override fun run() {
+            val view = waveformText ?: return
+            if (visualState == "IDLE") return
+            val frames = arrayOf("▁ ▃ ▆ ▄ ▂", "▃ ▆ ▄ ▂ ▅", "▆ ▄ ▂ ▅ ▃", "▄ ▂ ▅ ▃ ▆")
+            view.text = frames[waveformFrame++ % frames.size]
+            mainHandler.postDelayed(this, if (visualState == "THINKING") 420L else 150L)
+        }
+    }
     private var panel: LinearLayout? = null
     private lateinit var agentCore: AgentCore
     private lateinit var voiceManager: VoiceManager
@@ -114,10 +126,10 @@ class OverlayService : Service() {
                             serviceScope.launch { delay(700); startWakeWordListening() }
                         }
                     }
-                    is VoiceManager.VoiceState.Recording -> statusText?.text = "Listening… speak now"
-                    is VoiceManager.VoiceState.Transcribing -> statusText?.text = "Thinking…"
-                    is VoiceManager.VoiceState.Speaking -> statusText?.text = "Speaking…"
-                    is VoiceManager.VoiceState.Idle -> Unit
+                    is VoiceManager.VoiceState.Recording -> setVisualState("LISTENING", "Listening… speak now")
+                    is VoiceManager.VoiceState.Transcribing -> setVisualState("THINKING", "Thinking…")
+                    is VoiceManager.VoiceState.Speaking -> setVisualState("SPEAKING", "Speaking…")
+                    is VoiceManager.VoiceState.Idle -> setVisualState("IDLE", "Ready — type a command or use mic")
                 }
             }
         }
@@ -153,6 +165,9 @@ class OverlayService : Service() {
     override fun onDestroy() {
         try { overlayView?.let { windowManager?.removeView(it) } } catch (_: Exception) { }
         overlayView = null
+        visualState = "IDLE"
+        mainHandler.removeCallbacks(waveformRunnable)
+        waveformText = null
         stopWakeWordListening()
         voiceManager.release()
         serviceScope.cancel()
@@ -231,6 +246,18 @@ class OverlayService : Service() {
             statusText = status
             status.setOnClickListener { copyLatestDebugLog() }
             commandPanel.addView(status)
+            val waveform = TextView(this).apply {
+                text = "▁ ▃ ▆ ▄ ▂"
+                textSize = 19f
+                letterSpacing = 0.16f
+                gravity = Gravity.CENTER
+                setTextColor(Color.rgb(70, 220, 255))
+                setPadding(dp(8), 0, dp(8), dp(2))
+                visibility = android.view.View.GONE
+                contentDescription = "JARVIS voice activity waveform"
+            }
+            waveformText = waveform
+            commandPanel.addView(waveform, LinearLayout.LayoutParams(-1, dp(30)))
 
             val input = EditText(this).apply {
                 hint = "Ask Jarvis to do something…"
@@ -310,6 +337,17 @@ class OverlayService : Service() {
             overlayView = root
         } catch (e: Exception) {
             android.util.Log.e("OpenJarvis", "Unable to attach assistant overlay", e)
+        }
+    }
+
+    private fun setVisualState(state: String, label: String) {
+        visualState = state
+        statusText?.text = label
+        waveformText?.visibility = if (state == "IDLE") android.view.View.GONE else android.view.View.VISIBLE
+        mainHandler.removeCallbacks(waveformRunnable)
+        if (state != "IDLE") {
+            waveformFrame = 0
+            waveformRunnable.run()
         }
     }
 
