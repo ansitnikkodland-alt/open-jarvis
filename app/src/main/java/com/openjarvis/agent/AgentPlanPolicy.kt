@@ -47,4 +47,24 @@ internal object AgentPlanPolicy {
 
     fun isExecutablePlan(actions: List<Action>, command: String): Boolean =
         isExecutablePlan(actions) && !isLikelyUnderPlanned(command, actions)
+    fun failureRule(actions: List<Action>, command: String): String? = when {
+        actions.size > MAX_ACTIONS -> "RULE_MAX_ACTIONS"
+        actions.any { it.action == Action.ERROR } && actions.any { it.action != Action.ERROR } -> "RULE_MIXED_ERROR"
+        hasUnresolvedAppLaunch(actions) -> "RULE_UNRESOLVED_APP"
+        isLikelyUnderPlanned(command, actions) -> "RULE_UNDER_PLANNED"
+        actions.isEmpty() -> "RULE_EMPTY_PLAN"
+        actions.any { it.action == Action.READ_SCREEN || it.action == Action.EXTRACT_TEXT } -> "RULE_SCREEN_OBSERVATION"
+        else -> null
+    }
+
+    fun userGuidance(rule: String): String = when (rule) {
+        "RULE_MAX_ACTIONS" -> "Plan mein 10 se zyada steps hain; command ko chhote parts mein bolo."
+        "RULE_MIXED_ERROR" -> "Plan mein action aur error mix hain; ek clear command do."
+        "RULE_UNRESOLVED_APP" -> "App ka installed naam nahi mila; app ka exact naam bolo."
+        "RULE_UNDER_PLANNED" -> "Command ke kuch steps plan nahi hue; ek baar mein ek chhota task bolo."
+        "RULE_SCREEN_OBSERVATION" -> "Accessibility screen read nahi kar pa rahi; Jarvis Accessibility enable karke target app kholo."
+        "RULE_EMPTY_PLAN" -> "Koi action plan nahi bana; command ko specific tarike se bolo."
+        else -> "Safe action plan nahi bana; command ko chhote aur clear steps mein bolo."
+    }
+
 }
