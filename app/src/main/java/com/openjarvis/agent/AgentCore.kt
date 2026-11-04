@@ -78,8 +78,7 @@ INSTALLED APPS: {INSTALLED_APPS}
         val remaining = 120_000L - (System.currentTimeMillis() - budgetStartMs)
         if (remaining <= 0L) return Result.failure(IllegalStateException("LLM time budget exceeded (120 seconds). Try a shorter command."))
         return withTimeoutOrNull(remaining) {
-            if (conversation) universalAdapter.completeConversation(system, user)
-            else universalAdapter.complete(system, user)
+            universalAdapter.completeWithDeadline(system, user, remaining, conversation)
         } ?: Result.failure(IllegalStateException("LLM time budget exceeded (120 seconds). Try a shorter command."))
     }
 

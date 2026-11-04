@@ -259,30 +259,52 @@ class OllamaProvider(
         completeInternal(systemPrompt, userMessage, actionPlan = true)
 
     override suspend fun completeConversation(systemPrompt: String, userMessage: String): Result<String> =
-        completeInternal(systemPrompt, userMessage, actionPlan = false)
+        completeInternal(systemPrompt, userMessage, actionPlan = false, timeoutMs = 120_000L)
 
-    private suspend fun completeInternal(systemPrompt: String, userMessage: String, actionPlan: Boolean): Result<String> =
+    override suspend fun completeWithDeadline(
+        systemPrompt: String,
+        userMessage: String,
+        timeoutMs: Long,
+        conversation: Boolean
+    ): Result<String> = completeInternal(systemPrompt, userMessage, actionPlan = !conversation, timeoutMs = timeoutMs)
+
+    private suspend fun completeInternal(
+        systemPrompt: String,
+        userMessage: String,
+        actionPlan: Boolean,
+        timeoutMs: Long
+    ): Result<String> =
         withContext(Dispatchers.IO) {
             runCatching {
-                val schemaAvailable = actionPlan && supportsJsonSchema()
+                val deadlineNanos = System.nanoTime() + java.util.concurrent.TimeUnit.MILLISECONDS.toNanos(timeoutMs.coerceAtLeast(1L))
+                val schemaAvailable = actionPlan && supportsJsonSchema(deadlineNanos)
                 if (schemaAvailable) {
-                    runCatching { executeChat(systemPrompt, userMessage, useSchema = true, numPredict = 128) }
-                        .getOrElse { schemaError ->
-                            android.util.Log.w("OllamaFormat", "JSON schema request failed; retrying without schema: ${schemaError.message}")
-                            executeChat(systemPrompt, userMessage, useSchema = false, numPredict = 128)
-                        }
+                    runCatching {
+                        executeChat(systemPrompt, userMessage, useSchema = true, numPredict = 128, timeoutMs = remainingMs(deadlineNanos))
+                    }.getOrElse { schemaError ->
+                        android.util.Log.w("OllamaFormat", "JSON schema request failed; retrying without schema: ${schemaError.message}")
+                        executeChat(systemPrompt, userMessage, useSchema = false, numPredict = 128, timeoutMs = remainingMs(deadlineNanos))
+                    }
                 } else {
-                    executeChat(systemPrompt, userMessage, useSchema = false, numPredict = if (actionPlan) 128 else 256)
+                    executeChat(systemPrompt, userMessage, useSchema = false, numPredict = if (actionPlan) 128 else 256, timeoutMs = remainingMs(deadlineNanos))
                 }
             }
         }
 
-    private fun supportsJsonSchema(): Boolean {
+    private fun remainingMs(deadlineNanos: Long): Long {
+        val remaining = java.util.concurrent.TimeUnit.NANOSECONDS.toMillis(deadlineNanos - System.nanoTime())
+        if (remaining <= 0L) throw IllegalStateException("LLM time budget exceeded (120 seconds). Try a shorter command.")
+        return remaining
+    }
+
+    private fun supportsJsonSchema(deadlineNanos: Long): Boolean {
         return try {
             val request = Request.Builder()
                 .url(OllamaResponseParser.buildUrl(baseUrl, "/api/version"))
                 .get().build()
-            versionClient.newCall(request).execute().use { response ->
+            val versionCall = versionClient.newCall(request)
+            versionCall.timeout().timeout(minOf(3_000L, remainingMs(deadlineNanos)), java.util.concurrent.TimeUnit.MILLISECONDS)
+            versionCall.execute().use { response ->
                 if (!response.isSuccessful) {
                     android.util.Log.w("OllamaFormat", "/api/version unavailable (HTTP ${response.code}); using plain JSON prompt")
                     return false
@@ -300,7 +322,13 @@ class OllamaProvider(
         }
     }
 
-    private fun executeChat(systemPrompt: String, userMessage: String, useSchema: Boolean, numPredict: Int): String {
+    private fun executeChat(
+        systemPrompt: String,
+        userMessage: String,
+        useSchema: Boolean,
+        numPredict: Int,
+        timeoutMs: Long
+    ): String {
         val request = Request.Builder()
             .url(OllamaResponseParser.buildUrl(baseUrl, "/api/chat"))
             .addHeader("Content-Type", "application/json")
@@ -310,7 +338,9 @@ class OllamaProvider(
             ).build()
         val started = System.nanoTime()
         try {
-            client.newCall(request).execute().use { response ->
+            val chatCall = client.newCall(request)
+            chatCall.timeout().timeout(timeoutMs.coerceAtLeast(1L), java.util.concurrent.TimeUnit.MILLISECONDS)
+            chatCall.execute().use { response ->
                 val body = response.body ?: throw java.io.IOException("Empty Ollama response")
                 if (!response.isSuccessful) {
                     throw IllegalStateException(OllamaResponseParser.httpError(response.code, body.string()))
