@@ -68,7 +68,7 @@ internal object PersonalMemoryCodec {
     fun promptContext(items: List<String>, query: String): String {
         val matches = retrieve(items, query)
         if (matches.isEmpty()) return ""
-        return matches.joinToString(separator = "\\n") { "- $it" }.take(360)
+        return matches.joinToString(separator = "\n") { "- $it" }.take(360)
     }
 }
 
