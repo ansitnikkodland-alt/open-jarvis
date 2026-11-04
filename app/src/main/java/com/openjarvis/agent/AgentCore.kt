@@ -244,12 +244,7 @@ SCREEN: {SCREEN_OCR}
                                             )
                                         }
                                         if (!validation.isValid) {
-                                            AgentDiagnostics.record(
-                                                context, "screen-replan-validation",
-                                                safeCommand, "Initial: $firstFailure | Retry: ${validation.errors.firstOrNull()}",
-                                                "FIRST RESPONSE:\n${initialRaw.take(2000)}\nRETRY RESPONSE:\n${retryRaw.take(2000)}",
-                                                provider = universalAdapter.getProviderName(), model = "qwen3:1.7b"
-                                            )
+                                            effectiveRawJson = "FIRST RESPONSE:\n${initialRaw.take(2000)}\nRETRY RESPONSE:\n${retryRaw.take(2000)}"
                                         }
                                     }
                                     if (!validation.isValid) {
