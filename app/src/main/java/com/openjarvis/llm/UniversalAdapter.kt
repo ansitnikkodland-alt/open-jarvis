@@ -39,6 +39,9 @@ class UniversalAdapter(private val context: Context) {
         userMessage: String
     ): Result<String> = getActiveProvider().complete(systemPrompt, userMessage)
     
+    suspend fun completeConversation(systemPrompt: String, userMessage: String): Result<String> =
+        getActiveProvider().completeConversation(systemPrompt, userMessage)
+
     suspend fun testConnection(): Result<Long> = getActiveProvider().testConnection()
     
     fun saveSettings(name: String, baseUrl: String, apiKey: String, model: String) {

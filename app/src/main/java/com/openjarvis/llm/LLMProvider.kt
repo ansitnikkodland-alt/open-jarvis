@@ -9,6 +9,8 @@ interface LLMProvider {
         userMessage: String
     ): Result<String>
     
+    suspend fun completeConversation(systemPrompt: String, userMessage: String): Result<String> = complete(systemPrompt, userMessage)
+
     suspend fun testConnection(): Result<Long>
 }
 
