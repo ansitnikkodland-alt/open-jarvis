@@ -51,20 +51,92 @@ object LLMResponseValidator {
     }
 
     private fun extractJson(raw: String): String? {
-        val withoutFence = raw.trim()
-            .replace(Regex("^\\s*```(?:json)?\\s*", RegexOption.IGNORE_CASE), "")
-            .replace(Regex("\\s*```\\s*$"), "")
+        val source = raw.trim()
+            .replace(Regex("^\\\\s*```(?:json)?\\\\s*", RegexOption.IGNORE_CASE), "")
+            .replace(Regex("\\\\s*```\\\\s*$"), "")
             .trim()
-        val arrayStart = withoutFence.indexOf('[')
-        val objectStart = withoutFence.indexOf('{')
-        val start = listOf(arrayStart, objectStart).filter { it >= 0 }.minOrNull() ?: return null
-        val open = withoutFence[start]
-        val close = if (open == '[') ']' else '}'
-        val end = withoutFence.lastIndexOf(close)
-        if (end < start) return null
-        return withoutFence.substring(start, end + 1)
+        if (source.isEmpty()) return null
+        val firstContent = source.indexOfFirst { !it.isWhitespace() }
+
+        // First prefer a complete action array, even if stray prose brackets occur before it.
+        for (start in source.indices) {
+            if (source[start] != '[') continue
+            val candidate = extractBalancedJson(source, start) ?: continue
+            val parsed = runCatching { JSONArray(candidate) }.getOrNull() ?: continue
+            val isPrimary = start == firstContent
+            if (isPrimary || parsed.length() == 0 || parsed.opt(0) is JSONObject) return candidate
+        }
+
+        // Then accept a wrapped actions/steps object.
+        for (start in source.indices) {
+            if (source[start] != '{') continue
+            val candidate = extractBalancedJson(source, start) ?: continue
+            val parsed = runCatching { JSONObject(candidate) }.getOrNull() ?: continue
+            if (parsed.optJSONArray("actions") != null || parsed.optJSONArray("steps") != null) return candidate
+        }
+
+        // Some small models emit one JSON action object per line instead of an array.
+        // Collect only complete objects that actually contain an action discriminator.
+        val actionObjects = JSONArray()
+        var index = 0
+        while (index < source.length) {
+            if (source[index] != '{') {
+                index++
+                continue
+            }
+            val candidate = extractBalancedJson(source, index)
+            if (candidate == null) {
+                index++
+                continue
+            }
+            val parsed = runCatching { JSONObject(candidate) }.getOrNull()
+            val actionType = parsed?.let {
+                listOf("action", "type", "command").firstNotNullOfOrNull { key ->
+                    it.optString(key).takeIf(String::isNotBlank)
+                }
+            }
+            if (parsed != null && actionType != null) {
+                actionObjects.put(parsed)
+                index += candidate.length
+            } else {
+                index++
+            }
+        }
+        return when (actionObjects.length()) {
+            0 -> null
+            1 -> actionObjects.getJSONObject(0).toString()
+            else -> actionObjects.toString()
+        }
     }
 
+    /** Returns the first balanced JSON object/array beginning at [start], respecting quoted strings. */
+    private fun extractBalancedJson(source: String, start: Int): String? {
+        if (start !in source.indices || source[start] !in charArrayOf('{', '[')) return null
+        val expectedClosers = mutableListOf<Char>()
+        var inString = false
+        var escaped = false
+        for (index in start until source.length) {
+            val char = source[index]
+            if (inString) {
+                if (escaped) escaped = false
+                else when (char) {
+                    '\\\\' -> escaped = true
+                    '"' -> inString = false
+                }
+                continue
+            }
+            when (char) {
+                '"' -> inString = true
+                '{' -> expectedClosers.add('}')
+                '[' -> expectedClosers.add(']')
+                '}', ']' -> {
+                    if (expectedClosers.isEmpty() || expectedClosers.removeAt(expectedClosers.lastIndex) != char) return null
+                    if (expectedClosers.isEmpty()) return source.substring(start, index + 1)
+                }
+            }
+        }
+        return null
+    }
     private fun normalizeAction(raw: String): String {
         val key = raw.trim().lowercase().replace('-', '_').replace(' ', '_')
         return when (key) {
