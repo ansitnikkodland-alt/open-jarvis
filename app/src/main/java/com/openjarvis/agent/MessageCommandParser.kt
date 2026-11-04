@@ -31,8 +31,8 @@ internal object MessageCommandParser {
         val cleaned = Normalizer.normalize(command, Normalizer.Form.NFKC).trim()
         val match = commandPattern.matchEntire(cleaned) ?: return null
         val name = match.groupValues[1].trim()
-            .replace(Regex("(?i)^(please|plz|zara|jara|मला)\\s+"), "")
-            .replace(Regex("(?i)\\s+(please|plz|na|ज़रा|जरा)$"), "")
+            .replace(Regex("(?i)^(please|plz|zara|jara|mujhe|mera|meri|मुझे|मेरा|मेरी|मला|ज़रा|जरा)\\s+"), "")
+            .replace(Regex("(?i)\\s+(karo|kar|kro|kare|karen|kardo|karna|please|plz|na|ज़रा|जरा)$"), "")
             .trim()
         var body = match.groupValues[3].trim()
         val sendNow = sendSuffix.containsMatchIn(body)
