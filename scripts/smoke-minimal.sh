@@ -27,7 +27,7 @@ echo "Waiting up to 60 seconds for MainActivity to be resumed."
 RESUMED=""
 for ((second=1; second<=60; second++)); do
   ACTIVITY_STATE="$(adb shell dumpsys activity activities | tr -d '\r')"
-  if RESUMED="$(printf '%s\n' "$ACTIVITY_STATE" | grep -E 'mResumedActivity|topResumedActivity' | grep -F '"$MAIN_ACTIVITY"')"; then
+  if RESUMED="$(printf '%s\n' "$ACTIVITY_STATE" | grep -E 'mResumedActivity|topResumedActivity' | grep -F "$MAIN_ACTIVITY")"; then
     :
   else
     RESUMED=""
