@@ -1017,7 +1017,7 @@ ${rawResponse.take(1000)}
      * the composer or attempting the Send control, preventing duplicate messages.
      */
     private suspend fun executeMessageRequest(request: MessageRequest): String {
-        val number = resolveContactNumber(request.contactName)
+        val number = resolveContactNumber(request.contactName, "message")
         val digits = number.filter { it.isDigit() }
         if (digits.length < 7) throw IllegalStateException("Contact number is not valid; check the saved phone number.")
         val intent = when (request.channel) {
@@ -1037,8 +1037,9 @@ ${rawResponse.take(1000)}
             }
         }.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
 
-        val resolved = intent.resolveActivity(context.packageManager)
-            ?: throw IllegalStateException("No app is available to open this message composer.")
+        if (intent.resolveActivity(context.packageManager) == null) {
+            throw IllegalStateException("No app is available to open this message composer.")
+        }
         context.startActivity(intent)
         if (!request.sendNow) {
             return when (request.channel) {
@@ -1051,16 +1052,19 @@ ${rawResponse.take(1000)}
         kotlinx.coroutines.delay(900)
         val service = JarvisAccessibilityService.instance
             ?: throw IllegalStateException("Message prefilled, but Accessibility is unavailable; message NOT sent.")
-        val sendClicked = service.tapByText("Send") ||
-            service.tapByText("भेजें") ||
-            service.tapByText("पाठवा")
+        val sendLabel = when (java.util.Locale.getDefault().language) {
+            "hi" -> "भेजें"
+            "mr" -> "पाठवा"
+            else -> "Send"
+        }
+        val sendClicked = service.tapByText(sendLabel)
         if (!sendClicked) {
             throw IllegalStateException("Message prefilled, but Send control was not verified; message NOT sent. Tap Send manually.")
         }
         return "Send control clicked once for ${request.contactName}. Check the messaging app to confirm delivery."
     }
 
-    private suspend fun resolveContactNumber(requestedName: String): String {
+    private suspend fun resolveContactNumber(requestedName: String, purpose: String = "dial"): String {
         if (context.checkSelfPermission(android.Manifest.permission.READ_CONTACTS) != PackageManager.PERMISSION_GRANTED) {
             val prefs = context.getSharedPreferences("jarvis_contact_permission", Context.MODE_PRIVATE)
             prefs.edit().putBoolean("completed", false).putBoolean("granted", false).apply()
@@ -1100,7 +1104,7 @@ ${rawResponse.take(1000)}
                 val lastDigits = match.second.filter { it.isDigit() }.takeLast(4)
                 if (lastDigits.isBlank()) match.first else "${match.first} (ending $lastDigits)"
             }
-            throw IllegalStateException("Multiple contacts found: $names. Which one should I dial? Please say one exact/full name; I will not choose automatically.")
+            throw IllegalStateException("Multiple contacts found: $names. Which one should I $purpose? Please say one exact/full name; I will not choose automatically.")
         }
         return unique.single().second
     }
