@@ -7,6 +7,7 @@ import android.content.pm.ResolveInfo
 import android.net.Uri
 import android.provider.Settings
 import android.provider.ContactsContract
+import android.app.SearchManager
 import android.content.pm.PackageManager
 import com.openjarvis.accessibility.JarvisAccessibilityService
 import com.openjarvis.accessibility.ScreenReader
@@ -45,6 +46,7 @@ class AgentCore(private val context: Context) {
     private val personalMemoryStore = PersonalMemoryStore(context)
 
     private var workingMemory = TaskWorkingMemory()
+    private var pendingContactUntilMs: Long = 0L
 
     private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
     private val taskMutex = Mutex()
@@ -75,11 +77,11 @@ INSTALLED APPS: {INSTALLED_APPS}
         budgetStartMs: Long,
         conversation: Boolean = false
     ): Result<String> {
-        val remaining = 120_000L - (System.currentTimeMillis() - budgetStartMs)
-        if (remaining <= 0L) return Result.failure(IllegalStateException("LLM time budget exceeded (120 seconds). Try a shorter command."))
+        val remaining = 45_000L - (System.currentTimeMillis() - budgetStartMs)
+        if (remaining <= 0L) return Result.failure(IllegalStateException("LLM time budget exceeded (45 seconds). Try a shorter command."))
         return withTimeoutOrNull(remaining) {
             universalAdapter.completeWithDeadline(system, user, remaining, conversation)
-        } ?: Result.failure(IllegalStateException("LLM time budget exceeded (120 seconds). Try a shorter command."))
+        } ?: Result.failure(IllegalStateException("LLM time budget exceeded (45 seconds). Try a shorter command."))
     }
 
     /**
@@ -151,6 +153,95 @@ ${rawResponse.take(1000)}
 
                     _state.value = AgentState.Running("checking direct command...")
 
+                    // Consume the next utterance as a contact name only during the 10s pending window.
+                    if (pendingContactUntilMs > 0L) {
+                        val expiresAt = pendingContactUntilMs
+                        pendingContactUntilMs = 0L
+                        if (System.currentTimeMillis() <= expiresAt) {
+                            try {
+                                val result = executeFastCommand(FastCommandParser.Command.DialContact(safeCommand.trim()))
+                                Log.i(TAG, "path=rule skill=contact-follow-up")
+                                _state.value = AgentState.Done(result)
+                            } catch (error: Exception) {
+                                val detail = error.message.orEmpty()
+                                when {
+                                    detail.startsWith("No contact matched") -> {
+                                        Log.i(TAG, "Contact lookup had no match for a user request")
+                                        _state.value = AgentState.Done("Mujhe '${safeCommand.trim()}' naam ka contact nahi mila. Kya dialer kholun?")
+                                    }
+                                    detail.startsWith("Multiple contacts found") -> {
+                                        Log.i(TAG, "Contact lookup requires user disambiguation")
+                                        _state.value = AgentState.Done(detail)
+                                    }
+                                    else -> _state.value = AgentState.Error(detail.ifBlank { error.javaClass.simpleName })
+                                }
+                            }
+                            return@withLock
+                        }
+                    }
+
+                    // Search parsing must precede compound splitting and all LLM requests.
+                    val youtubeQuery = SearchCommandParser.parseYouTubeQuery(safeCommand)
+                    if (youtubeQuery != null) {
+                        try {
+                            val result = executeFastCommand(FastCommandParser.Command.YoutubeSearch(youtubeQuery))
+                            Log.i(TAG, "path=rule skill=youtube_search")
+                            graphifyRepo.logTask(safeCommand, "success (YouTube search rule)", "Android fast path", 0)
+                            _state.value = AgentState.Done(result)
+                        } catch (error: Exception) {
+                            _state.value = AgentState.Error(error.message ?: error.javaClass.simpleName)
+                        }
+                        return@withLock
+                    }
+
+                    val webQuery = SearchCommandParser.parseWebQuery(safeCommand)
+                    if (webQuery != null) {
+                        try {
+                            val webIntent = Intent(Intent.ACTION_WEB_SEARCH)
+                                .putExtra(SearchManager.QUERY, webQuery)
+                                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                            context.startActivity(webIntent)
+                            Log.i(TAG, "path=rule skill=web_search")
+                            graphifyRepo.logTask(safeCommand, "success (web search rule)", "Android fast path", 0)
+                            _state.value = AgentState.Done("Searching the web for $webQuery")
+                        } catch (error: Exception) {
+                            _state.value = AgentState.Error("Could not open web search: " + (error.message ?: error.javaClass.simpleName))
+                        }
+                        return@withLock
+                    }
+
+                    when (val callRequest = ContactCommandParser.parse(safeCommand)) {
+                        null -> Unit
+                        else -> {
+                            if (callRequest.name == null) {
+                                pendingContactUntilMs = System.currentTimeMillis() + 10_000L
+                                Log.i(TAG, "path=rule skill=contact_call awaiting_name timeout_ms=10000")
+                                _state.value = AgentState.Done("Kisko call karun?")
+                            } else {
+                                try {
+                                    val result = executeFastCommand(FastCommandParser.Command.DialContact(callRequest.name))
+                                    Log.i(TAG, "path=rule skill=contact_call")
+                                    graphifyRepo.logTask(safeCommand, "success (contact dialer rule)", "Android fast path", 0)
+                                    _state.value = AgentState.Done(result)
+                                } catch (error: Exception) {
+                                    val detail = error.message.orEmpty()
+                                    when {
+                                        detail.startsWith("No contact matched") -> {
+                                            Log.i(TAG, "Contact lookup had no match for a user request")
+                                            _state.value = AgentState.Done("Mujhe '${callRequest.name}' naam ka contact nahi mila. Kya dialer kholun?")
+                                        }
+                                        detail.startsWith("Multiple contacts found") -> {
+                                            Log.i(TAG, "Contact lookup requires user disambiguation")
+                                            _state.value = AgentState.Done(detail)
+                                        }
+                                        else -> _state.value = AgentState.Error(detail.ifBlank { error.javaClass.simpleName })
+                                    }
+                                }
+                            }
+                            return@withLock
+                        }
+                    }
+
                     if (isSimpleConversation(safeCommand)) {
                         val chatStart = System.currentTimeMillis()
                         val reply = completeWithinBudget(
@@ -166,6 +257,7 @@ ${rawResponse.take(1000)}
 
                     val fastCommands = FastCommandParser.parseSequence(safeCommand)
                     if (fastCommands != null) {
+                        Log.i(TAG, "path=rule skill=fast_command count=${fastCommands.size}")
                         val historyCommand = when {
                             fastCommands.any { it is FastCommandParser.Command.Remember } -> "remember [encrypted local note]"
                             fastCommands.any { it is FastCommandParser.Command.Forget } -> "forget [local memory query]"
@@ -189,9 +281,18 @@ ${rawResponse.take(1000)}
                             _state.value = AgentState.Done(result)
                         } catch (error: Exception) {
                             val detail = error.message?.takeIf { it.isNotBlank() } ?: error.javaClass.simpleName
-                            AgentDiagnostics.record(context, "fast-command-execution", safeCommand, detail, error = error, provider = "Android fast path", model = "Not used")
-                            graphifyRepo.logTask(historyCommand, "failed (fast path): $detail", "Android fast path", 0)
-                            _state.value = AgentState.Error(detail)
+                            if (detail.startsWith("No contact matched")) {
+                                val requested = detail.substringAfter("No contact matched '").substringBefore("'")
+                                Log.i(TAG, "Contact lookup had no match for a user request")
+                                _state.value = AgentState.Done("Mujhe '$requested' naam ka contact nahi mila. Kya dialer kholun?")
+                            } else if (detail.startsWith("Multiple contacts found")) {
+                                Log.i(TAG, "Contact lookup requires user disambiguation")
+                                _state.value = AgentState.Done(detail)
+                            } else {
+                                AgentDiagnostics.record(context, "fast-command-execution", safeCommand, detail, error = error, provider = "Android fast path", model = "Not used")
+                                graphifyRepo.logTask(historyCommand, "failed (fast path): $detail", "Android fast path", 0)
+                                _state.value = AgentState.Error(detail)
+                            }
                         }
                         return@withLock
                     }
@@ -222,7 +323,7 @@ ${rawResponse.take(1000)}
                         .replace("{INSTALLED_APPS}", installedAppsPrompt)
 
                     val estimatedPromptTokens = fullSystem.length / 4
-                    Log.i(TAG, "Compact action prompt estimate: ~${estimatedPromptTokens} tokens; chars=${fullSystem.length}")
+                    Log.i(TAG, "path=LLM provider=${universalAdapter.getProviderName()} approx_prompt_tokens=${estimatedPromptTokens} chars=${fullSystem.length}")
                     if (estimatedPromptTokens > 400) Log.w(TAG, "Action prompt exceeded the ~400-token target after adding screen context")
                     _state.value = AgentState.Running("Soch raha hoon...")
 
@@ -436,6 +537,13 @@ ${rawResponse.take(1000)}
                         },
 
                         onFailure = { error ->
+                            if (error.message?.contains("time budget", ignoreCase = true) == true) {
+                                val spoken = "Ye command samajhne mein der lag rahi hai, chhota command bolo."
+                                Log.i(TAG, "LLM time budget exceeded; returning spoken slow-model guidance")
+                                graphifyRepo.logTask(safeCommand, "slow local model; shorter command requested", "Ollama (Local)", System.currentTimeMillis() - startTime)
+                                _state.value = AgentState.Done(spoken)
+                                return@fold
+                            }
                             val msg = when {
                                 error.message?.contains("401") == true ->
                                     "Invalid API key"
@@ -471,6 +579,11 @@ ${rawResponse.take(1000)}
                         }
                     )
                 } catch (e: Exception) {
+                    if (e.message?.contains("time budget", ignoreCase = true) == true) {
+                        Log.i(TAG, "LLM time budget exceeded; returning spoken slow-model guidance")
+                        _state.value = AgentState.Done("Ye command samajhne mein der lag rahi hai, chhota command bolo.")
+                        return@withLock
+                    }
                     Log.e(TAG, "Task execution crashed for command: $cleanCommand", e)
                     val detail = e.message?.takeIf { it.isNotBlank() }
                         ?: e.cause?.message?.takeIf { it.isNotBlank() }

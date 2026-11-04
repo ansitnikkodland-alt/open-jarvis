@@ -369,6 +369,7 @@ class OllamaProvider(
                     }
                 }
                 val totalMs = (System.nanoTime() - started) / 1_000_000
+                android.util.Log.i("OllamaTiming", "time_to_first_token_ms=${firstTokenMs.coerceAtLeast(0)} total_ms=${totalMs} prompt_tokens=${promptTokens} cached_prompt_tokens=not-reported-by-ollama output_tokens=${outputTokens} prompt_eval_ms=${promptEvalMs} generation_ms=${generationMs}")
                 val cleaned = OllamaResponseParser.stripThinkBlocks(answer.toString())
                 if (cleaned.isBlank()) throw IllegalStateException("Ollama returned no answer.")
                 appContext?.let { ctx ->
