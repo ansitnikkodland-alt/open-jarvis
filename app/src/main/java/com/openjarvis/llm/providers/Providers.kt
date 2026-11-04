@@ -256,7 +256,7 @@ class OllamaProvider(
     override val name: String = "Ollama"
 
     override suspend fun complete(systemPrompt: String, userMessage: String): Result<String> =
-        completeInternal(systemPrompt, userMessage, actionPlan = true)
+        completeInternal(systemPrompt, userMessage, actionPlan = true, timeoutMs = 120_000L)
 
     override suspend fun completeConversation(systemPrompt: String, userMessage: String): Result<String> =
         completeInternal(systemPrompt, userMessage, actionPlan = false, timeoutMs = 120_000L)
@@ -381,7 +381,7 @@ class OllamaProvider(
                 return cleaned
             }
         } catch (error: java.net.SocketTimeoutException) {
-            throw IllegalStateException("Ollama slow hai, 180s mein jawab nahi aaya", error)
+            throw IllegalStateException("Ollama request timed out within the remaining task budget.", error)
         } catch (error: java.io.IOException) {
             throw IllegalStateException("Ollama not reachable - Termux mein ollama serve chalao. ${error.message.orEmpty()}", error)
         }
