@@ -106,10 +106,7 @@ class JarvisAccessibilityService : AccessibilityService() {
         try {
             while (queue.isNotEmpty()) {
                 val node = queue.removeFirst()
-                val matches = node.isVisibleToUser && (
-                    node.text?.toString()?.contains(needle, ignoreCase = true) == true ||
-                    node.contentDescription?.toString()?.contains(needle, ignoreCase = true) == true
-                )
+                val matches = node.isVisibleToUser && matchesNodeTarget(node, needle)
                 if (matches) {
                     var candidate: AccessibilityNodeInfo? = AccessibilityNodeInfo.obtain(node)
                     for (depth in 0..8) {
@@ -147,12 +144,12 @@ class JarvisAccessibilityService : AccessibilityService() {
      * Resolve the editor across interactive windows too; the Jarvis overlay may
      * be active while the target app owns the editable search field.
      */
-    fun typeText(text: String): Boolean {
+    fun typeText(text: String, targetHint: String? = null): Boolean {
         if (text.isEmpty()) return false
         val roots = interactionRoots()
         var target: AccessibilityNodeInfo? = null
         for (index in roots.indices) {
-            val found = findEditableInRoot(roots[index])
+            val found = findEditableInRoot(roots[index], targetHint)
             if (found != null) {
                 target = found
                 for (remaining in index + 1 until roots.size) roots[remaining].recycle()
@@ -169,18 +166,21 @@ class JarvisAccessibilityService : AccessibilityService() {
         return changed
     }
 
-    private fun findEditableInRoot(root: AccessibilityNodeInfo): AccessibilityNodeInfo? {
+    private fun findEditableInRoot(root: AccessibilityNodeInfo, targetHint: String? = null): AccessibilityNodeInfo? {
         val queue = ArrayDeque<AccessibilityNodeInfo>()
+        val hasTarget = !targetHint.isNullOrBlank()
         try {
             val focused = root.findFocus(AccessibilityNodeInfo.FOCUS_INPUT)
-            if (focused?.isEditable == true && focused.isVisibleToUser && focused.isEnabled) {
+            if (focused?.isEditable == true && focused.isVisibleToUser && focused.isEnabled &&
+                (!hasTarget || matchesNodeTarget(focused, targetHint!!))) {
                 return focused
             }
             focused?.recycle()
             queue.add(AccessibilityNodeInfo.obtain(root))
             while (queue.isNotEmpty()) {
                 val node = queue.removeFirst()
-                if (node.isVisibleToUser && node.isEnabled && node.isEditable) {
+                if (node.isVisibleToUser && node.isEnabled && node.isEditable &&
+                    (!hasTarget || matchesNodeTarget(node, targetHint!!))) {
                     val result = AccessibilityNodeInfo.obtain(node)
                     node.recycle()
                     return result
@@ -195,6 +195,77 @@ class JarvisAccessibilityService : AccessibilityService() {
             root.recycle()
             while (queue.isNotEmpty()) queue.removeFirst().recycle()
         }
+    }
+
+    /**
+     * Match UI controls by visible text, accessibility description, hint, tooltip,
+     * or Android resource id. Icon-only controls (for example WhatsApp Search)
+     * often have no visible text but do expose a content description or view id.
+     */
+    private fun matchesNodeTarget(node: AccessibilityNodeInfo, target: String): Boolean {
+        val ignored = setOf("icon", "button", "field", "box", "control", "menu", "the", "a")
+        val query = target.lowercase().replace(Regex("[^a-z0-9]+"), " ")
+            .split(Regex("\\s+")).filter { it.isNotBlank() && it !in ignored }
+        if (query.isEmpty()) return false
+        val candidates = listOfNotNull(
+            node.text?.toString(),
+            node.contentDescription?.toString(),
+            node.hintText?.toString(),
+            node.tooltipText?.toString(),
+            node.viewIdResourceName
+        ).map { it.lowercase().replace(Regex("[^a-z0-9]+"), " ").trim() }
+            .filter { it.isNotBlank() }
+        return candidates.any { candidate ->
+            val compact = candidate.replace(" ", "")
+            val queryCompact = query.joinToString("")
+            compact.contains(queryCompact) ||
+                query.any { token -> candidate.split(Regex("\\s+")).any { it.contains(token) } ||
+                    compact.contains(token) }
+        }
+    }
+
+    /**
+     * Compact live UI map for the planner. Includes icon descriptions and Android
+     * resource ids so the model does not assume every control has a text label.
+     */
+    fun describeVisibleInteractiveElements(maxItems: Int = 60): String {
+        val roots = interactionRoots()
+        val lines = linkedSetOf<String>()
+        for (root in roots) {
+            val queue = ArrayDeque<AccessibilityNodeInfo>()
+            queue.add(AccessibilityNodeInfo.obtain(root))
+            try {
+                while (queue.isNotEmpty() && lines.size < maxItems) {
+                    val node = queue.removeFirst()
+                    if (node.isVisibleToUser && (node.isClickable || node.isEditable || node.isLongClickable)) {
+                        val label = listOfNotNull(
+                            node.text?.toString()?.takeIf { it.isNotBlank() }?.let { "text=$it" },
+                            node.contentDescription?.toString()?.takeIf { it.isNotBlank() }?.let { "desc=$it" },
+                            node.hintText?.toString()?.takeIf { it.isNotBlank() }?.let { "hint=$it" },
+                            node.viewIdResourceName?.takeIf { it.isNotBlank() }?.let { "id=$it" },
+                            node.className?.toString()?.let { "class=$it" }
+                        ).joinToString(" ")
+                        if (label.isNotBlank()) {
+                            val kind = when {
+                                node.isEditable -> "editable"
+                                node.isClickable -> "clickable"
+                                else -> "long-clickable"
+                            }
+                            lines.add("[$kind] $label")
+                        }
+                    }
+                    for (index in 0 until node.childCount) {
+                        node.getChild(index)?.let(queue::add)
+                    }
+                    node.recycle()
+                }
+            } finally {
+                root.recycle()
+                while (queue.isNotEmpty()) queue.removeFirst().recycle()
+            }
+            if (lines.size >= maxItems) break
+        }
+        return lines.joinToString("\\n")
     }
 
     fun pressBack() = performGlobalAction(GLOBAL_ACTION_BACK)
