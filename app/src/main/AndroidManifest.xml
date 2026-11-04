@@ -91,6 +91,17 @@
                 android:value="ai_assistant_overlay" />
         </service>
 
+        <receiver
+            android:name=".proactive.ProactiveBatteryReceiver"
+            android:enabled="true"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.BATTERY_LOW" />
+                <action android:name="android.intent.action.ACTION_POWER_CONNECTED" />
+                <action android:name="android.intent.action.ACTION_POWER_DISCONNECTED" />
+            </intent-filter>
+        </receiver>
+
         <service
             android:name=".local.DownloadService"
             android:exported="false"
