@@ -71,13 +71,16 @@ INSTALLED APPS: {INSTALLED_APPS}
         Regex("^(hi|hello|hey|hello jarvis|hi jarvis|how are you|what's up|नमस्ते|नमस्कार|हाय|कसे आहात|काय चाललंय)[.!? ]*$", RegexOption.IGNORE_CASE)
             .matches(command.trim())
 
+    private fun remainingLlmBudgetMs(budgetStartMs: Long): Long =
+        (45_000L - (System.currentTimeMillis() - budgetStartMs)).coerceAtLeast(0L)
+
     private suspend fun completeWithinBudget(
         system: String,
         user: String,
         budgetStartMs: Long,
         conversation: Boolean = false
     ): Result<String> {
-        val remaining = 45_000L - (System.currentTimeMillis() - budgetStartMs)
+        val remaining = remainingLlmBudgetMs(budgetStartMs)
         if (remaining <= 0L) return Result.failure(IllegalStateException("LLM time budget exceeded (45 seconds). Try a shorter command."))
         return withTimeoutOrNull(remaining) {
             universalAdapter.completeWithDeadline(system, user, remaining, conversation)
@@ -96,6 +99,9 @@ INSTALLED APPS: {INSTALLED_APPS}
     ): Pair<String, LLMResponseValidator.ValidationResult> {
         val initial = LLMResponseValidator.validate(rawResponse)
         if (initial.isValid) return rawResponse to initial
+        // Validation repair shares the original request's 45-second deadline.
+        // If the budget is spent, keep the validation failure and do not start another LLM call.
+        if (remainingLlmBudgetMs(budgetStartMs) <= 0L) return rawResponse to initial
 
         val repairPrompt = """
 You are a strict JSON syntax repairer for Android action plans.
@@ -109,9 +115,7 @@ ${rawResponse.take(1000)}
 """.trimIndent()
 
         val repairResult = completeWithinBudget(repairPrompt, userCommand, budgetStartMs)
-        if (repairResult.isFailure && repairResult.exceptionOrNull()?.message.orEmpty().contains("time budget", ignoreCase = true)) {
-            throw repairResult.exceptionOrNull()!!
-        }
+        // A failed/expired repair must not consume time with another retry or replan.
         val repaired = repairResult.getOrNull() ?: return rawResponse to initial
 
         val repairedValidation = LLMResponseValidator.validate(repaired)
@@ -405,7 +409,21 @@ ${rawResponse.take(1000)}
                                 _state.value = AgentState.Running("clarifying action plan...")
                                 val planScreen = runCatching { screenReader.extractAllText() }.getOrDefault("")
                                 val planElements = runCatching { screenReader.extractInteractiveElements() }.getOrDefault("")
-                                if (planScreen.isNotBlank()) {
+                                if (planScreen.isBlank()) {
+                                    val onlyResolvedAppLaunch = actions.size == 1 &&
+                                        actions.single().action == Action.OPEN_APP &&
+                                        !AppTargetResolver.isPlaceholder(actions.single().label) &&
+                                        !actions.single().packageName.isNullOrBlank() &&
+                                        AgentPlanPolicy.isExecutablePlan(actions, safeCommand)
+                                    if (!onlyResolvedAppLaunch) {
+                                        val rule = "RULE_SCREEN_OBSERVATION"
+                                        val reason = "$rule: " + AgentPlanPolicy.userGuidance(rule)
+                                        AgentDiagnostics.record(context, "action-plan-final-guard", safeCommand, reason, effectiveRawJson, provider = universalAdapter.getProviderName(), model = "qwen3:1.7b")
+                                        _state.value = AgentState.Error(AgentPlanPolicy.userGuidance(rule))
+                                        graphifyRepo.logTask(safeCommand, "failed: accessibility screen unavailable", universalAdapter.getProviderName(), latency)
+                                        return@fold
+                                    }
+                                } else if (remainingLlmBudgetMs(startTime) > 0L) {
                                     val compactPrompt = systemPrompt
                                         .replace("{PERSONAL_MEMORY}", memoryPrompt)
                                         .replace("{SCREEN_OCR}", planScreen.take(150))
@@ -465,10 +483,12 @@ ${rawResponse.take(1000)}
                             // Final fail-closed gate: no unresolved app target or partial
                             // observation plan may reach the Android action executor.
                             if (!AgentPlanPolicy.isExecutablePlan(actions, safeCommand)) {
-                                val reason = "The local model did not produce a complete, grounded action plan. Name the target app explicitly and try again. No device action was run."
-                                AgentDiagnostics.record(context, "action-plan-final-guard", safeCommand, reason, effectiveRawJson, provider = universalAdapter.getProviderName(), model = "qwen3:1.7b")
-                                _state.value = AgentState.Error(reason)
-                                graphifyRepo.logTask(safeCommand, "failed: final plan guard rejected actions", universalAdapter.getProviderName(), latency)
+                                val rule = AgentPlanPolicy.failureRule(actions, safeCommand) ?: "RULE_NOT_EXECUTABLE"
+                                val guidance = AgentPlanPolicy.userGuidance(rule)
+                                val diagnosticReason = "$rule: $guidance"
+                                AgentDiagnostics.record(context, "action-plan-final-guard", safeCommand, diagnosticReason, effectiveRawJson, provider = universalAdapter.getProviderName(), model = "qwen3:1.7b")
+                                _state.value = AgentState.Error(guidance)
+                                graphifyRepo.logTask(safeCommand, "failed: $rule", universalAdapter.getProviderName(), latency)
                                 return@fold
                             }
 
