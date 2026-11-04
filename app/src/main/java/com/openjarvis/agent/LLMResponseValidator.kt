@@ -72,7 +72,7 @@ object LLMResponseValidator {
                 escaped = false
                 continue
             }
-            if ((inSingle || inDouble) && ch == '\\\\') {
+            if ((inSingle || inDouble) && ch == '\\') {
                 output.append(ch)
                 escaped = true
                 continue
@@ -101,7 +101,7 @@ object LLMResponseValidator {
      */
     private fun repairCertainMixedArray(source: String): String? {
         val match = Regex(
-            """^\\s*\\[\\s*"([a-zA-Z_ -]+)"\\s*,\\s*"([a-zA-Z_]+)"\\s*:\\s*"((?:\\\\.|[^"\\\\])*)"\\s*\\]\\s*$""",
+            """^\s*\[\s*"([a-zA-Z_ -]+)"\s*,\s*"([a-zA-Z_]+)"\s*:\s*"((?:\\.|[^"\\])*)"\s*\]\s*$""",
             RegexOption.DOT_MATCHES_ALL
         ).matchEntire(source) ?: return null
         val action = match.groupValues[1].trim()

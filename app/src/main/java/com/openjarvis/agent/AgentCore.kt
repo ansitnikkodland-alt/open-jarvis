@@ -109,9 +109,11 @@ Malformed response:
 ${rawResponse.take(4000)}
 """.trimIndent()
 
-        val repaired = runCatching {
-            completeWithinBudget(repairPrompt, userCommand, budgetStartMs).getOrThrow()
-        }.getOrNull() ?: return rawResponse to initial
+        val repairResult = completeWithinBudget(repairPrompt, userCommand, budgetStartMs)
+        if (repairResult.isFailure && repairResult.exceptionOrNull()?.message.orEmpty().contains("time budget", ignoreCase = true)) {
+            throw repairResult.exceptionOrNull()!!
+        }
+        val repaired = repairResult.getOrNull() ?: return rawResponse to initial
 
         val repairedValidation = LLMResponseValidator.validate(repaired)
         return if (repairedValidation.isValid) repaired to repairedValidation
@@ -713,7 +715,9 @@ ${rawResponse.take(4000)}
     private suspend fun executeFastCommand(command: FastCommandParser.Command): String {
         // An app launch is not safe to retry after startActivity succeeds: a failed
         // foreground observation must never launch the same app a second time.
-        if (command is FastCommandParser.Command.OpenApp) {
+        if (command is FastCommandParser.Command.OpenApp ||
+            command is FastCommandParser.Command.DialContact ||
+            command is FastCommandParser.Command.YoutubeSearch) {
             return executeFastCommandOnce(command)
         }
         var lastFailure = "Command could not be verified"

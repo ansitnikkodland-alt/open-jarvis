@@ -21,7 +21,7 @@ internal object FastCommandParser {
     }
 
     private val englishOpen = Regex("^(?:please\\s+)?(?:open|launch|start)\\s+(.+)$", RegexOption.IGNORE_CASE)
-    private val hindiOpen = Regex("^(.+?)\\s+(?:kholo|khol\\s+do|open\\s+karo)$", RegexOption.IGNORE_CASE)
+    private val hindiOpen = Regex("^(.+?)\\s+(?:kholo|khol\\s+do|open\\s+karo|उघडा|उघड)$", RegexOption.IGNORE_CASE)
     private val close = Regex("^(?:please\\s+)?(?:close|exit|band\\s+karo|band\\s+kar\\s+do)(?:\\s+(?:the\\s+)?app)?$", RegexOption.IGNORE_CASE)
     private val dial = Regex("^(?:call|dial|phone|mujhe\\s+call\\s+karo|call\\s+karo)\\s+([+0-9][+0-9() .-]{4,})$", RegexOption.IGNORE_CASE)
     private val youtubeSearch = Regex("^youtube\\s+(?:par\\s+)?(.+?)\\s+(?:search|dhundo|khojo)(?:\\s+karo)?$", RegexOption.IGNORE_CASE)
@@ -53,13 +53,13 @@ internal object FastCommandParser {
         if (forget != null) return Command.Forget(forget.groupValues[1].trim())
 
         if (close.matches(normalized)) return Command.CloseCurrentApp
-        if (normalized.matches(Regex("^(?:back|go back|pichhe|peeche|wapas|वापस)$", RegexOption.IGNORE_CASE))) return Command.Back
-        if (normalized.matches(Regex("^(?:home|go home|ghar|होम)$", RegexOption.IGNORE_CASE))) return Command.Home
+        if (normalized.matches(Regex("^(?:back|go back|pichhe|peeche|wapas|वापस|मागे|मागे जा)$", RegexOption.IGNORE_CASE))) return Command.Back
+        if (normalized.matches(Regex("^(?:home|go home|ghar|होम|मुख्यपृष्ठ|घरी जा)$", RegexOption.IGNORE_CASE))) return Command.Home
 
-        val scroll = Regex("^(?:scroll|स्क्रॉल)\\s*(up|down|upar|neeche|ऊपर|नीचे)?$", RegexOption.IGNORE_CASE).matchEntire(normalized)
+        val scroll = Regex("^(?:scroll|स्क्रॉल)\\s*(up|down|upar|neeche|ऊपर|नीचे|वर|खाली)?$", RegexOption.IGNORE_CASE).matchEntire(normalized)
         if (scroll != null) {
             val direction = when (scroll.groupValues[1].lowercase()) {
-                "up", "upar", "ऊपर" -> "up"
+                "up", "upar", "ऊपर", "वर" -> "up"
                 else -> "down"
             }
             return Command.Scroll(direction)
@@ -103,15 +103,15 @@ internal object FastCommandParser {
     private fun settingsAction(command: String): String? {
         val q = command.lowercase()
         return when {
-            listOf("wifi", "wi-fi", "वाईफाई").any { q.contains(it) } && listOf("setting", "settings", "on karo", "kholo", "khol").any { q.contains(it) } -> "wifi"
-            listOf("bluetooth", "ब्लूटूथ").any { q.contains(it) } && listOf("setting", "settings", "kholo", "khol").any { q.contains(it) } -> "bluetooth"
+            listOf("wifi", "wi-fi", "वाईफाई", "वायफाय", "वाय-फाय").any { q.contains(it) } && listOf("setting", "settings", "सेटिंग", "सेटिंग्ज", "on karo", "kholo", "khol", "उघडा", "उघड").any { q.contains(it) } -> "wifi"
+            listOf("bluetooth", "ब्लूटूथ").any { q.contains(it) } && listOf("setting", "settings", "सेटिंग", "सेटिंग्ज", "kholo", "khol", "उघडा", "उघड").any { q.contains(it) } -> "bluetooth"
             listOf("display settings", "display setting", "screen settings", "brightness settings").any { q.contains(it) } -> "display"
             listOf("sound settings", "sound setting", "volume settings", "audio settings").any { q.contains(it) } -> "sound"
             listOf("location setting", "location settings", "gps setting", "gps settings").any { q.contains(it) } -> "location"
             listOf("accessibility setting", "accessibility settings").any { q.contains(it) } -> "accessibility"
             listOf("notification access", "notification listener", "notification settings", "notifications settings").any { q.contains(it) } -> "notifications"
             listOf("app settings", "applications setting", "manage apps").any { q.contains(it) } -> "apps"
-            q in listOf("settings", "open settings", "settings kholo", "settings khol do", "सेटिंग खोलो") -> "general"
+            q in listOf("settings", "open settings", "settings kholo", "settings khol do", "सेटिंग खोलो", "सेटिंग्ज उघडा", "सेटिंग्स उघडा") -> "general"
             else -> null
         }
     }
