@@ -118,7 +118,7 @@ class PersonalMemoryStore(context: Context) {
 
     fun getAll(): List<String> = read()
 
-    fun promptContext(): String = PersonalMemoryCodec.promptContext(read())
+    fun promptContext(query: String): String = PersonalMemoryCodec.promptContext(read(), query)
 
     companion object {
         private const val KEY_ITEMS = "items_json"
