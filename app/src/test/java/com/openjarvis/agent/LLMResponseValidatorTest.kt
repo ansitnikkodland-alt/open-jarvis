@@ -46,6 +46,12 @@ class LLMResponseValidatorTest {
         assertEquals(Action.TYPE_TEXT, result.actions[3].action)
     }
 
+    @Test fun readsOpenAppTargetAsAnAppLabel() {
+        val result = LLMResponseValidator.validate("""[{"action":"open_app","target":"WhatsApp"}]""")
+        assertTrue(result.errors.toString(), result.isValid)
+        assertEquals("WhatsApp", result.actions.single().label)
+    }
+
     @Test fun rejectsUnknownActionsAndEmptyPlansClearly() {
         val unknown = LLMResponseValidator.validate("""[{"action":"launch_moon"}]""")
         assertFalse(unknown.isValid)

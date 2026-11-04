@@ -32,9 +32,9 @@ class AppTargetResolverTest {
 
     @Test fun returnsNoTargetIfCommandDoesNotNameInstalledApp() {
         assertEquals(emptyList<InstalledAppTarget>(), AppTargetResolver.findMentionedApps("do something useful", apps))
-        assertNull(AppTargetResolver.findMentionedApps("open gallery", listOf(
-            InstalledAppTarget("Photos", "com.google.photos"),
-            InstalledAppTarget("Gallery", "com.oem.gallery")
+        assertNull(AppTargetResolver.findMentionedApps("open photos", listOf(
+            InstalledAppTarget("Photos", "com.android.photos"),
+            InstalledAppTarget("Google Photos", "com.google.android.apps.photos")
         )))
     }
 
