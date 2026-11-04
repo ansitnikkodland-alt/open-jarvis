@@ -78,18 +78,39 @@ object LLMResponseValidator {
     }
 
     private fun extractJson(raw: String): String? {
-        val withoutFence = raw.trim()
-            .replace(Regex("^\\s*```(?:json)?\\s*", RegexOption.IGNORE_CASE), "")
-            .replace(Regex("\\s*```\\s*$"), "")
+        val cleaned = raw
+            .replace(Regex("(?is)<think>.*?</think>"), "")
             .trim()
-        val arrayStart = withoutFence.indexOf('[')
-        val objectStart = withoutFence.indexOf('{')
-        val start = listOf(arrayStart, objectStart).filter { it >= 0 }.minOrNull() ?: return null
-        val open = withoutFence[start]
-        val close = if (open == '[') ']' else '}'
-        val end = withoutFence.lastIndexOf(close)
-        if (end < start) return null
-        return withoutFence.substring(start, end + 1)
+            .replace(Regex("^\\s*[\\x60]{3}(?:json)?\\s*", RegexOption.IGNORE_CASE), "")
+            .replace(Regex("\\s*[\\x60]{3}\\s*$"), "")
+            .trim()
+        val start = cleaned.indexOfFirst { it == '[' || it == '{' }
+        if (start < 0) return null
+        val stack = ArrayDeque<Char>()
+        var inString = false
+        var escaped = false
+        for (index in start until cleaned.length) {
+            val ch = cleaned[index]
+            if (inString) {
+                if (escaped) escaped = false
+                else if (ch.code == 92) escaped = true
+                else if (ch == '"') inString = false
+                continue
+            }
+            when (ch) {
+                '"' -> inString = true
+                '[', '{' -> stack.addLast(ch)
+                ']' -> {
+                    if (stack.isEmpty() || stack.removeLast() != '[') return null
+                    if (stack.isEmpty()) return cleaned.substring(start, index + 1)
+                }
+                '}' -> {
+                    if (stack.isEmpty() || stack.removeLast() != '{') return null
+                    if (stack.isEmpty()) return cleaned.substring(start, index + 1)
+                }
+            }
+        }
+        return null
     }
 
     private fun normalizeAction(raw: String): String {
@@ -110,17 +131,22 @@ object LLMResponseValidator {
     private fun parseAction(obj: JSONObject, type: String): Action {
         val target = firstString(obj, "text", "target", "element", "label").takeIf { it.isNotBlank() }
         val value = firstString(obj, "value", "text", "input").takeIf { it.isNotBlank() }
+        val direction = firstString(obj, "direction", "scroll_direction").ifBlank {
+            if (type == Action.SCROLL) target.orEmpty() else ""
+        }.takeIf { it.isNotBlank() }
         return Action(
             action = type,
             packageName = firstString(obj, "package", "packageName", "package_name").takeIf { it.isNotBlank() },
-            label = firstString(obj, "label", "app", "app_name").takeIf { it.isNotBlank() },
+            label = firstString(obj, "label", "app", "app_name").ifBlank {
+                if (type == Action.OPEN_APP) target.orEmpty() else ""
+            }.takeIf { it.isNotBlank() },
             text = target,
             value = value,
             hint = firstString(obj, "hint").takeIf { it.isNotBlank() },
-            direction = firstString(obj, "direction", "scroll_direction").takeIf { it.isNotBlank() },
+            direction = direction,
             distance = firstString(obj, "distance").takeIf { it.isNotBlank() },
             timeoutMs = firstLong(obj, 3000L, "timeout_ms", "timeoutMs", "duration_ms"),
-            message = firstString(obj, "message", "reason").takeIf { it.isNotBlank() },
+            message = firstString(obj, "message", "reason").ifBlank { if (type == Action.ERROR) value.orEmpty() else "" }.takeIf { it.isNotBlank() },
             prompt = firstString(obj, "prompt").takeIf { it.isNotBlank() },
             outputKey = firstString(obj, "outputKey", "output_key").takeIf { it.isNotBlank() }
         )
