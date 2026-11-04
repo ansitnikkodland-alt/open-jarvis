@@ -46,7 +46,7 @@ class AgentCore(private val context: Context) {
     private val personalMemoryStore = PersonalMemoryStore(context)
 
     private var workingMemory = TaskWorkingMemory()
-    private var pendingContactUntilMs: Long = 0L
+    private val contactFollowUpWindow = ContactFollowUpWindow()
 
     private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
     private val taskMutex = Mutex()
@@ -154,10 +154,7 @@ ${rawResponse.take(1000)}
                     _state.value = AgentState.Running("checking direct command...")
 
                     // Consume the next utterance as a contact name only during the 10s pending window.
-                    if (pendingContactUntilMs > 0L) {
-                        val expiresAt = pendingContactUntilMs
-                        pendingContactUntilMs = 0L
-                        if (System.currentTimeMillis() <= expiresAt) {
+                    if (contactFollowUpWindow.consume(System.currentTimeMillis())) {
                             try {
                                 val result = executeFastCommand(FastCommandParser.Command.DialContact(safeCommand.trim()))
                                 Log.i(TAG, "path=rule skill=contact-follow-up")
@@ -173,11 +170,13 @@ ${rawResponse.take(1000)}
                                         Log.i(TAG, "Contact lookup requires user disambiguation")
                                         _state.value = AgentState.Done(detail)
                                     }
-                                    else -> _state.value = AgentState.Error(detail.ifBlank { error.javaClass.simpleName })
+                                    else -> {
+                                    AgentDiagnostics.record(context, "contact-follow-up", safeCommand, detail, error = error, provider = "Android fast path", model = "Not used")
+                                    _state.value = AgentState.Error(detail.ifBlank { error.javaClass.simpleName })
+                                }
                                 }
                             }
                             return@withLock
-                        }
                     }
 
                     // Search parsing must precede compound splitting and all LLM requests.
@@ -189,7 +188,9 @@ ${rawResponse.take(1000)}
                             graphifyRepo.logTask(safeCommand, "success (YouTube search rule)", "Android fast path", 0)
                             _state.value = AgentState.Done(result)
                         } catch (error: Exception) {
-                            _state.value = AgentState.Error(error.message ?: error.javaClass.simpleName)
+                            val detail = error.message?.takeIf { it.isNotBlank() } ?: error.javaClass.simpleName
+                            AgentDiagnostics.record(context, "youtube-search", safeCommand, detail, error = error, provider = "Android fast path", model = "Not used")
+                            _state.value = AgentState.Error(detail)
                         }
                         return@withLock
                     }
@@ -214,8 +215,8 @@ ${rawResponse.take(1000)}
                         null -> Unit
                         else -> {
                             if (callRequest.name == null) {
-                                pendingContactUntilMs = System.currentTimeMillis() + 10_000L
-                                Log.i(TAG, "path=rule skill=contact_call awaiting_name timeout_ms=10000")
+                                contactFollowUpWindow.start(System.currentTimeMillis())
+                                Log.i(TAG, "path=rule skill=contact_call awaiting_name timeout_ms=30000")
                                 _state.value = AgentState.Done("Kisko call karun?")
                             } else {
                                 try {
@@ -234,7 +235,10 @@ ${rawResponse.take(1000)}
                                             Log.i(TAG, "Contact lookup requires user disambiguation")
                                             _state.value = AgentState.Done(detail)
                                         }
-                                        else -> _state.value = AgentState.Error(detail.ifBlank { error.javaClass.simpleName })
+                                        else -> {
+                                            AgentDiagnostics.record(context, "contact-call", safeCommand, detail, error = error, provider = "Android fast path", model = "Not used")
+                                            _state.value = AgentState.Error(detail.ifBlank { error.javaClass.simpleName })
+                                        }
                                     }
                                 }
                             }
@@ -939,9 +943,7 @@ ${rawResponse.take(1000)}
             is FastCommandParser.Command.DialContact -> {
                 val number = resolveContactNumber(command.name)
                 context.startActivity(Intent(Intent.ACTION_DIAL, Uri.fromParts("tel", number, null)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
-                kotlinx.coroutines.delay(700)
-                if (screenReader.extractAllText().isBlank()) throw IllegalStateException("Dialer opened, but the screen could not be verified")
-                "Opened dialer for ${command.name} (call not placed)"
+                "Dialer launch requested for ${command.name} (call not placed)"
             }
             is FastCommandParser.Command.YoutubeSearch -> {
                 val encoded = java.net.URLEncoder.encode(command.query, "UTF-8")
@@ -963,9 +965,11 @@ ${rawResponse.take(1000)}
                     kotlinx.coroutines.delay(250)
                 }
                 if (!foregroundConfirmed) {
-                    throw IllegalStateException("YouTube search was launched but foreground verification failed. Check the phone before retrying.")
+                    Log.w(TAG, "YouTube ACTION_VIEW was accepted, but foreground confirmation was unavailable")
+                    "YouTube search launch requested for ${command.query}; foreground confirmation unavailable"
+                } else {
+                    "Opened YouTube search for ${command.query} (foreground confirmed)"
                 }
-                "Opened YouTube search for ${command.query} (foreground confirmed)"
             }
         }
     }
