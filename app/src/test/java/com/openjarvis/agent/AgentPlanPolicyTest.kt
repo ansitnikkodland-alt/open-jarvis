@@ -47,6 +47,12 @@ class AgentPlanPolicyTest {
         val actions = List(11) { Action(action = Action.BACK) }
         assertTrue(AgentPlanPolicy.needsCompactReplan(actions))
     }
+    @Test fun screenlessAccessibilityAllowsOnlyOneResolvedAppLaunch() {
+        assertTrue(AgentPlanPolicy.canLaunchResolvedAppWithoutScreen(openInstagram))
+        assertFalse(AgentPlanPolicy.canLaunchResolvedAppWithoutScreen(listOf(Action(action = Action.OPEN_APP, label = null))))
+        assertFalse(AgentPlanPolicy.canLaunchResolvedAppWithoutScreen(openInstagram + Action(action = Action.CLICK, text = "Search")))
+    }
+
     @Test fun classifiesEachGuardFailureWithNamedRule() {
         assertEquals("RULE_MAX_ACTIONS", AgentPlanPolicy.failureRule(List(11) { Action(action = Action.BACK) }, "do it"))
         assertEquals(
