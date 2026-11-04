@@ -11,8 +11,52 @@ mkdir -p "$ARTIFACT_DIR"
 : > "$LOGCAT_PATH"
 [[ -f "$APK_PATH" ]] || { echo "Debug APK not found: $APK_PATH" >&2; exit 10; }
 
-echo "Installing debug APK."
-adb install -r "$APK_PATH"
+echo "Waiting for Android boot and Package Manager readiness."
+adb wait-for-device
+PACKAGE_READY=0
+for ((attempt=1; attempt<=120; attempt++)); do
+  BOOTED="$(adb shell getprop sys.boot_completed 2>/dev/null | tr -d '\r' || true)"
+  PACKAGE_SERVICE="$(adb shell service check package 2>/dev/null | tr -d '\r' || true)"
+  if [[ "$BOOTED" == "1" && "$PACKAGE_SERVICE" == *"found"* ]] &&
+     adb shell cmd package list packages >/dev/null 2>&1; then
+    PACKAGE_READY=1
+    echo "Android and Package Manager ready after ${attempt}s."
+    break
+  fi
+  sleep 1
+done
+if [[ "$PACKAGE_READY" -ne 1 ]]; then
+  echo "Package Manager did not become ready within 120 seconds." >&2
+  adb devices -l || true
+  adb shell getprop sys.boot_completed || true
+  adb shell service check package || true
+  adb logcat -b all -d -t 1200 > "$LOGCAT_PATH" || true
+  exit 15
+fi
+
+echo "Installing debug APK with bounded ADB reconnect retry."
+INSTALL_OK=0
+for ((attempt=1; attempt<=3; attempt++)); do
+  if adb install -r "$APK_PATH"; then
+    INSTALL_OK=1
+    echo "APK install succeeded on attempt $attempt."
+    break
+  fi
+  echo "APK install attempt $attempt failed; reconnecting emulator ADB and rechecking Package Manager." >&2
+  adb reconnect device || true
+  adb wait-for-device
+  sleep $((attempt * 5))
+  if ! adb shell cmd package list packages >/dev/null 2>&1; then
+    echo "Package Manager is still unavailable after reconnect." >&2
+  fi
+done
+if [[ "$INSTALL_OK" -ne 1 ]]; then
+  echo "APK installation failed after 3 attempts." >&2
+  adb devices -l || true
+  adb shell service check package || true
+  adb logcat -b all -d -t 1600 > "$LOGCAT_PATH" || true
+  exit 16
+fi
 
 echo "Pre-granting microphone permission so the first-run dialog cannot block the startup smoke test."
 adb shell pm grant "$APP_ID" android.permission.RECORD_AUDIO
