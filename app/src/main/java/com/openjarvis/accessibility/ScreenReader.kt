@@ -18,6 +18,9 @@ class ScreenReader private constructor(
         return builder.toString()
     }
 
+    fun extractInteractiveElements(): String =
+        serviceProvider()?.describeVisibleInteractiveElements() ?: ""
+
     private fun extractTextRecursive(node: AccessibilityNodeInfo, builder: StringBuilder) {
         val text = node.text
         if (!text.isNullOrBlank()) {
