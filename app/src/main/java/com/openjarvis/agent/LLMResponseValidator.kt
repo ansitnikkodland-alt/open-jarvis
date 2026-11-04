@@ -86,7 +86,7 @@ object LLMResponseValidator {
         return Action(
             action = type,
             packageName = firstString(obj, "package", "packageName", "package_name").takeIf { it.isNotBlank() },
-            label = firstString(obj, "label", "app", "app_name").takeIf { it.isNotBlank() },
+            label = firstString(obj, "label", "app", "app_name", "target").takeIf { it.isNotBlank() },
             text = target,
             value = value,
             hint = firstString(obj, "hint").takeIf { it.isNotBlank() },

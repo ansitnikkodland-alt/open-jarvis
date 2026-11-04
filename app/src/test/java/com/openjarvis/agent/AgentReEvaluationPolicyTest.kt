@@ -57,6 +57,14 @@ class AgentReEvaluationPolicyTest {
 
 
 
+    @Test fun unresolvedOpenAppPlaceholderMustBeReplanned() {
+        val placeholder = listOf(Action(Action.OPEN_APP, label = "App"))
+        assertTrue(AgentPlanPolicy.hasUnresolvedAppLaunch(placeholder))
+        assertTrue(AgentPlanPolicy.needsCompactReplan(placeholder))
+        assertFalse(AgentPlanPolicy.isExecutablePlan(placeholder))
+        assertTrue(AgentPlanPolicy.hasUnresolvedAppLaunch(listOf(Action(Action.OPEN_APP))))
+    }
+
     @Test fun requestsCompactReplanForMixedRefusalAndOverlongPlans() {
         assertTrue(
             AgentPlanPolicy.needsCompactReplan(

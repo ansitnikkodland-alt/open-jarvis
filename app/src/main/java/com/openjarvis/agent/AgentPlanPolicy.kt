@@ -10,13 +10,18 @@ package com.openjarvis.agent
 internal object AgentPlanPolicy {
     const val MAX_ACTIONS = 6
 
+    fun hasUnresolvedAppLaunch(actions: List<Action>): Boolean =
+        actions.any { it.action == Action.OPEN_APP && AppTargetResolver.isPlaceholder(it.label) }
+
     fun needsCompactReplan(actions: List<Action>): Boolean =
         actions.size > MAX_ACTIONS ||
-            (actions.any { it.action == Action.ERROR } && actions.any { it.action != Action.ERROR })
+            (actions.any { it.action == Action.ERROR } && actions.any { it.action != Action.ERROR }) ||
+            hasUnresolvedAppLaunch(actions)
 
     fun isExecutablePlan(actions: List<Action>): Boolean =
         actions.isNotEmpty() &&
             actions.size <= MAX_ACTIONS &&
+            !hasUnresolvedAppLaunch(actions) &&
             actions.none {
                 it.action == Action.ERROR ||
                     it.action == Action.READ_SCREEN ||
