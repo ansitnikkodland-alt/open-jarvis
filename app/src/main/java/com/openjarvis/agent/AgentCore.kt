@@ -170,6 +170,14 @@ SCREEN: {SCREEN_OCR}
                                     effectiveRawJson = retryRaw
                                     latency = System.currentTimeMillis() - startTime
                                     validation = LLMResponseValidator.validate(retryRaw)
+                                    if (validation.isValid) {
+                                        AgentDiagnostics.record(
+                                            context, "response-validation-retried", safeCommand,
+                                            "Initial output invalid; one format retry succeeded",
+                                            "FIRST RESPONSE:\n${rawJson.take(2000)}\nRETRY RESPONSE:\n${retryRaw.take(2000)}",
+                                            provider = universalAdapter.getProviderName(), model = "qwen3:1.7b"
+                                        )
+                                    }
                                 }
                                 if (!validation.isValid) {
                                     val finalReason = validation.errors.firstOrNull() ?: firstFailure
@@ -227,6 +235,14 @@ SCREEN: {SCREEN_OCR}
                                         val initialRaw = effectiveRawJson
                                         effectiveRawJson = retryRaw
                                         validation = LLMResponseValidator.validate(retryRaw)
+                                        if (validation.isValid) {
+                                            AgentDiagnostics.record(
+                                                context, "screen-replan-validation-retried", safeCommand,
+                                                "Initial output invalid; one format retry succeeded",
+                                                "FIRST RESPONSE:\n${initialRaw.take(2000)}\nRETRY RESPONSE:\n${retryRaw.take(2000)}",
+                                                provider = universalAdapter.getProviderName(), model = "qwen3:1.7b"
+                                            )
+                                        }
                                         if (!validation.isValid) {
                                             AgentDiagnostics.record(
                                                 context, "screen-replan-validation",
