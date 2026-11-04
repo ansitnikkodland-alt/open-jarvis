@@ -17,6 +17,7 @@ import android.graphics.PixelFormat
 import android.graphics.drawable.GradientDrawable
 import android.os.Build
 import android.os.IBinder
+import android.os.PowerManager
 import android.os.Handler
 import android.os.Looper
 import android.provider.Settings
@@ -61,6 +62,7 @@ class OverlayService : Service() {
     private lateinit var graphifyRepo: GraphifyRepository
     private var wakeWordController: WakeWordEngine? = null
     private var wakeWordControllerKey: String? = null
+    private var wakeWordCpuLock: PowerManager.WakeLock? = null
     private val mainHandler = Handler(Looper.getMainLooper())
     private var wakeWordCommandPending = false
     private var wakeWordResponsePending = false
@@ -333,6 +335,7 @@ class OverlayService : Service() {
             wakeWordControllerKey = accessKey
         }
         val error = wakeWordController?.start()
+        if (error == null) acquireWakeWordCpuLock() else releaseWakeWordCpuLock()
         statusText?.text = error ?: "Standby — say Jarvis (offline)"
     }
 
@@ -347,6 +350,23 @@ class OverlayService : Service() {
 
     private fun stopWakeWordListening() {
         wakeWordController?.stop()
+        releaseWakeWordCpuLock()
+    }
+
+    /** Keep the CPU alive while the foreground service is actively listening with screen off. */
+    private fun acquireWakeWordCpuLock() {
+        if (wakeWordCpuLock?.isHeld == true) return
+        val powerManager = getSystemService(Context.POWER_SERVICE) as PowerManager
+        val lock = wakeWordCpuLock ?: powerManager.newWakeLock(
+            PowerManager.PARTIAL_WAKE_LOCK,
+            "OpenJarvis:WakeWord"
+        ).apply { setReferenceCounted(false) }.also { wakeWordCpuLock = it }
+        if (!lock.isHeld) lock.acquire()
+    }
+
+    private fun releaseWakeWordCpuLock() {
+        val lock = wakeWordCpuLock ?: return
+        if (lock.isHeld) lock.release()
     }
 
     private fun resumeWakeWordAfterResponse() {
