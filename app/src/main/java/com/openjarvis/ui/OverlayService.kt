@@ -38,6 +38,7 @@ import com.openjarvis.graphify.GraphifyRepository
 import com.openjarvis.graphify.nodes.TaskNode
 import com.openjarvis.voice.VoiceManager
 import com.openjarvis.voice.PorcupineWakeWordController
+import com.openjarvis.voice.WakeWordEngine
 import com.openjarvis.voice.WakeWordConfig
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -58,7 +59,7 @@ class OverlayService : Service() {
     private lateinit var agentCore: AgentCore
     private lateinit var voiceManager: VoiceManager
     private lateinit var graphifyRepo: GraphifyRepository
-    private var wakeWordController: PorcupineWakeWordController? = null
+    private var wakeWordController: WakeWordEngine? = null
     private var wakeWordControllerKey: String? = null
     private val mainHandler = Handler(Looper.getMainLooper())
     private var wakeWordCommandPending = false
