@@ -428,11 +428,8 @@ ${rawResponse.take(1000)}
                                 val planScreen = runCatching { screenReader.extractAllText() }.getOrDefault("")
                                 val planElements = runCatching { screenReader.extractInteractiveElements() }.getOrDefault("")
                                 if (planScreen.isBlank()) {
-                                    screenlessResolvedAppLaunchAllowed = actions.size == 1 &&
-                                        actions.single().action == Action.OPEN_APP &&
-                                        !AppTargetResolver.isPlaceholder(actions.single().label) &&
-                                        !actions.single().packageName.isNullOrBlank() &&
-                                        AgentPlanPolicy.isExecutablePlan(actions)
+                                    screenlessResolvedAppLaunchAllowed =
+                                        AgentPlanPolicy.canLaunchResolvedAppWithoutScreen(actions)
                                     if (!screenlessResolvedAppLaunchAllowed) {
                                         val rule = "RULE_SCREEN_OBSERVATION"
                                         val reason = "$rule: " + AgentPlanPolicy.userGuidance(rule)
