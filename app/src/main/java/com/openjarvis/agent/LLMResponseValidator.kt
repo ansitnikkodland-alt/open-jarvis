@@ -13,8 +13,10 @@ object LLMResponseValidator {
     )
 
     fun validate(rawResponse: String): ValidationResult {
-        val clean = extractJson(rawResponse)
+        val extracted = extractJson(rawResponse)
             ?: return invalid("Response is not JSON: no action array/object found")
+        val repair = repairMalformedSingleActionArray(extracted)
+        val clean = repair?.first ?: extracted
 
         val parsed = try {
             when {
@@ -47,7 +49,32 @@ object LLMResponseValidator {
             if (type !in knownActions) return invalid("Unsupported action type: $rawType")
             actions.add(parseAction(item, type))
         }
-        return ValidationResult(true, actions, emptyList(), false)
+        return ValidationResult(true, actions, emptyList(), repair != null)
+    }
+
+    /**
+     * Small local repair for a common Qwen formatting slip:
+     * ["type_text","value":"hello"] -> [{"action":"type_text","value":"hello"}]
+     *
+     * It only repairs a single action whose remaining fields form valid JSON.
+     * It never guesses missing values or repairs ambiguous/multi-action output.
+     */
+    private fun repairMalformedSingleActionArray(raw: String): Pair<String, Unit>? {
+        val match = Regex(
+            """^\[\s*"([a-zA-Z_-]+)"\s*,\s*(.+)\s*\]$""",
+            setOf(RegexOption.DOT_MATCHES_ALL)
+        ).matchEntire(raw.trim()) ?: return null
+
+        val actionName = match.groupValues[1]
+        val fields = match.groupValues[2].trim()
+        if (!fields.contains(':')) return null
+
+        val objectText = if (fields.startsWith("{")) fields else "{$fields}"
+        val parsedObject = runCatching { JSONObject(objectText) }.getOrNull() ?: return null
+        if (parsedObject.has("action") || parsedObject.has("type") || parsedObject.has("command")) return null
+
+        parsedObject.put("action", actionName)
+        return JSONArray().put(parsedObject).toString() to Unit
     }
 
     private fun extractJson(raw: String): String? {
