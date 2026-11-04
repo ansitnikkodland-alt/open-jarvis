@@ -24,7 +24,8 @@ class AgentPlanPolicyTest {
             "Instagram kholo aur search karo",
             "Instagram kholo and message Rahul",
             "Instagram kholo aur likho hello",
-            "Instagram kholo and click profile"
+            "Instagram kholo and click profile",
+            "Instagram search profile type Rahul"
         ).forEach { command ->
             assertTrue(command, AgentPlanPolicy.isLikelyUnderPlanned(command, openInstagram))
         }
