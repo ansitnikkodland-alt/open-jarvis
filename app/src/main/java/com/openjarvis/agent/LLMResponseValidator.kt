@@ -52,8 +52,8 @@ object LLMResponseValidator {
 
     private fun extractJson(raw: String): String? {
         val source = raw.trim()
-            .replace(Regex("^\\\\s*```(?:json)?\\\\s*", RegexOption.IGNORE_CASE), "")
-            .replace(Regex("\\\\s*```\\\\s*$"), "")
+            .replace(Regex("""^\s*```(?:json)?\s*""", RegexOption.IGNORE_CASE), "")
+            .replace(Regex("""\s*```\s*$"""), "")
             .trim()
         if (source.isEmpty()) return null
         val firstContent = source.indexOfFirst { !it.isWhitespace() }
@@ -119,9 +119,9 @@ object LLMResponseValidator {
             val char = source[index]
             if (inString) {
                 if (escaped) escaped = false
-                else when (char) {
-                    '\\\\' -> escaped = true
-                    '"' -> inString = false
+                else when {
+                    char == 92.toChar() -> escaped = true
+                    char == '"' -> inString = false
                 }
                 continue
             }
