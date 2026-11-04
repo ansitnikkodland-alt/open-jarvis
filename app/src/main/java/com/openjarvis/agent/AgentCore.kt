@@ -205,11 +205,33 @@ SCREEN: {SCREEN_OCR}
                                 latency = System.currentTimeMillis() - startTime
                                 validation = LLMResponseValidator.validate(effectiveRawJson)
                                 if (!validation.isValid) {
-                                    val reason = validation.errors.firstOrNull() ?: "The refreshed action plan was empty"
-                                    AgentDiagnostics.record(context, "screen-replan-validation", safeCommand, reason, effectiveRawJson, provider = universalAdapter.getProviderName(), model = "qwen3:1.7b")
-                                    _state.value = AgentState.Error("AI could not create an action plan: $reason")
-                                    graphifyRepo.logTask(safeCommand, "failed: refreshed plan invalid", universalAdapter.getProviderName(), latency)
-                                    return@fold
+                                    val firstFailure = validation.errors.firstOrNull() ?: "The refreshed action plan was empty"
+                                    val retryPrompt = refreshedPrompt +
+                                        "\n\nFORMAT RETRY: Previous output was invalid. Return ONLY valid JSON matching the steps schema. No markdown, no <think>, no explanation."
+                                    val retryRaw = universalAdapter.complete(retryPrompt, safeCommand).getOrNull()
+                                    if (retryRaw != null) {
+                                        val initialRaw = effectiveRawJson
+                                        effectiveRawJson = retryRaw
+                                        validation = LLMResponseValidator.validate(retryRaw)
+                                        if (!validation.isValid) {
+                                            AgentDiagnostics.record(
+                                                context, "screen-replan-validation",
+                                                safeCommand, "Initial: $firstFailure | Retry: ${validation.errors.firstOrNull()}",
+                                                "FIRST RESPONSE:\n${initialRaw.take(2000)}\nRETRY RESPONSE:\n${retryRaw.take(2000)}",
+                                                provider = universalAdapter.getProviderName(), model = "qwen3:1.7b"
+                                            )
+                                        }
+                                    }
+                                    if (!validation.isValid) {
+                                        AgentDiagnostics.record(
+                                            context, "screen-replan-validation", safeCommand,
+                                            "Initial: $firstFailure | Retry: ${validation.errors.firstOrNull()}",
+                                            effectiveRawJson, provider = universalAdapter.getProviderName(), model = "qwen3:1.7b"
+                                        )
+                                        _state.value = AgentState.Done("I couldn't form a valid action plan. Please say the command another way.")
+                                        graphifyRepo.logTask(safeCommand, "refreshed plan invalid after one retry", universalAdapter.getProviderName(), latency)
+                                        return@fold
+                                    }
                                 }
                                 actions = validation.actions
                             }
