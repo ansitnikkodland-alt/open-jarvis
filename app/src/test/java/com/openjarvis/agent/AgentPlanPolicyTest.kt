@@ -45,4 +45,23 @@ class AgentPlanPolicyTest {
         val actions = List(11) { Action(action = Action.BACK) }
         assertTrue(AgentPlanPolicy.needsCompactReplan(actions))
     }
+    @Test fun classifiesEachGuardFailureWithNamedRule() {
+        assertEquals("RULE_MAX_ACTIONS", AgentPlanPolicy.failureRule(List(11) { Action(action = Action.BACK) }, "do it"))
+        assertEquals(
+            "RULE_MIXED_ERROR",
+            AgentPlanPolicy.failureRule(
+                listOf(Action(action = Action.BACK), Action(action = Action.ERROR)),
+                "go back"
+            )
+        )
+        assertEquals(
+            "RULE_UNRESOLVED_APP",
+            AgentPlanPolicy.failureRule(listOf(Action(action = Action.OPEN_APP, label = null)), "open app")
+        )
+        assertEquals(
+            "RULE_UNDER_PLANNED",
+            AgentPlanPolicy.failureRule(openInstagram, "Instagram kholo aur search karo")
+        )
+        assertTrue(AgentPlanPolicy.userGuidance("RULE_UNDER_PLANNED").contains("steps"))
+    }
 }
