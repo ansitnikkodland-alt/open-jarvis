@@ -35,6 +35,9 @@ object AgentDiagnostics {
             if (rawResponse.isNotBlank()) {
                 appendLine("--- MODEL RESPONSE SUMMARY ---")
                 appendLine(summarizeDiagnosticResponse(rawResponse))
+                appendLine("--- RAW MODEL RESPONSE (LOCAL DEBUG ONLY) ---")
+                appendLine(rawResponse.take(4000))
+                if (rawResponse.length > 4000) appendLine("[truncated at 4000 characters]")
             }
             if (error != null) {
                 appendLine("--- EXCEPTION ---")
