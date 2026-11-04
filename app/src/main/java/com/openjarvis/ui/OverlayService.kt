@@ -137,13 +137,13 @@ class OverlayService : Service() {
             agentCore.state.collect { state ->
                 when (state) {
                     is com.openjarvis.agent.AgentState.Idle -> statusText?.text = "Ready — type a command or use mic"
-                    is com.openjarvis.agent.AgentState.Running -> statusText?.text = state.step
+                    is com.openjarvis.agent.AgentState.Running -> setVisualState("THINKING", state.step)
                     is com.openjarvis.agent.AgentState.Done -> {
-                        statusText?.text = if (mutedUntilWakeWord) "MUTED — say Jarvis to wake" else state.result
+                        setVisualState(if (mutedUntilWakeWord) "IDLE" else "SPEAKING", if (mutedUntilWakeWord) "MUTED — say Jarvis to wake" else state.result)
                         if (!mutedUntilWakeWord) voiceManager.speak(com.openjarvis.agent.AgentResultSpeech.textForDone(state.result)) { resumeWakeWordAfterResponse() }
                     }
                     is com.openjarvis.agent.AgentState.Error -> {
-                        statusText?.text = if (mutedUntilWakeWord) "MUTED — say Jarvis to wake" else "Jarvis error: ${state.message} • tap to copy debug log"
+                        setVisualState(if (mutedUntilWakeWord) "IDLE" else "SPEAKING", if (mutedUntilWakeWord) "MUTED — say Jarvis to wake" else "Jarvis error: ${state.message} • tap to copy debug log")
                         if (!mutedUntilWakeWord) voiceManager.speak(if (responseLanguage == "mr") "कमांड पूर्ण झाली नाही. ${state.message}" else "कमांड पूरी नहीं हुई। ${state.message}") { resumeWakeWordAfterResponse() }
                     }
                 }
