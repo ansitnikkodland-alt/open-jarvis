@@ -336,7 +336,7 @@ class OverlayService : Service() {
             wakeWordController = SherpaOnnxWakeWordController(
                 this,
                 onWakeWord = { mainHandler.post { handleWakeWordDetected() } },
-                onError = { message -> mainHandler.post { statusText?.text = "Wake-word error: $message" } }
+                onError = { message -> mainHandler.post { statusText?.text = "Wake-word error: $message"; if (wakeWordController?.isRunning() != true) stopWakeWordListening() } }
             )
         }
         var error = wakeWordController?.start()
