@@ -55,6 +55,33 @@ class AgentReEvaluationPolicyTest {
         )
     }
 
+
+
+    @Test fun requestsCompactReplanForMixedRefusalAndOverlongPlans() {
+        assertTrue(
+            AgentPlanPolicy.needsCompactReplan(
+                listOf(Action(Action.OPEN_APP, label = "WhatsApp"), Action(Action.ERROR, message = "uncertain"))
+            )
+        )
+        assertTrue(
+            AgentPlanPolicy.needsCompactReplan(
+                (1..7).map { Action(Action.WAIT, text = "step " + it) }
+            )
+        )
+        assertFalse(
+            AgentPlanPolicy.needsCompactReplan(
+                listOf(Action(Action.ERROR, message = "cannot safely proceed"))
+            )
+        )
+    }
+
+    @Test fun executablePlanMustBeShortAndMustNotContainRefusalOrObservation() {
+        assertTrue(AgentPlanPolicy.isExecutablePlan(listOf(Action(Action.OPEN_APP, label = "Settings"))))
+        assertFalse(AgentPlanPolicy.isExecutablePlan(listOf(Action(Action.ERROR, message = "unsafe"))))
+        assertFalse(AgentPlanPolicy.isExecutablePlan(listOf(Action(Action.READ_SCREEN))))
+        assertFalse(AgentPlanPolicy.isExecutablePlan((1..7).map { Action(Action.WAIT) }))
+    }
+
     @Test fun rejectsAReplanThatRepeatsACompletedStep() {
         val completed = Action(Action.SCROLL, direction = "down")
         val failed = Action(Action.WAIT, text = "Inbox")
