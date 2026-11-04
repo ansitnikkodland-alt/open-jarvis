@@ -244,6 +244,43 @@ ${rawResponse.take(4000)}
                                 actions = validation.actions
                             }
 
+                            // OpenDroid-style bounded plan repair: small local models sometimes
+                            // append an error marker after a partial plan or emit a long mixed
+                            // navigation chain. Re-observe and ask once for a short executable
+                            // plan before refusing or touching the device.
+                            if (AgentPlanPolicy.needsCompactReplan(actions)) {
+                                _state.value = AgentState.Running("clarifying action plan...")
+                                val planScreen = runCatching { screenReader.extractAllText() }.getOrDefault("")
+                                val planElements = runCatching { screenReader.extractInteractiveElements() }.getOrDefault("")
+                                if (planScreen.isNotBlank()) {
+                                    val compactPrompt = systemPrompt
+                                        .replace("{PERSONAL_MEMORY}", personalMemoryStore.promptContext())
+                                        .replace("{SCREEN_OCR}", planScreen.take(1200))
+                                        .replace("{SCREEN_ELEMENTS}", planElements.take(3500)) +
+                                        "\n\nPLAN REPAIR: Your previous response was not executable. " +
+                                        "Return at most " + AgentPlanPolicy.MAX_ACTIONS + " short actions for the original goal. " +
+                                        "Never mix an error action with executable actions. If uncertain, return exactly one error action. " +
+                                        "Do not add back or home unless the user explicitly requested it. " +
+                                        "Use the current screen above; no actions have run yet."
+                                    val compactRaw = universalAdapter.complete(compactPrompt, safeCommand).getOrElse { throw it }
+                                    val compactValidation = validateWithOneRepair(compactPrompt, safeCommand, compactRaw)
+                                    effectiveRawJson = compactValidation.first
+                                    validation = compactValidation.second
+                                    latency = System.currentTimeMillis() - startTime
+                                    if (validation.isValid && AgentPlanPolicy.isExecutablePlan(validation.actions)) {
+                                        actions = validation.actions
+                                    } else {
+                                        val reason = validation.errors.firstOrNull()
+                                            ?: validation.actions.firstOrNull { it.action == Action.ERROR }?.message
+                                            ?: "The local model could not produce a short, safe action plan."
+                                        AgentDiagnostics.record(context, "action-plan-repair", safeCommand, reason, effectiveRawJson, provider = universalAdapter.getProviderName(), model = "qwen3:1.7b")
+                                        _state.value = AgentState.Error("Jarvis could not safely plan this task: " + reason)
+                                        graphifyRepo.logTask(safeCommand, "failed: compact plan rejected", universalAdapter.getProviderName(), latency)
+                                        return@fold
+                                    }
+                                }
+                            }
+
                             // An explicit model refusal is not an Android action and must
                             // never be retried by the executor as if it were a device failure.
                             val refusal = actions.firstOrNull { it.action == Action.ERROR }
