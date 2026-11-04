@@ -26,6 +26,11 @@ android {
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
         debug {
+            // Keep the test build alongside the user's existing com.openjarvis app.
+            // CI caches this preview signing key so subsequent preview builds can update it.
+            applicationIdSuffix ".preview"
+            versionNameSuffix "-preview"
+            resValue "string", "app_name", "Open Jarvis Preview"
             debuggable true
         }
     }

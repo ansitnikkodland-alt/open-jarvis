@@ -83,13 +83,19 @@ jobs:
         with:
           gradle-version: "8.2"
 
+      - name: Restore stable preview debug signing key
+        uses: actions/cache@v4
+        with:
+          path: ~/.android/debug.keystore
+          key: open-jarvis-preview-debug-signing-v1
+
       - name: Compile debug APK
         run: gradle --no-daemon :app:assembleDebug
 
       - name: Upload debug APK
         uses: actions/upload-artifact@v4
         with:
-          name: jarvis-candidate-debug-apk
+          name: jarvis-preview-debug-apk
           path: app/build/outputs/apk/debug/*.apk
           if-no-files-found: error
 
@@ -104,7 +110,7 @@ jobs:
       - name: Download debug APK
         uses: actions/download-artifact@v4
         with:
-          name: jarvis-candidate-debug-apk
+          name: jarvis-preview-debug-apk
           path: app/build/outputs/apk/debug
 
       - name: Install, resume MainActivity, and check for crashes
@@ -125,23 +131,23 @@ jobs:
 
 
   release-ready-apk:
-    name: release-ready-m8-apk
+    name: release-ready-preview-apk
     needs: smoke-test
     runs-on: ubuntu-latest
     steps:
       - name: Download smoke-tested candidate APK
         uses: actions/download-artifact@v4
         with:
-          name: jarvis-candidate-debug-apk
+          name: jarvis-preview-debug-apk
           path: app/build/outputs/apk/debug
 
       - name: Verify APK artifact exists
         run: test -s app/build/outputs/apk/debug/app-debug.apk
 
-      - name: Publish verified M8 APK
+      - name: Publish verified Preview APK
         uses: actions/upload-artifact@v4
         with:
-          name: Open-Jarvis-M8-Verified-APK
+          name: Open-Jarvis-Preview-APK
           path: app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
 
@@ -157,7 +163,7 @@ jobs:
       - name: Download debug APK
         uses: actions/download-artifact@v4
         with:
-          name: jarvis-candidate-debug-apk
+          name: jarvis-preview-debug-apk
           path: app/build/outputs/apk/debug
 
       - name: Android emulator Euronics V32 UI tap validation

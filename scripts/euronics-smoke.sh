@@ -4,6 +4,10 @@ set -euo pipefail
 APK_PATH="app/build/outputs/apk/debug/app-debug.apk"
 ARTIFACT_DIR="artifacts"
 XML_PATH="$ARTIFACT_DIR/euronics-ui.xml"
+APP_ID="com.openjarvis.preview"
+MAIN_ACTIVITY="$APP_ID/com.openjarvis.ui.MainActivity"
+EURONICS_ACTIVITY="$APP_ID/com.openjarvis.ui.EuronicsActivity"
+ACCESSIBILITY_SERVICE="$APP_ID/com.openjarvis.accessibility.JarvisAccessibilityService"
 PARSER_ERROR="$ARTIFACT_DIR/find-bounds-error.txt"
 REMOTE_XML="/sdcard/jarvis-window.xml"
 LABEL="EURONICS SERVICE REPORT"
@@ -38,17 +42,17 @@ on_exit() {
 trap 'on_exit "$?"' EXIT
 
 adb install -r "$APK_PATH"
-adb shell pm grant com.openjarvis android.permission.RECORD_AUDIO
-adb shell appops set com.openjarvis SYSTEM_ALERT_WINDOW allow
-adb shell settings put secure enabled_accessibility_services com.openjarvis/com.openjarvis.accessibility.JarvisAccessibilityService
+adb shell pm grant "$APP_ID" android.permission.RECORD_AUDIO
+adb shell appops set "$APP_ID" SYSTEM_ALERT_WINDOW allow
+adb shell settings put secure enabled_accessibility_services "$ACCESSIBILITY_SERVICE"
 adb shell settings put secure accessibility_enabled 1
-adb shell am start -n com.openjarvis/.ui.MainActivity
+adb shell am start -n "$MAIN_ACTIVITY"
 
 echo "Waiting up to 60 seconds for MainActivity to be resumed."
 RESUMED=""
 for ((second=1; second<=60; second++)); do
   ACTIVITY_STATE="$(adb shell dumpsys activity activities | tr -d '\r')"
-  if RESUMED="$(printf '%s\n' "$ACTIVITY_STATE" | grep -E 'mResumedActivity|topResumedActivity' | grep -F 'com.openjarvis/.ui.MainActivity')"; then
+  if RESUMED="$(printf '%s\n' "$ACTIVITY_STATE" | grep -E 'mResumedActivity|topResumedActivity' | grep -F "$MAIN_ACTIVITY")"; then
     :
   else
     RESUMED=""
@@ -65,9 +69,9 @@ done
   exit 11
 }
 
-PID="$(adb shell pidof com.openjarvis | tr -d '\r')"
+PID="$(adb shell pidof "$APP_ID" | tr -d '\r')"
 [[ -n "$PID" ]] || { echo "Jarvis process is not running" >&2; exit 12; }
-adb shell dumpsys accessibility | grep -F 'com.openjarvis/com.openjarvis.accessibility.JarvisAccessibilityService'
+adb shell dumpsys accessibility | grep -F "$ACCESSIBILITY_SERVICE"
 
 dump_ui
 if grep -Eiq 'text="(Allow|While using the app|Only this time|Don.t allow)"|text="Permission Required"|text="Enable Accessibility Service"|text="Enable Overlay Permission"' "$XML_PATH"; then
@@ -108,8 +112,8 @@ echo "Tapping exact source label '$LABEL' at $TAP_X,$TAP_Y"
 adb shell input tap "$TAP_X" "$TAP_Y"
 sleep 15
 
-PID="$(adb shell pidof com.openjarvis | tr -d '\r')"
+PID="$(adb shell pidof "$APP_ID" | tr -d '\r')"
 [[ -n "$PID" ]] || { echo "Jarvis process stopped after Euronics tap" >&2; exit 16; }
-adb shell dumpsys activity activities | grep -F 'com.openjarvis/.ui.EuronicsActivity'
+adb shell dumpsys activity activities | grep -F "$EURONICS_ACTIVITY"
 adb logcat -d | grep -F 'EURONICS_HTML_TITLE:'
 echo "EURONICS_SMOKE_TEST: PASS"
