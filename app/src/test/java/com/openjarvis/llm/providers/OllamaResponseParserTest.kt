@@ -102,7 +102,10 @@ class OllamaResponseParserTest {
             "qwen3:1.7b", "system", "open Chrome", useJsonSchema = true, numPredict = 112
         ))
         assertTrue(request.getBoolean("stream"))
-        assertTrue(request.getJSONObject("format").getJSONObject("items").getJSONObject("properties").has("action"))
+        val properties = request.getJSONObject("format").getJSONObject("items").getJSONObject("properties")
+        assertTrue(properties.has("action"))
+        assertTrue(properties.has("text"))
+        assertTrue(properties.has("prompt"))
         assertEquals(112, request.getJSONObject("options").getInt("num_predict"))
         assertEquals(2048, request.getJSONObject("options").getInt("num_ctx"))
     }
