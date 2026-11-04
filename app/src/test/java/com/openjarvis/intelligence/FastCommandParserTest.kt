@@ -57,6 +57,10 @@ class FastCommandParserTest {
 
     @Test fun splitsRecognizedCompoundCommandsAndStopsAtUnknown() {
         assertEquals(listOf(FastCommandParser.Command.OpenApp("Chrome"), FastCommandParser.Command.Back), FastCommandParser.parseSequence("Chrome kholo aur back"))
+        assertEquals(
+            listOf(FastCommandParser.Command.OpenSettings("general"), FastCommandParser.Command.OpenSettings("wifi")),
+            FastCommandParser.parseSequence("Settings kholo aur WiFi settings kholo")
+        )
         assertNull(FastCommandParser.parseSequence("Chrome kholo aur unknown action"))
         assertNull(FastCommandParser.parseSequence("back then home then back then home then back then home"))
     }

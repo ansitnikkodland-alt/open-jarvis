@@ -31,10 +31,18 @@ internal object FastCommandParser {
     fun parseSequence(command: String): List<Command>? {
         val normalized = normalize(command)
         if (normalized.isBlank()) return null
-        parse(normalized)?.let { return listOf(it) }
+
+        // Keep the supported YouTube compound phrase as one ACTION_VIEW skill.
+        if (youtubeSearchWithOpen.matches(normalized) || youtubeSearch.matches(normalized)) {
+            return listOf(parse(normalized) ?: return null)
+        }
+
         val parts = normalized.split(Regex("\\s+(?:aur|phir|ani|then)\\s+", RegexOption.IGNORE_CASE))
-        if (parts.size !in 2..5) return null
-        return parts.map { parse(it) ?: return null }
+        if (parts.size > 1) {
+            if (parts.size !in 2..5) return null
+            return parts.map { parse(it) ?: return null }
+        }
+        return parse(normalized)?.let(::listOf)
     }
 
     fun parse(command: String): Command? {

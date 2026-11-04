@@ -212,18 +212,19 @@ ${rawResponse.take(1000)}
                     val installedAppTargets = getInstalledLauncherApps()
                     val installedAppsPrompt = installedAppTargets
                         .filter { safeCommand.contains(it.label, ignoreCase = true) }
-                        .joinToString(", ") { it.label }.take(500)
+                        .joinToString(", ") { it.label }.take(150)
                     val needsMemory = Regex("remember|forget|memory|yaad|याद|लक्षात|विसर", RegexOption.IGNORE_CASE).containsMatchIn(safeCommand)
-                    val memoryPrompt = if (needsMemory) personalMemoryStore.promptContext().take(400) else ""
+                    val memoryPrompt = if (needsMemory) personalMemoryStore.promptContext().take(150) else ""
 
                     val fullSystem = systemPrompt
                         .replace("{PERSONAL_MEMORY}", memoryPrompt)
-                        .replace("{SCREEN_OCR}", screenText.take(300))
-                        .replace("{SCREEN_ELEMENTS}", screenElements.take(800))
+                        .replace("{SCREEN_OCR}", screenText.take(150))
+                        .replace("{SCREEN_ELEMENTS}", screenElements.take(650))
                         .replace("{INSTALLED_APPS}", installedAppsPrompt)
 
                     val estimatedPromptTokens = fullSystem.length / 4
                     Log.i(TAG, "Compact action prompt estimate: ~${estimatedPromptTokens} tokens; chars=${fullSystem.length}")
+                    if (estimatedPromptTokens > 400) Log.w(TAG, "Action prompt exceeded the ~400-token target after adding screen context")
                     _state.value = AgentState.Running("Soch raha hoon...")
 
                     val startTime = System.currentTimeMillis()
@@ -266,8 +267,8 @@ ${rawResponse.take(1000)}
                                 val refreshedElements = runCatching { screenReader.extractInteractiveElements() }.getOrDefault("")
                                 val refreshedPrompt = systemPrompt
                                     .replace("{PERSONAL_MEMORY}", memoryPrompt)
-                                    .replace("{SCREEN_OCR}", refreshedScreen.take(300))
-                                    .replace("{SCREEN_ELEMENTS}", refreshedElements.take(800))
+                                    .replace("{SCREEN_OCR}", refreshedScreen.take(150))
+                                    .replace("{SCREEN_ELEMENTS}", refreshedElements.take(650))
                                     .replace("{INSTALLED_APPS}", installedAppsPrompt) +
                                     "\n\nThe screen text and interactive elements above describe the fresh current screen. Now produce executable actions directly. Do not return read_screen or extract_text."
                                 _state.value = AgentState.Running("screen samajh kar action bana raha hoon...")
@@ -300,8 +301,8 @@ ${rawResponse.take(1000)}
                                 if (planScreen.isNotBlank()) {
                                     val compactPrompt = systemPrompt
                                         .replace("{PERSONAL_MEMORY}", memoryPrompt)
-                                        .replace("{SCREEN_OCR}", planScreen.take(300))
-                                        .replace("{SCREEN_ELEMENTS}", planElements.take(800))
+                                        .replace("{SCREEN_OCR}", planScreen.take(150))
+                                        .replace("{SCREEN_ELEMENTS}", planElements.take(650))
                                         .replace("{INSTALLED_APPS}", installedAppsPrompt) +
                                         "\n\nPLAN REPAIR: Your previous response was not executable. " +
                                         "Return at most " + AgentPlanPolicy.MAX_ACTIONS + " short actions for the original goal. " +
@@ -382,8 +383,8 @@ ${rawResponse.take(1000)}
                                     val freshElements = runCatching { screenReader.extractInteractiveElements() }.getOrDefault("")
                                     val reEvaluationPrompt = systemPrompt
                                         .replace("{PERSONAL_MEMORY}", memoryPrompt)
-                                        .replace("{SCREEN_OCR}", freshScreen.take(300))
-                                        .replace("{SCREEN_ELEMENTS}", freshElements.take(800))
+                                        .replace("{SCREEN_OCR}", freshScreen.take(150))
+                                        .replace("{SCREEN_ELEMENTS}", freshElements.take(650))
                                         .replace("{INSTALLED_APPS}", installedAppsPrompt) +
                                         "\n\nAGENT RE-EVALUATION: The original goal is still: $safeCommand. " +
                                         "Already completed steps: $completedSummary. " +
