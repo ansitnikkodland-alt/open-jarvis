@@ -403,7 +403,9 @@ class OverlayService : Service() {
             error = wakeWordController?.start()
         }
         if (error == null) acquireWakeWordCpuLock() else releaseWakeWordCpuLock()
-        statusText?.text = error ?: if (wakeWordController is SherpaOnnxWakeWordController) {
+        statusText?.text = error ?: if (mutedUntilWakeWord) {
+            "MUTED — say Jarvis to wake"
+        } else if (wakeWordController is SherpaOnnxWakeWordController) {
             "Standby — say Jarvis (offline, no key)"
         } else {
             "Standby — say Jarvis (Porcupine fallback)"
