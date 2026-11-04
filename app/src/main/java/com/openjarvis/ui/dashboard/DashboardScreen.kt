@@ -801,13 +801,7 @@ private fun formatRelativeTime(timestamp: Long): String {
 @Composable
 private fun ProactiveAssistantCard() {
     val context = LocalContext.current
-    var briefingEnabled by remember {
-        mutableStateOf(
-            androidx.work.WorkManager.getInstance(context)
-                .getWorkInfosForUniqueWorkLiveData("jarvis_daily_briefing").value
-                ?.any { !it.state.isFinished } == true
-        )
-    }
+    var briefingEnabled by remember { mutableStateOf(ProactiveAssistant.isDailyBriefingEnabled(context)) }
     var showReminder by remember { mutableStateOf(false) }
     var reminderTitle by remember { mutableStateOf("") }
     var reminderMessage by remember { mutableStateOf("") }
