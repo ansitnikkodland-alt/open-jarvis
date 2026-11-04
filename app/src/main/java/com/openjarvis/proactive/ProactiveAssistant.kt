@@ -41,7 +41,13 @@ object ProactiveAssistant {
     }
 
     /** Daily local briefing; the worker posts a concise reminder to review today's agenda. */
+    fun isDailyBriefingEnabled(context: Context): Boolean =
+        context.getSharedPreferences("jarvis_proactive_settings", Context.MODE_PRIVATE)
+            .getBoolean("daily_briefing_enabled", false)
+
     fun enableDailyBriefing(context: Context, enabled: Boolean) {
+        context.getSharedPreferences("jarvis_proactive_settings", Context.MODE_PRIVATE)
+            .edit().putBoolean("daily_briefing_enabled", enabled).apply()
         val manager = WorkManager.getInstance(context)
         if (!enabled) {
             manager.cancelUniqueWork(DAILY_BRIEFING)
@@ -84,7 +90,7 @@ class ProactiveNotificationWorker(
     override fun doWork(): Result {
         val title = inputData.getString(KEY_TITLE) ?: return Result.failure()
         val message = inputData.getString(KEY_MESSAGE) ?: return Result.failure()
-        ProactiveAssistant.post(applicationContext, title, message, params.id.hashCode())
+        ProactiveAssistant.post(applicationContext, title, message, id.hashCode())
         return Result.success()
     }
 
