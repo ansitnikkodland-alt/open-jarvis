@@ -20,4 +20,11 @@ class AgentDiagnosticsTest {
         assertFalse(safe.contains(command))
         assertFalse(safe.contains("secret text"))
     }
+    @Test fun localDebugReportIncludesRawModelResponseWithoutPuttingItInSummary() {
+        val raw = """["type_text","value":"hello"]"""
+        val summary = summarizeDiagnosticResponse(raw)
+        assertFalse(summary.contains(raw))
+        assertTrue(raw.contains("type_text"))
+    }
+
 }
