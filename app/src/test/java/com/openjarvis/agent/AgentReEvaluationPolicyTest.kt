@@ -57,6 +57,13 @@ class AgentReEvaluationPolicyTest {
 
 
 
+    @Test fun detectsSingleOpenAppActionForMultiStepCommands() {
+        val openOnly = listOf(Action(Action.OPEN_APP, label = "WhatsApp"))
+        assertTrue(AgentPlanPolicy.isLikelyUnderPlanned("Open WhatsApp and search for Sagar Kamble", openOnly))
+        assertTrue(AgentPlanPolicy.isLikelyUnderPlanned("WhatsApp kholo aur Sagar ki chat khojo", openOnly))
+        assertFalse(AgentPlanPolicy.isLikelyUnderPlanned("Open WhatsApp", openOnly))
+    }
+
     @Test fun unresolvedOpenAppPlaceholderMustBeReplanned() {
         val placeholder = listOf(Action(Action.OPEN_APP, label = "App"))
         assertTrue(AgentPlanPolicy.hasUnresolvedAppLaunch(placeholder))

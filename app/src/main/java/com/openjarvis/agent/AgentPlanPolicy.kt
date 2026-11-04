@@ -18,6 +18,19 @@ internal object AgentPlanPolicy {
             (actions.any { it.action == Action.ERROR } && actions.any { it.action != Action.ERROR }) ||
             hasUnresolvedAppLaunch(actions)
 
+    private val multiStepConnector = Regex("\\\\b(and|then|after|also|aur|phir|fir|uske baad|iske baad|baad me|baad mein)\\\\b", RegexOption.IGNORE_CASE)
+    private val followUpIntent = Regex("\\\\b(search|find|look for|contact|chat|type|write|send|reply|message|scroll|click|tap|read|tell|play|display|brightness|about|section|options|batao|khojo|likho|bhejo|ढूंढ|खोज|लिख|भेज|सांग|पहा|शोध)\\\\b", RegexOption.IGNORE_CASE)
+
+    fun isLikelyUnderPlanned(command: String, actions: List<Action>): Boolean {
+        if (actions.size != 1 || actions.single().action != Action.OPEN_APP) return false
+        val hasConnector = multiStepConnector.containsMatchIn(command)
+        val followUpCount = followUpIntent.findAll(command).count()
+        return (hasConnector && followUpCount >= 1) || followUpCount >= 2
+    }
+
+    fun needsCompactReplan(actions: List<Action>, command: String): Boolean =
+        needsCompactReplan(actions) || isLikelyUnderPlanned(command, actions)
+
     fun isExecutablePlan(actions: List<Action>): Boolean =
         actions.isNotEmpty() &&
             actions.size <= MAX_ACTIONS &&
@@ -27,4 +40,7 @@ internal object AgentPlanPolicy {
                     it.action == Action.READ_SCREEN ||
                     it.action == Action.EXTRACT_TEXT
             }
+
+    fun isExecutablePlan(actions: List<Action>, command: String): Boolean =
+        isExecutablePlan(actions) && !isLikelyUnderPlanned(command, actions)
 }
