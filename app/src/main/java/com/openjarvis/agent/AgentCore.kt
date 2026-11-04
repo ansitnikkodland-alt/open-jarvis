@@ -832,11 +832,24 @@ ${rawResponse.take(1000)}
                 val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://www.youtube.com/results?search_query=$encoded"))
                     .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                 val youtube = "com.google.android.youtube"
-                if (runCatching { context.packageManager.getPackageInfo(youtube, 0) }.isSuccess) intent.setPackage(youtube)
-                if (intent.resolveActivity(context.packageManager) == null) throw IllegalStateException("No app or browser can open YouTube search")
+                val youtubeInstalled = runCatching { context.packageManager.getPackageInfo(youtube, 0) }.isSuccess
+                if (youtubeInstalled) intent.setPackage(youtube)
+                val resolved = intent.resolveActivity(context.packageManager)
+                    ?: throw IllegalStateException("No app or browser can open YouTube search")
+                val targetPackage = if (youtubeInstalled) youtube else resolved.packageName
                 context.startActivity(intent)
-                kotlinx.coroutines.delay(900)
-                "Opened YouTube search for ${command.query}"
+                var foregroundConfirmed = false
+                for (check in 0 until 16) {
+                    if (JarvisAccessibilityService.instance?.isPackageActive(targetPackage) == true) {
+                        foregroundConfirmed = true
+                        break
+                    }
+                    kotlinx.coroutines.delay(250)
+                }
+                if (!foregroundConfirmed) {
+                    throw IllegalStateException("YouTube search was launched but foreground verification failed. Check the phone before retrying.")
+                }
+                "Opened YouTube search for ${command.query} (foreground confirmed)"
             }
         }
     }
@@ -872,9 +885,17 @@ ${rawResponse.take(1000)}
                 if (name.isNotBlank() && number.isNotBlank() && contactNameMatches(requestedName, name)) matches += name to number
             }
         } ?: throw IllegalStateException("Could not read contacts. Check Contacts permission and try again.")
-        val unique = matches.distinctBy { it.second.replace(Regex("[^+0-9]"), "") }
+        val unique = matches.distinctBy {
+            it.first.trim().lowercase(java.util.Locale.ROOT) + "|" + it.second.replace(Regex("[^+0-9]"), "")
+        }
         if (unique.isEmpty()) throw IllegalStateException("No contact matched '$requestedName'. Check the name in Contacts.")
-        if (unique.size > 1) throw IllegalStateException("Multiple contacts found: ${unique.map { it.first }.distinct().take(6).joinToString(", ")}. Please say one exact/full name; I will not choose automatically.")
+        if (unique.size > 1) {
+            val names = unique.take(6).joinToString(", ") { match ->
+                val lastDigits = match.second.filter { it.isDigit() }.takeLast(4)
+                if (lastDigits.isBlank()) match.first else "${match.first} (ending $lastDigits)"
+            }
+            throw IllegalStateException("Multiple contacts found: $names. Which one should I dial? Please say one exact/full name; I will not choose automatically.")
+        }
         return unique.single().second
     }
 
