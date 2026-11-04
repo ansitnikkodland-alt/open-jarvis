@@ -76,4 +76,40 @@ class LLMResponseValidatorTest {
         assertFalse(missingFields.isValid)
     }
 
+    @Test fun acceptsStructuredStepsSchemaAndMapsTargetFields() {
+        val result = LLMResponseValidator.validate(
+            """{"steps":[{"action":"open_app","target":"WhatsApp","value":""},{"action":"click","target":"Search","value":""},{"action":"type_text","target":"","value":"hello"}]}"""
+        )
+        assertTrue(result.errors.toString(), result.isValid)
+        assertEquals(Action.OPEN_APP, result.actions[0].action)
+        assertEquals("WhatsApp", result.actions[0].label)
+        assertEquals("Search", result.actions[1].text)
+        assertEquals("hello", result.actions[2].value)
+    }
+
+    @Test fun acceptsFencedJsonAndIgnoresTrailingExplanation() {
+        val result = LLMResponseValidator.validate(
+            """```json
+            {"steps":[{"action":"type_text","target":"","value":"hello"}]}
+            ```
+            Done."""
+        )
+        assertTrue(result.errors.toString(), result.isValid)
+        assertEquals("hello", result.actions.single().value)
+    }
+
+    @Test fun stripsThinkBlockBeforeValidatingJson() {
+        val result = LLMResponseValidator.validate(
+            """<think>Need type text.</think>{"steps":[{"action":"type_text","target":"","value":"hello"}]}"""
+        )
+        assertTrue(result.errors.toString(), result.isValid)
+    }
+
+    @Test fun rejectsPlainTextAndStringOnlyArrays() {
+        val plain = LLMResponseValidator.validate("I will type hello now.")
+        assertFalse(plain.isValid)
+        val strings = LLMResponseValidator.validate("""["type_text","hello"]""")
+        assertFalse(strings.isValid)
+    }
+
 }
