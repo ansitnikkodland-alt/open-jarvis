@@ -952,6 +952,14 @@ ${rawResponse.take(1000)}
                 if (JarvisAccessibilityService.instance?.pressHome() != true) throw IllegalStateException("Android Home action failed")
                 "Returned Home"
             }
+            FastCommandParser.Command.ShowRecents -> {
+                if (JarvisAccessibilityService.instance?.pressRecents() != true) throw IllegalStateException("Android Recent Apps action failed; check Accessibility service")
+                "Opened Recent Apps"
+            }
+            FastCommandParser.Command.ShowNotifications -> {
+                if (JarvisAccessibilityService.instance?.pressNotifications() != true) throw IllegalStateException("Android notification panel action failed; check Accessibility service")
+                "Opened notification panel"
+            }
             is FastCommandParser.Command.Scroll -> {
                 if (JarvisAccessibilityService.instance?.scrollScreen(command.direction) != true) {
                     throw IllegalStateException("No scrollable area accepted scroll ${command.direction}")
