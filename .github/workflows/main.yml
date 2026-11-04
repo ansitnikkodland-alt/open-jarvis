@@ -6,6 +6,7 @@ on:
     branches:
       - feature/jarvis-stable-1.0
       - feature/jarvis-stable-1.0-phase2-wakeword
+      - feature/jarvis-jandal-memory-recall
 
 permissions:
   contents: read
@@ -15,6 +16,14 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
+      - name: Download official sherpa-onnx Android AAR
+        run: |
+          mkdir -p app/libs
+          curl --fail --location --retry 3 \
+            https://github.com/k2-fsa/sherpa-onnx/releases/download/v2.0.1/sherpa-onnx-2.0.1.aar \
+            --output app/libs/sherpa-onnx.aar
+          echo "a8d09d1d32f3eb8520482c6d3d43fae674681c5b050385967c70a3c2c9bf0ee7  app/libs/sherpa-onnx.aar" | sha256sum --check
 
       - uses: actions/setup-java@v4
         with:
