@@ -593,7 +593,7 @@ ${rawResponse.take(1000)}
                         ?: e.javaClass.simpleName
                     val errorMessage = if (universalAdapter.getProviderName() == "Ollama (Local)") {
                         "Ollama error: $detail"
-                    } else detail.ifBlank { "${error.javaClass.simpleName} (no error message)" }
+                    } else detail.ifBlank { "${e.javaClass.simpleName} (no error message)" }
                     AgentDiagnostics.record(context, "agent-crash", cleanCommand, errorMessage, error = e, provider = universalAdapter.getProviderName(), model = "qwen3:1.7b")
                     _state.value = AgentState.Error(errorMessage)
 
