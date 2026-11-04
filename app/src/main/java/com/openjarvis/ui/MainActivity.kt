@@ -37,6 +37,16 @@ class MainActivity : ComponentActivity() {
             Toast.LENGTH_LONG
         ).show()
     }
+
+    private val requestNotificationPermission = registerForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        Toast.makeText(
+            this,
+            if (granted) "JARVIS proactive alerts enabled" else "Allow notifications to receive reminders and battery alerts",
+            Toast.LENGTH_LONG
+        ).show()
+    }
     
     private lateinit var graphifyRepo: GraphifyRepository
     private lateinit var agentCore: AgentCore
@@ -46,6 +56,10 @@ class MainActivity : ComponentActivity() {
 
         if (checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
             requestMicPermission.launch(Manifest.permission.RECORD_AUDIO)
+        }
+        if (android.os.Build.VERSION.SDK_INT >= 33 &&
+            checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+            requestNotificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
         }
         
         enableEdgeToEdge()
