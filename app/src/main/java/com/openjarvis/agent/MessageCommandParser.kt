@@ -19,11 +19,11 @@ internal object MessageCommandParser {
         RegexOption.IGNORE_CASE
     )
     private val sendSuffix = Regex(
-        "\\s+(?:bhejo|bhej do|send(?:\\s+karo)?|भेजो|भेज दो|पाठवा|पाठव)\\s*$",
+        "(?:^|\\s+)(?:bhejo|bhej do|send(?:\\s+karo)?|भेजो|भेज दो|पाठवा|पाठव)\\s*$",
         RegexOption.IGNORE_CASE
     )
     private val nonMessageSuffix = Regex(
-        "\\s+(?:likho|type karo|लिखो|लिहा)\\s*$",
+        "(?:^|\\s+)(?:likho|type karo|लिखो|लिहा)\\s*$",
         RegexOption.IGNORE_CASE
     )
 
