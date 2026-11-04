@@ -295,9 +295,15 @@ fun SettingsScreen(
                     onToggle = {
                         voiceEnabled = !voiceEnabled
                         voicePrefs.edit().putBoolean("voice_enabled", voiceEnabled).apply()
-                        // Apply the change immediately to the persistent foreground service.
-                        // Enabling starts the service; disabling stops only wake-word capture.
-                        runCatching { com.openjarvis.ui.OverlayService.start(context) }
+                        // Apply the toggle immediately. Disabling voice stops the foreground
+                        // microphone service; enabling starts it and re-arms offline wake word.
+                        runCatching {
+                            if (voiceEnabled) {
+                                com.openjarvis.ui.OverlayService.start(context)
+                            } else {
+                                context.stopService(android.content.Intent(context, com.openjarvis.ui.OverlayService::class.java))
+                            }
+                        }
                     }
                 )
                 
