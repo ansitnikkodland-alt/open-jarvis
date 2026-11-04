@@ -152,6 +152,13 @@ SCREEN: {SCREEN_OCR}
                             var effectiveRawJson = rawJson
                             var latency = System.currentTimeMillis() - startTime
                             var validation = LLMResponseValidator.validate(effectiveRawJson)
+                            if (validation.isValid && validation.wasRepaired) {
+                                AgentDiagnostics.record(
+                                    context, "response-validation-repaired", safeCommand,
+                                    "Applied a conservative single-action JSON repair",
+                                    effectiveRawJson, provider = universalAdapter.getProviderName(), model = "qwen3:1.7b"
+                                )
+                            }
 
                             if (!validation.isValid) {
                                 val firstFailure = validation.errors.firstOrNull() ?: "Empty action plan"
@@ -204,6 +211,13 @@ SCREEN: {SCREEN_OCR}
                                 effectiveRawJson = universalAdapter.complete(refreshedPrompt, safeCommand).getOrElse { throw it }
                                 latency = System.currentTimeMillis() - startTime
                                 validation = LLMResponseValidator.validate(effectiveRawJson)
+                                if (validation.isValid && validation.wasRepaired) {
+                                    AgentDiagnostics.record(
+                                        context, "screen-replan-validation-repaired", safeCommand,
+                                        "Applied a conservative single-action JSON repair",
+                                        effectiveRawJson, provider = universalAdapter.getProviderName(), model = "qwen3:1.7b"
+                                    )
+                                }
                                 if (!validation.isValid) {
                                     val firstFailure = validation.errors.firstOrNull() ?: "The refreshed action plan was empty"
                                     val retryPrompt = refreshedPrompt +
