@@ -84,7 +84,7 @@ class ProactiveNotificationWorker(
     override fun doWork(): Result {
         val title = inputData.getString(KEY_TITLE) ?: return Result.failure()
         val message = inputData.getString(KEY_MESSAGE) ?: return Result.failure()
-        ProactiveAssistant.post(applicationContext, title, message, id.hashCode())
+        ProactiveAssistant.post(applicationContext, title, message, params.id.hashCode())
         return Result.success()
     }
 
