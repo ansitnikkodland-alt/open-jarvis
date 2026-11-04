@@ -22,6 +22,7 @@ import android.os.Handler
 import android.os.Looper
 import android.provider.Settings
 import android.view.Gravity
+import android.view.MotionEvent
 import android.view.WindowManager
 import android.view.inputmethod.EditorInfo
 import android.widget.Button
@@ -71,6 +72,7 @@ class OverlayService : Service() {
     private val serviceScope = CoroutineScope(Dispatchers.Main + SupervisorJob())
     private var isExpanded = false
     private var responseLanguage = "hi"
+    @Volatile private var mutedUntilWakeWord = false
 
     override fun onCreate() {
         super.onCreate()
@@ -90,6 +92,11 @@ class OverlayService : Service() {
             voiceManager.state.collect { state ->
                 when (state) {
                     is VoiceManager.VoiceState.Result -> {
+                        if (MuteCommandPolicy.isMuteCommand(state.text)) {
+                            wakeWordCommandPending = false
+                            enterMuteMode()
+                            return@collect
+                        }
                         if (wakeWordCommandPending) {
                             wakeWordCommandPending = false
                             voiceManager.stopListening()
@@ -120,12 +127,12 @@ class OverlayService : Service() {
                     is com.openjarvis.agent.AgentState.Idle -> statusText?.text = "Ready — type a command or use mic"
                     is com.openjarvis.agent.AgentState.Running -> statusText?.text = state.step
                     is com.openjarvis.agent.AgentState.Done -> {
-                        statusText?.text = state.result
-                        voiceManager.speak(com.openjarvis.agent.AgentResultSpeech.textForDone(state.result)) { resumeWakeWordAfterResponse() }
+                        statusText?.text = if (mutedUntilWakeWord) "MUTED — say Jarvis to wake" else state.result
+                        if (!mutedUntilWakeWord) voiceManager.speak(com.openjarvis.agent.AgentResultSpeech.textForDone(state.result)) { resumeWakeWordAfterResponse() }
                     }
                     is com.openjarvis.agent.AgentState.Error -> {
-                        statusText?.text = "Jarvis error: ${state.message} • tap to copy debug log"
-                        voiceManager.speak(if (responseLanguage == "mr") "कमांड पूर्ण झाली नाही. ${state.message}" else "कमांड पूरी नहीं हुई। ${state.message}") { resumeWakeWordAfterResponse() }
+                        statusText?.text = if (mutedUntilWakeWord) "MUTED — say Jarvis to wake" else "Jarvis error: ${state.message} • tap to copy debug log"
+                        if (!mutedUntilWakeWord) voiceManager.speak(if (responseLanguage == "mr") "कमांड पूर्ण झाली नाही. ${state.message}" else "कमांड पूरी नहीं हुई। ${state.message}") { resumeWakeWordAfterResponse() }
                     }
                 }
             }
@@ -159,25 +166,58 @@ class OverlayService : Service() {
             val root = LinearLayout(this).apply {
                 orientation = LinearLayout.VERTICAL
                 setPadding(dp(8), dp(8), dp(8), dp(8))
-                minimumWidth = dp(WakeWordConfig.OVERLAY_WIDTH_DP)
+                minimumWidth = dp(64)
                 minimumHeight = dp(48)
                 background = rounded(Color.rgb(20, 18, 35), 24)
                 elevation = 18f
             }
             val pill = TextView(this).apply {
-                text = "●  JARVIS  ▾"
+                text = "● JARVIS"
                 textSize = 14f
                 setTextColor(Color.WHITE)
                 gravity = Gravity.CENTER
                 setPadding(dp(22), dp(14), dp(22), dp(14))
                 background = rounded(Color.rgb(55, 35, 95), 40)
-                setOnClickListener { commandInput?.requestFocus() }
+            }
+            var downRawX = 0f
+            var downRawY = 0f
+            var downWindowX = 0
+            var downWindowY = 0
+            var dragged = false
+            pill.setOnTouchListener { _, event ->
+                val params = windowParams
+                when (event.action) {
+                    MotionEvent.ACTION_DOWN -> {
+                        downRawX = event.rawX
+                        downRawY = event.rawY
+                        downWindowX = params?.x ?: 0
+                        downWindowY = params?.y ?: 0
+                        dragged = false
+                        true
+                    }
+                    MotionEvent.ACTION_MOVE -> {
+                        val dx = event.rawX - downRawX
+                        val dy = event.rawY - downRawY
+                        if (kotlin.math.abs(dx) > dp(6) || kotlin.math.abs(dy) > dp(6)) dragged = true
+                        if (dragged && params != null) {
+                            params.x = (downWindowX - dx.toInt()).coerceAtLeast(0)
+                            params.y = (downWindowY + dy.toInt()).coerceAtLeast(0)
+                            runCatching { windowManager?.updateViewLayout(overlayView, params) }
+                        }
+                        true
+                    }
+                    MotionEvent.ACTION_UP -> {
+                        if (!dragged) togglePanel()
+                        true
+                    }
+                    else -> true
+                }
             }
             root.addView(pill, LinearLayout.LayoutParams(-2, -2))
 
             val commandPanel = LinearLayout(this).apply {
                 orientation = LinearLayout.VERTICAL
-                visibility = android.view.View.VISIBLE
+                visibility = android.view.View.GONE
                 setPadding(dp(4), dp(8), dp(4), dp(4))
             }
             val status = TextView(this).apply {
@@ -249,7 +289,7 @@ class OverlayService : Service() {
             commandPanel.addView(actions, LinearLayout.LayoutParams(-1, -2))
             root.addView(commandPanel)
             panel = commandPanel
-            isExpanded = true
+            isExpanded = false
 
             val type = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O)
                 WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
@@ -277,11 +317,22 @@ class OverlayService : Service() {
         isExpanded = !isExpanded
         panel?.visibility = if (isExpanded) android.view.View.VISIBLE else android.view.View.GONE
         windowParams?.let { params ->
+            params.width = if (isExpanded) dp(304) else WindowManager.LayoutParams.WRAP_CONTENT
             params.flags = if (isExpanded) WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN
                 else WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN
             try { windowManager?.updateViewLayout(overlayView, params) } catch (_: Exception) { }
         }
         if (isExpanded) commandInput?.requestFocus()
+    }
+
+    private fun enterMuteMode() {
+        mutedUntilWakeWord = true
+        wakeWordCommandPending = false
+        wakeWordResponsePending = false
+        voiceManager.stopListening()
+        voiceManager.stopSpeaking()
+        statusText?.text = "MUTED — say Jarvis to wake"
+        startWakeWordListening()
     }
 
     private fun submitCommand(voiceCommand: String? = null) {
@@ -361,6 +412,7 @@ class OverlayService : Service() {
 
     private fun handleWakeWordDetected() {
         if (!voiceManager.isVoiceEnabled() || wakeWordCommandPending) return
+        mutedUntilWakeWord = false
         stopWakeWordListening()
         wakeWordCommandPending = true
         wakeWordResponsePending = true
