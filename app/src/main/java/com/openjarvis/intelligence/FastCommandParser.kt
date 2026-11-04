@@ -13,6 +13,8 @@ internal object FastCommandParser {
         data class Scroll(val direction: String) : Command()
         data class OpenSettings(val action: String) : Command()
         data class Dial(val number: String) : Command()
+        data class DialContact(val name: String) : Command()
+        data class YoutubeSearch(val query: String) : Command()
         data class Remember(val fact: String) : Command()
         data class Forget(val query: String) : Command()
         object ShowMemory : Command()
@@ -22,10 +24,25 @@ internal object FastCommandParser {
     private val hindiOpen = Regex("^(.+?)\\s+(?:kholo|khol\\s+do|open\\s+karo)$", RegexOption.IGNORE_CASE)
     private val close = Regex("^(?:please\\s+)?(?:close|exit|band\\s+karo|band\\s+kar\\s+do)(?:\\s+(?:the\\s+)?app)?$", RegexOption.IGNORE_CASE)
     private val dial = Regex("^(?:call|dial|phone|mujhe\\s+call\\s+karo|call\\s+karo)\\s+([+0-9][+0-9() .-]{4,})$", RegexOption.IGNORE_CASE)
+    private val youtubeSearch = Regex("^youtube\\s+(?:par\\s+)?(.+?)\\s+(?:search|dhundo|khojo)(?:\\s+karo)?$", RegexOption.IGNORE_CASE)
+    private val youtubeSearchWithOpen = Regex("^youtube\\s+kholo\\s+(?:aur|then)\\s+(.+?)\\s+(?:search|dhundo|khojo)(?:\\s+karo)?$", RegexOption.IGNORE_CASE)
+    private val contactCall = Regex("^(?:please\\s+)?(?:call|dial|phone)\\s+([\\p{L}][\\p{L} .'-]{1,59})$|^([\\p{L}][\\p{L} .'-]{1,59})\\s+(?:ko\\s+call\\s+karo|ko\\s+phone\\s+karo|ला\\s+कॉल\\s+करा|को\\s+कॉल\\s+करो)$", RegexOption.IGNORE_CASE)
+
+    fun parseSequence(command: String): List<Command>? {
+        val normalized = normalize(command)
+        if (normalized.isBlank()) return null
+        parse(normalized)?.let { return listOf(it) }
+        val parts = normalized.split(Regex("\\s+(?:aur|phir|ani|then)\\s+", RegexOption.IGNORE_CASE))
+        if (parts.size !in 2..5) return null
+        return parts.map { parse(it) ?: return null }
+    }
 
     fun parse(command: String): Command? {
         val normalized = normalize(command)
         if (normalized.isBlank()) return null
+
+        youtubeSearchWithOpen.matchEntire(normalized)?.let { return Command.YoutubeSearch(it.groupValues[1].trim()) }
+        youtubeSearch.matchEntire(normalized)?.let { return Command.YoutubeSearch(it.groupValues[1].trim()) }
 
         if (Regex("^(?:show|read) (?:my )?memory$|^what do you remember$|^मुझे क्या याद है$|^मला काय लक्षात आहे$", RegexOption.IGNORE_CASE).matches(normalized)) {
             return Command.ShowMemory
@@ -57,6 +74,11 @@ internal object FastCommandParser {
             if (number.count { it.isDigit() } in 5..15) return Command.Dial(number)
         }
 
+        val contact = contactCall.matchEntire(normalized)
+        if (contact != null) {
+            val name = contact.groupValues.drop(1).firstOrNull { it.isNotBlank() }?.trim()
+            if (!name.isNullOrBlank()) return Command.DialContact(name)
+        }
         val target = openAppTarget(normalized)
         if (target != null) return Command.OpenApp(target)
         return null

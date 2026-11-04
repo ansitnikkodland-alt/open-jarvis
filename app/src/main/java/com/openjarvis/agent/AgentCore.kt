@@ -6,6 +6,10 @@ import android.content.Intent
 import android.content.pm.ResolveInfo
 import android.net.Uri
 import android.provider.Settings
+import android.provider.ContactsContract
+import android.content.pm.PackageManager
+import java.util.Locale
+import java.text.Normalizer
 import com.openjarvis.accessibility.JarvisAccessibilityService
 import com.openjarvis.accessibility.ScreenReader
 import com.openjarvis.graphify.AnalysisEngine
@@ -137,23 +141,28 @@ ${rawResponse.take(4000)}
 
                     _state.value = AgentState.Running("checking direct command...")
 
-                    val fastCommand = FastCommandParser.parse(safeCommand)
-                    if (fastCommand != null) {
-                        val historyCommand = when (fastCommand) {
-                            is FastCommandParser.Command.Remember -> "remember [encrypted local note]"
-                            is FastCommandParser.Command.Forget -> "forget [local memory query]"
+                    val fastCommands = FastCommandParser.parseSequence(safeCommand)
+                    if (fastCommands != null) {
+                        val historyCommand = when {
+                            fastCommands.any { it is FastCommandParser.Command.Remember } -> "remember [encrypted local note]"
+                            fastCommands.any { it is FastCommandParser.Command.Forget } -> "forget [local memory query]"
                             else -> safeCommand
                         }
-                        val hideMemoryResult = fastCommand is FastCommandParser.Command.Remember ||
-                            fastCommand is FastCommandParser.Command.Forget
+                        val hideMemoryResult = fastCommands.any {
+                            it is FastCommandParser.Command.Remember || it is FastCommandParser.Command.Forget
+                        }
                         try {
-                            val result = executeFastCommand(fastCommand)
-                            graphifyRepo.logTask(
-                                command = historyCommand,
-                                result = if (hideMemoryResult) "success (local memory updated)" else "success (fast path accepted): $result",
-                                provider = "Android fast path",
-                                latencyMs = 0
-                            )
+                            val completed = mutableListOf<String>()
+                            for ((index, command) in fastCommands.withIndex()) {
+                                try {
+                                    completed += executeFastCommand(command)
+                                } catch (stepError: Exception) {
+                                    val detail = stepError.message?.takeIf { it.isNotBlank() } ?: stepError.javaClass.simpleName
+                                    throw IllegalStateException("Step ${index + 1} failed ($command): $detail", stepError)
+                                }
+                            }
+                            val result = completed.joinToString(". ")
+                            graphifyRepo.logTask(historyCommand, if (hideMemoryResult) "success (local memory updated)" else "success (fast path verified): $result", "Android fast path", 0)
                             _state.value = AgentState.Done(result)
                         } catch (error: Exception) {
                             val detail = error.message?.takeIf { it.isNotBlank() } ?: error.javaClass.simpleName
@@ -782,7 +791,87 @@ ${rawResponse.take(4000)}
                 if (screenReader.extractAllText().isBlank()) throw IllegalStateException("Dialer opened, but the screen could not be verified")
                 "Opened dialer for ${command.number} (call not placed)"
             }
+            is FastCommandParser.Command.DialContact -> {
+                val number = resolveContactNumber(command.name)
+                context.startActivity(Intent(Intent.ACTION_DIAL, Uri.fromParts("tel", number, null)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                kotlinx.coroutines.delay(700)
+                if (screenReader.extractAllText().isBlank()) throw IllegalStateException("Dialer opened, but the screen could not be verified")
+                "Opened dialer for ${command.name} (call not placed)"
+            }
+            is FastCommandParser.Command.YoutubeSearch -> {
+                val encoded = java.net.URLEncoder.encode(command.query, "UTF-8")
+                val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://www.youtube.com/results?search_query=$encoded"))
+                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                val youtube = "com.google.android.youtube"
+                if (runCatching { context.packageManager.getPackageInfo(youtube, 0) }.isSuccess) intent.setPackage(youtube)
+                if (intent.resolveActivity(context.packageManager) == null) throw IllegalStateException("No app or browser can open YouTube search")
+                context.startActivity(intent)
+                kotlinx.coroutines.delay(900)
+                "Opened YouTube search for ${command.query}"
+            }
         }
+    }
+
+    private suspend fun resolveContactNumber(requestedName: String): String {
+        if (context.checkSelfPermission(android.Manifest.permission.READ_CONTACTS) != PackageManager.PERMISSION_GRANTED) {
+            val prefs = context.getSharedPreferences("jarvis_contact_permission", Context.MODE_PRIVATE)
+            prefs.edit().putBoolean("completed", false).putBoolean("granted", false).apply()
+            try {
+                context.startActivity(Intent(context, com.openjarvis.ui.ContactPermissionActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+            } catch (error: Exception) {
+                throw IllegalStateException("Contacts permission is required. Open Jarvis and allow Contacts permission.", error)
+            }
+            var completed = false
+            for (attempt in 0 until 60) {
+                kotlinx.coroutines.delay(500)
+                if (prefs.getBoolean("completed", false)) { completed = true; break }
+                if (context.checkSelfPermission(android.Manifest.permission.READ_CONTACTS) == PackageManager.PERMISSION_GRANTED) { completed = true; break }
+            }
+            if (!completed || context.checkSelfPermission(android.Manifest.permission.READ_CONTACTS) != PackageManager.PERMISSION_GRANTED) {
+                throw IllegalStateException("Contacts permission not granted. Enable it in Android Settings > Apps > Open Jarvis > Permissions > Contacts.")
+            }
+        }
+        val projection = arrayOf(ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME, ContactsContract.CommonDataKinds.Phone.NUMBER)
+        val matches = mutableListOf<Pair<String, String>>()
+        context.contentResolver.query(ContactsContract.CommonDataKinds.Phone.CONTENT_URI, projection, null, null,
+            ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME + " COLLATE NOCASE ASC")?.use { cursor ->
+            val ni = cursor.getColumnIndex(ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME)
+            val pi = cursor.getColumnIndex(ContactsContract.CommonDataKinds.Phone.NUMBER)
+            while (cursor.moveToNext()) {
+                val name = cursor.getString(ni).orEmpty()
+                val number = cursor.getString(pi).orEmpty()
+                if (name.isNotBlank() && number.isNotBlank() && contactNameMatches(requestedName, name)) matches += name to number
+            }
+        } ?: throw IllegalStateException("Could not read contacts. Check Contacts permission and try again.")
+        val unique = matches.distinctBy { it.second.replace(Regex("[^+0-9]"), "") }
+        if (unique.isEmpty()) throw IllegalStateException("No contact matched '$requestedName'. Check the name in Contacts.")
+        if (unique.size > 1) throw IllegalStateException("Multiple contacts found: ${unique.map { it.first }.distinct().take(6).joinToString(", ")}. Please say one exact/full name; I will not choose automatically.")
+        return unique.single().second
+    }
+
+    private fun contactNameMatches(requested: String, stored: String): Boolean {
+        val q = normalizeContactName(requested)
+        val n = normalizeContactName(stored)
+        return q.isNotBlank() && (n == q || n.startsWith("$q ") || n.startsWith("$q-"))
+    }
+
+    private fun normalizeContactName(value: String): String {
+        val s = Normalizer.normalize(value, Normalizer.Form.NFKC).lowercase(Locale.ROOT).trim()
+        val c = mapOf('क' to "k",'ख' to "kh",'ग' to "g",'घ' to "gh",'च' to "ch",'छ' to "chh",'ज' to "j",'झ' to "jh",'ट' to "t",'ठ' to "th",'ड' to "d",'ढ' to "dh",'त' to "t",'थ' to "th",'द' to "d",'ध' to "dh",'न' to "n",'प' to "p",'फ' to "ph",'ब' to "b",'भ' to "bh",'म' to "m",'य' to "y",'र' to "r",'ल' to "l",'व' to "v",'श' to "sh",'ष' to "sh",'स' to "s",'ह' to "h",'ण' to "n")
+        val v = mapOf('अ' to "a",'आ' to "a",'इ' to "i",'ई' to "i",'उ' to "u",'ऊ' to "u",'ए' to "e",'ऐ' to "ai",'ओ' to "o",'औ' to "au")
+        val m = mapOf('ा' to "a",'ि' to "i",'ी' to "i",'ु' to "u",'ू' to "u",'े' to "e",'ै' to "ai",'ो' to "o",'ौ' to "au")
+        val out = StringBuilder(); var pending = false
+        for (ch in s) when {
+            c.containsKey(ch) -> { if (pending) out.append('a'); out.append(c.getValue(ch)); pending = true }
+            v.containsKey(ch) -> { if (pending) out.append('a'); out.append(v.getValue(ch)); pending = false }
+            m.containsKey(ch) -> { out.append(m.getValue(ch)); pending = false }
+            ch == '्' -> pending = false
+            ch == 'ं' || ch == 'ँ' -> { out.append('m'); pending = false }
+            ch == ' ' || ch == '-' || ch == '\'' -> { if (pending) out.append('a'); out.append(ch); pending = false }
+            ch.code < 128 -> { if (pending) out.append('a'); out.append(ch); pending = false }
+        }
+        return Normalizer.normalize(out.toString().trim().removeSuffix("a"), Normalizer.Form.NFD)
+            .replace(Regex("\\p{M}+"), "").replace(Regex("[^\\p{L}0-9 ]"), "").replace(Regex("\\s+"), " ")
     }
 
     private fun resolveAppPackage(label: String): String? {

@@ -44,6 +44,20 @@ class FastCommandParserTest {
         assertEquals(FastCommandParser.Command.Remember("मला मराठी आवडते"), FastCommandParser.parse("लक्षात ठेव मला मराठी आवडते"))
     }
 
+    @Test fun recognizesYoutubeAndContactFastSkills() {
+        assertEquals(FastCommandParser.Command.YoutubeSearch("lofi"), FastCommandParser.parse("YouTube par lofi search karo"))
+        assertEquals(FastCommandParser.Command.YoutubeSearch("lofi"), FastCommandParser.parse("YouTube kholo aur lofi search karo"))
+        assertEquals(FastCommandParser.Command.DialContact("Rahul"), FastCommandParser.parse("Rahul ko call karo"))
+        assertEquals(FastCommandParser.Command.DialContact("राहुल"), FastCommandParser.parse("राहुल को कॉल करो"))
+        assertEquals(FastCommandParser.Command.DialContact("Rahul"), FastCommandParser.parse("call Rahul"))
+    }
+
+    @Test fun splitsRecognizedCompoundCommandsAndStopsAtUnknown() {
+        assertEquals(listOf(FastCommandParser.Command.OpenApp("Chrome"), FastCommandParser.Command.Back), FastCommandParser.parseSequence("Chrome kholo aur back"))
+        assertNull(FastCommandParser.parseSequence("Chrome kholo aur unknown action"))
+        assertNull(FastCommandParser.parseSequence("back then home then back then home then back then home"))
+    }
+
     @Test fun recognizesDialNumberWithoutPlacingCall() {
         assertEquals(FastCommandParser.Command.Dial("+919876543210"), FastCommandParser.parse("call +91 98765 43210"))
     }
