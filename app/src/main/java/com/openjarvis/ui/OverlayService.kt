@@ -170,13 +170,13 @@ class OverlayService : Service() {
                 gravity = Gravity.CENTER
                 setPadding(dp(22), dp(14), dp(22), dp(14))
                 background = rounded(Color.rgb(55, 35, 95), 40)
-                setOnClickListener { togglePanel() }
+                setOnClickListener { commandInput?.requestFocus() }
             }
             root.addView(pill, LinearLayout.LayoutParams(-2, -2))
 
             val commandPanel = LinearLayout(this).apply {
                 orientation = LinearLayout.VERTICAL
-                visibility = android.view.View.GONE
+                visibility = android.view.View.VISIBLE
                 setPadding(dp(4), dp(8), dp(4), dp(4))
             }
             val status = TextView(this).apply {
@@ -248,6 +248,7 @@ class OverlayService : Service() {
             commandPanel.addView(actions, LinearLayout.LayoutParams(-1, -2))
             root.addView(commandPanel)
             panel = commandPanel
+            isExpanded = true
 
             val type = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O)
                 WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
@@ -308,13 +309,18 @@ class OverlayService : Service() {
     }
 
     private fun startWakeWordListening() {
-        if (!voiceManager.isVoiceEnabled()) return
+        if (!voiceManager.isVoiceEnabled()) {
+            stopWakeWordListening()
+            return
+        }
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+            stopWakeWordListening()
             statusText?.text = "Microphone permission is required for Jarvis"
             return
         }
         val accessKey = voiceManager.getPicovoiceAccessKey()
         if (accessKey.isBlank()) {
+            stopWakeWordListening()
             statusText?.text = "Add your Picovoice AccessKey in Settings to enable offline Jarvis"
             return
         }
