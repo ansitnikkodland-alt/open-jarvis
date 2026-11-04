@@ -243,9 +243,12 @@ ${rawResponse.take(1000)}
                     }
 
                     if (isSimpleConversation(safeCommand)) {
+                        val chatSystem = "You are Jarvis. Reply naturally and briefly in the user's language. This is conversation, not an Android action plan. Do not return JSON."
                         val chatStart = System.currentTimeMillis()
+                        val chatTokens = (chatSystem.length + safeCommand.length) / 4
+                        Log.i(TAG, "path=LLM mode=conversation approx_prompt_tokens=$chatTokens provider=${universalAdapter.getProviderName()}")
                         val reply = completeWithinBudget(
-                            "You are Jarvis. Reply naturally and briefly in the user's language. This is conversation, not an Android action plan. Do not return JSON.",
+                            chatSystem,
                             safeCommand,
                             chatStart,
                             conversation = true
@@ -436,7 +439,7 @@ ${rawResponse.take(1000)}
                             val refusal = actions.firstOrNull { it.action == Action.ERROR }
                             if (refusal != null) {
                                 val rawReason = refusal.message.orEmpty().trim()
-                                val reason = if (rawReason.isBlank() || rawReason.lowercase() in setOf("reason", "error", "unknown", "unknown error")) {
+                                val reason = if (rawReason.isBlank() || rawReason.lowercase() in setOf("reason", "error", "unknown", "unavailable")) {
                                     "I couldn't determine a safe action from the current screen. Make sure the target app is open and give Jarvis a specific instruction."
                                 } else rawReason
                                 AgentDiagnostics.record(context, "action-planning-refusal", safeCommand, reason, effectiveRawJson, provider = universalAdapter.getProviderName(), model = "qwen3:1.7b")
@@ -563,7 +566,7 @@ ${rawResponse.take(1000)}
                                         ?: error.javaClass.simpleName
                                     if (universalAdapter.getProviderName() == "Ollama (Local)") {
                                         "Ollama error: $detail"
-                                    } else detail.ifBlank { "Unknown error" }
+                                    } else detail.ifBlank { "${error.javaClass.simpleName} (no error message)" }
                                 }
                             }
 
@@ -590,7 +593,7 @@ ${rawResponse.take(1000)}
                         ?: e.javaClass.simpleName
                     val errorMessage = if (universalAdapter.getProviderName() == "Ollama (Local)") {
                         "Ollama error: $detail"
-                    } else detail.ifBlank { "Unknown error" }
+                    } else detail.ifBlank { "${error.javaClass.simpleName} (no error message)" }
                     AgentDiagnostics.record(context, "agent-crash", cleanCommand, errorMessage, error = e, provider = universalAdapter.getProviderName(), model = "qwen3:1.7b")
                     _state.value = AgentState.Error(errorMessage)
 

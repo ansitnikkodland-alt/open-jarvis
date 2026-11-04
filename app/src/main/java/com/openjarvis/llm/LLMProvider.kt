@@ -17,10 +17,10 @@ interface LLMProvider {
         timeoutMs: Long,
         conversation: Boolean = false
     ): Result<String> {
-        if (timeoutMs <= 0L) return Result.failure(IllegalStateException("LLM time budget exceeded (120 seconds)."))
+        if (timeoutMs <= 0L) return Result.failure(IllegalStateException("LLM time budget exceeded (45 seconds)."))
         return kotlinx.coroutines.withTimeoutOrNull(timeoutMs) {
             if (conversation) completeConversation(systemPrompt, userMessage) else complete(systemPrompt, userMessage)
-        } ?: Result.failure(IllegalStateException("LLM time budget exceeded (120 seconds)."))
+        } ?: Result.failure(IllegalStateException("LLM time budget exceeded (45 seconds)."))
     }
 
     suspend fun testConnection(): Result<Long>

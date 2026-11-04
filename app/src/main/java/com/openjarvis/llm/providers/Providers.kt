@@ -293,7 +293,7 @@ class OllamaProvider(
 
     private fun remainingMs(deadlineNanos: Long): Long {
         val remaining = java.util.concurrent.TimeUnit.NANOSECONDS.toMillis(deadlineNanos - System.nanoTime())
-        if (remaining <= 0L) throw IllegalStateException("LLM time budget exceeded (120 seconds). Try a shorter command.")
+        if (remaining <= 0L) throw IllegalStateException("LLM time budget exceeded (45 seconds). Try a shorter command.")
         return remaining
     }
 
