@@ -119,7 +119,7 @@ fun DashboardScreen(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            ProactiveAssistantCard()
+            ProactiveAssistantCard(taskCount = recentTasks.size)
 
             Spacer(modifier = Modifier.height(16.dp))
             
@@ -799,7 +799,7 @@ private fun formatRelativeTime(timestamp: Long): String {
 }
 
 @Composable
-private fun ProactiveAssistantCard() {
+private fun ProactiveAssistantCard(taskCount: Int) {
     val context = LocalContext.current
     var briefingEnabled by remember { mutableStateOf(ProactiveAssistant.isDailyBriefingEnabled(context)) }
     var showReminder by remember { mutableStateOf(false) }
@@ -807,6 +807,13 @@ private fun ProactiveAssistantCard() {
     var reminderMessage by remember { mutableStateOf("") }
     var reminderMinutes by remember { mutableStateOf("30") }
     var notice by remember { mutableStateOf("Local reminders • battery alerts • daily briefing") }
+    val hour = java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY)
+    val suggestion = when {
+        taskCount == 0 -> "Try a voice command to start your first task, then save a reminder for its follow-up."
+        hour < 12 -> "Morning suggestion: choose today's top priority and set a reminder for it."
+        hour < 18 -> "Suggestion: review your recent tasks and schedule a follow-up before the day ends."
+        else -> "Evening suggestion: review completed tasks and set tomorrow's first reminder."
+    }
 
     Surface(
         modifier = Modifier.fillMaxWidth(),
