@@ -156,7 +156,7 @@ SCREEN: {SCREEN_OCR}
                             if (!validation.isValid) {
                                 val firstFailure = validation.errors.firstOrNull() ?: "Empty action plan"
                                 val retryPrompt = fullSystem +
-                                    "\\n\\nFORMAT RETRY: Your previous output was invalid. Return ONLY one valid JSON object matching {\\\"steps\\\":[{\\\"action\\\":\\\"<allowed action>\\\",\\\"target\\\":\\\"string\\\",\\\"value\\\":\\\"string\\\"}]}. No markdown, no <think>, no explanation."
+                                    "\n\nFORMAT RETRY: Your previous output was invalid. Return ONLY one valid JSON object matching {\"steps\":[{\"action\":\"<allowed action>\",\"target\":\"string\",\"value\":\"string\"}]}. No markdown, no <think>, no explanation."
                                 val retryResult = universalAdapter.complete(retryPrompt, safeCommand)
                                 if (retryResult.isSuccess) {
                                     val retryRaw = retryResult.getOrThrow()
@@ -169,7 +169,7 @@ SCREEN: {SCREEN_OCR}
                                     AgentDiagnostics.record(
                                         context, "response-validation", safeCommand,
                                         "Initial: $firstFailure | Retry: $finalReason",
-                                        "FIRST RESPONSE:\\n${rawJson.take(2000)}\\nRETRY RESPONSE:\\n${effectiveRawJson.take(2000)}",
+                                        "FIRST RESPONSE:\n${rawJson.take(2000)}\nRETRY RESPONSE:\n${effectiveRawJson.take(2000)}",
                                         provider = universalAdapter.getProviderName(), model = "qwen3:1.7b"
                                     )
                                     _state.value = AgentState.Done("I couldn't form a valid action plan. Please say the command another way.")
