@@ -52,6 +52,7 @@ class FastCommandParserTest {
         assertEquals(FastCommandParser.Command.YoutubeSearch("lofi"), FastCommandParser.parse("YouTube kholo aur lofi search karo"))
         assertEquals(FastCommandParser.Command.DialContact("Rahul"), FastCommandParser.parse("Rahul ko call karo"))
         assertEquals(FastCommandParser.Command.DialContact("राहुल"), FastCommandParser.parse("राहुल को कॉल करो"))
+        assertEquals(FastCommandParser.Command.DialContact("राहुल"), FastCommandParser.parse("राहुल ला कॉल करा"))
         assertEquals(FastCommandParser.Command.DialContact("Rahul"), FastCommandParser.parse("call Rahul"))
     }
 
