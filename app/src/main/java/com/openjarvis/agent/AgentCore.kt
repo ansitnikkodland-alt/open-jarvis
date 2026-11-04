@@ -462,12 +462,16 @@ ${rawResponse.take(1000)}
                                     if (validation.isValid && AgentPlanPolicy.isExecutablePlan(groundedCompactActions, safeCommand)) {
                                         actions = groundedCompactActions
                                     } else {
-                                        val reason = validation.errors.firstOrNull()
+                                        val rule = if (!validation.isValid) "RULE_REPLAN_INVALID"
+                                            else AgentPlanPolicy.failureRule(groundedCompactActions, safeCommand) ?: "RULE_REPLAN_REJECTED"
+                                        val guidance = AgentPlanPolicy.userGuidance(rule)
+                                        val detail = validation.errors.firstOrNull()
                                             ?: validation.actions.firstOrNull { it.action == Action.ERROR }?.message
                                             ?: "The local model could not produce a short, safe action plan."
+                                        val reason = "$rule: $guidance Detail: $detail"
                                         AgentDiagnostics.record(context, "action-plan-repair", safeCommand, reason, effectiveRawJson, provider = universalAdapter.getProviderName(), model = "qwen3:1.7b")
-                                        _state.value = AgentState.Error("Jarvis could not safely plan this task: " + reason)
-                                        graphifyRepo.logTask(safeCommand, "failed: compact plan rejected", universalAdapter.getProviderName(), latency)
+                                        _state.value = AgentState.Error(guidance)
+                                        graphifyRepo.logTask(safeCommand, "failed: $rule", universalAdapter.getProviderName(), latency)
                                         return@fold
                                     }
                                 }
