@@ -28,8 +28,8 @@ internal object AgentPlanPolicy {
         if (actions.size != 1 || actions.single().action != Action.OPEN_APP) return false
         val hasConnector = multiStepConnector.containsMatchIn(command) ||
             listOf("और", "आणि", "त्यानंतर").any { command.contains(it) }
-        val hasActionableFollowUp = actionableIntent.containsMatchIn(command)
-        return hasConnector && hasActionableFollowUp
+        val actionableCount = actionableIntent.findAll(command).count()
+        return (hasConnector && actionableCount >= 1) || actionableCount >= 2
     }
 
     fun needsCompactReplan(actions: List<Action>, command: String): Boolean =
