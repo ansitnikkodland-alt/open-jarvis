@@ -73,7 +73,7 @@ class AgentReEvaluationPolicyTest {
         )
         assertTrue(
             AgentPlanPolicy.needsCompactReplan(
-                (1..7).map { Action(Action.WAIT, text = "step " + it) }
+                (1..11).map { Action(Action.WAIT, text = "step " + it) }
             )
         )
         assertFalse(
@@ -87,7 +87,7 @@ class AgentReEvaluationPolicyTest {
         assertTrue(AgentPlanPolicy.isExecutablePlan(listOf(Action(Action.OPEN_APP, label = "Settings"))))
         assertFalse(AgentPlanPolicy.isExecutablePlan(listOf(Action(Action.ERROR, message = "unsafe"))))
         assertFalse(AgentPlanPolicy.isExecutablePlan(listOf(Action(Action.READ_SCREEN))))
-        assertFalse(AgentPlanPolicy.isExecutablePlan((1..7).map { Action(Action.WAIT) }))
+        assertFalse(AgentPlanPolicy.isExecutablePlan((1..11).map { Action(Action.WAIT) }))
     }
 
     @Test fun rejectsAReplanThatRepeatsACompletedStep() {

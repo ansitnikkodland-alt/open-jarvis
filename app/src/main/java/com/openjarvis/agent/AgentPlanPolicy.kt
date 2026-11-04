@@ -8,7 +8,7 @@ package com.openjarvis.agent
  * for one compact plan before execution; never execute a mixed refusal.
  */
 internal object AgentPlanPolicy {
-    const val MAX_ACTIONS = 6
+    const val MAX_ACTIONS = 10
 
     fun hasUnresolvedAppLaunch(actions: List<Action>): Boolean =
         actions.any { it.action == Action.OPEN_APP && AppTargetResolver.isPlaceholder(it.label) }
