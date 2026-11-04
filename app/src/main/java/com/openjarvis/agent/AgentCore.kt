@@ -516,19 +516,29 @@ ${rawResponse.take(4000)}
             return when (action.action) {
                 Action.OPEN_APP -> {
                     val label = action.label
-                    val packageName = action.packageName ?: label?.let { findPackageByLabel(it) }
-                    if (packageName.isNullOrBlank()) return "App not found: ${label ?: "package missing"}"
-                    if (activeService == null || !activeService.openAppByPackage(packageName)) return "Could not start app: ${label ?: packageName}"
+                    val packageName = action.packageName ?: label?.let { resolveAppPackage(it) }
+                    if (packageName.isNullOrBlank()) return "No installed app was matched to the app name in your command"
+                    // Prefer Android's native launch intent (same path as the fast-command
+                    // executor). Accessibility remains responsible for observing and operating
+                    // the opened app, not for starting it.
+                    val launchIntent = context.packageManager.getLaunchIntentForPackage(packageName)
+                        ?: return "No launcher activity is available for ${label ?: packageName}"
+                    try {
+                        launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                        context.startActivity(launchIntent)
+                    } catch (error: Exception) {
+                        return "Android could not launch ${label ?: packageName}: ${error.message ?: error.javaClass.simpleName}"
+                    }
                     var foregroundConfirmed = false
                     for (check in 0 until 16) {
-                        if (activeService.isPackageActive(packageName)) {
+                        if (JarvisAccessibilityService.instance?.isPackageActive(packageName) == true) {
                             foregroundConfirmed = true
                             break
                         }
                         kotlinx.coroutines.delay(250)
                     }
                     if (!foregroundConfirmed) {
-                        Log.w(TAG, "App launch accepted for $packageName; foreground confirmation unavailable. Continuing action plan.")
+                        Log.w(TAG, "Native app launch accepted for $packageName; foreground confirmation unavailable. Continuing with fresh screen observation.")
                     }
                     null
                 }
