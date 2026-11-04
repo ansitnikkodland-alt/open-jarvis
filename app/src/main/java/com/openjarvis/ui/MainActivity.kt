@@ -36,7 +36,7 @@ class MainActivity : ComponentActivity() {
             if (granted) "Microphone enabled" else "Microphone permission is required for voice input",
             Toast.LENGTH_LONG
         ).show()
-        if (granted) requestNotificationPermissionIfNeeded()
+        requestNotificationPermissionIfNeeded()
     }
 
     private val requestNotificationPermission = registerForActivityResult(
