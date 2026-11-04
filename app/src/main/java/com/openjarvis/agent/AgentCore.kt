@@ -422,17 +422,18 @@ ${rawResponse.take(1000)}
                             // append an error marker after a partial plan or emit a long mixed
                             // navigation chain. Re-observe and ask once for a short executable
                             // plan before refusing or touching the device.
+                            var screenlessResolvedAppLaunchAllowed = false
                             if (AgentPlanPolicy.needsCompactReplan(actions, safeCommand)) {
                                 _state.value = AgentState.Running("clarifying action plan...")
                                 val planScreen = runCatching { screenReader.extractAllText() }.getOrDefault("")
                                 val planElements = runCatching { screenReader.extractInteractiveElements() }.getOrDefault("")
                                 if (planScreen.isBlank()) {
-                                    val onlyResolvedAppLaunch = actions.size == 1 &&
+                                    screenlessResolvedAppLaunchAllowed = actions.size == 1 &&
                                         actions.single().action == Action.OPEN_APP &&
                                         !AppTargetResolver.isPlaceholder(actions.single().label) &&
                                         !actions.single().packageName.isNullOrBlank() &&
-                                        AgentPlanPolicy.isExecutablePlan(actions, safeCommand)
-                                    if (!onlyResolvedAppLaunch) {
+                                        AgentPlanPolicy.isExecutablePlan(actions)
+                                    if (!screenlessResolvedAppLaunchAllowed) {
                                         val rule = "RULE_SCREEN_OBSERVATION"
                                         val reason = "$rule: " + AgentPlanPolicy.userGuidance(rule)
                                         AgentDiagnostics.record(context, "action-plan-final-guard", safeCommand, reason, effectiveRawJson, provider = universalAdapter.getProviderName(), model = "qwen3:1.7b")
@@ -503,7 +504,7 @@ ${rawResponse.take(1000)}
 
                             // Final fail-closed gate: no unresolved app target or partial
                             // observation plan may reach the Android action executor.
-                            if (!AgentPlanPolicy.isExecutablePlan(actions, safeCommand)) {
+                            if (!AgentPlanPolicy.isExecutablePlan(actions, safeCommand) && !screenlessResolvedAppLaunchAllowed) {
                                 val rule = AgentPlanPolicy.failureRule(actions, safeCommand) ?: "RULE_NOT_EXECUTABLE"
                                 val guidance = AgentPlanPolicy.userGuidance(rule)
                                 val diagnosticReason = "$rule: $guidance"
@@ -580,8 +581,11 @@ ${rawResponse.take(1000)}
                             runCatching { analysisEngine.analyzeLastTask() }
                                 .onFailure { Log.e(TAG, "Post-task analysis failed", it) }
 
-                            _state.value =
+                            _state.value = if (screenlessResolvedAppLaunchAllowed) {
+                                AgentState.Done("Opened ${actions.single().label}. Accessibility screen nahi padh pa rahi, isliye aage ke steps run nahi hue.")
+                            } else {
                                 AgentState.Done("Completed ${actions.size} actions • done in ${latency}ms")
+                            }
                         },
 
                         onFailure = { error ->
