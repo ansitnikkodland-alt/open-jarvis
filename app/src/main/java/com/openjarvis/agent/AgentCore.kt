@@ -72,7 +72,7 @@ INSTALLED APPS: {INSTALLED_APPS}
             .matches(command.trim())
 
     private fun remainingLlmBudgetMs(budgetStartMs: Long): Long =
-        (45_000L - (System.currentTimeMillis() - budgetStartMs)).coerceAtLeast(0L)
+        SharedLlmBudget.remainingMs(budgetStartMs, System.currentTimeMillis())
 
     private suspend fun completeWithinBudget(
         system: String,
