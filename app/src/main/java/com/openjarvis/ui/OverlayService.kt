@@ -40,6 +40,7 @@ import com.openjarvis.graphify.nodes.TaskNode
 import com.openjarvis.voice.VoiceManager
 import com.openjarvis.voice.PorcupineWakeWordController
 import com.openjarvis.voice.WakeWordEngine
+import com.openjarvis.voice.SherpaOnnxWakeWordController
 import com.openjarvis.voice.WakeWordConfig
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -319,19 +320,28 @@ class OverlayService : Service() {
             return
         }
         val accessKey = voiceManager.getPicovoiceAccessKey()
-        if (accessKey.isBlank()) {
-            stopWakeWordListening()
-            statusText?.text = "Add your Picovoice AccessKey in Settings to enable offline Jarvis"
-            return
-        }
         if (Build.VERSION.SDK_INT >= 34) {
             val types = ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE or ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE
             ServiceCompat.startForeground(this, NOTIFICATION_ID, createNotification(), types)
         }
-        // Settings can update the key while this foreground service remains alive.
-        // Porcupine captures its AccessKey at construction, so rebuild it when the key changes.
-        if (wakeWordController == null || wakeWordControllerKey != accessKey) {
-            wakeWordController?.stop()
+
+        // Key-free sherpa-onnx is primary. Porcupine remains an optional fallback
+        // until the new engine passes the user's phone gate.
+        if (wakeWordController is PorcupineWakeWordController && wakeWordControllerKey != accessKey) {
+            stopWakeWordListening()
+            wakeWordController = null
+            wakeWordControllerKey = null
+        }
+        if (wakeWordController == null) {
+            wakeWordController = SherpaOnnxWakeWordController(
+                this,
+                onWakeWord = { mainHandler.post { handleWakeWordDetected() } },
+                onError = { message -> mainHandler.post { statusText?.text = "Wake-word error: $message" } }
+            )
+        }
+        var error = wakeWordController?.start()
+        if (error != null && accessKey.isNotBlank() && wakeWordController !is PorcupineWakeWordController) {
+            stopWakeWordListening()
             wakeWordController = PorcupineWakeWordController(
                 this,
                 accessKey,
@@ -339,10 +349,14 @@ class OverlayService : Service() {
                 onError = { message -> mainHandler.post { statusText?.text = "Wake-word error: $message" } }
             )
             wakeWordControllerKey = accessKey
+            error = wakeWordController?.start()
         }
-        val error = wakeWordController?.start()
         if (error == null) acquireWakeWordCpuLock() else releaseWakeWordCpuLock()
-        statusText?.text = error ?: "Standby — say Jarvis (offline)"
+        statusText?.text = error ?: if (wakeWordController is SherpaOnnxWakeWordController) {
+            "Standby — say Jarvis (offline, no key)"
+        } else {
+            "Standby — say Jarvis (Porcupine fallback)"
+        }
     }
 
     private fun handleWakeWordDetected() {
