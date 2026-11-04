@@ -341,8 +341,10 @@ ${rawResponse.take(1000)}
                     val installedAppsPrompt = installedAppTargets
                         .filter { safeCommand.contains(it.label, ignoreCase = true) }
                         .joinToString(", ") { it.label }.take(150)
-                    val needsMemory = Regex("remember|forget|memory|yaad|याद|लक्षात|विसर", RegexOption.IGNORE_CASE).containsMatchIn(safeCommand)
-                    val memoryPrompt = if (needsMemory) personalMemoryStore.promptContext().take(150) else ""
+                    // Jandal-inspired local recall: retrieve only explicit user-saved facts
+                    // relevant to this command. Matching is bounded and runs locally without embeddings,
+                    // network calls, or keeping an LLM/model resident.
+                    val memoryPrompt = personalMemoryStore.promptContext(safeCommand)
 
                     val fullSystem = systemPrompt
                         .replace("{PERSONAL_MEMORY}", memoryPrompt)
