@@ -14,7 +14,7 @@ object CommandSplitter {
 
     fun split(command: String, maxSteps: Int = MAX_STEPS): List<Step>? {
         if (maxSteps !in 1..MAX_STEPS) return null
-        val normalized = command.trim().replace(Regex("\\s+"), " ")
+        val normalized = command.trim().replace(Regex("\s+"), " ")
         if (normalized.isBlank()) return null
         val parts = normalized.split(separators).map(String::trim)
         if (parts.any(String::isBlank) || parts.size > maxSteps) return null
@@ -29,9 +29,9 @@ object CommandSplitter {
         }
     }
 
-    private val APP_CONTEXT = Regex("""(?i)\\b(?:youtube|chrome|google|whatsapp|spotify|settings)\\b""")
-    private val CONTACT_CONTEXT = Regex("""(?i)\\b(?:to|ko|la)\\s+([\\p{L}][\\p{L} .'-]{1,40})""")
-    private val QUERY_CONTEXT = Regex("""(?i)\\b(?:search|khojo|dhundo)\\s+(.+)$""")
+    private val APP_CONTEXT = Regex("""(?i)\b(?:youtube|chrome|google|whatsapp|spotify|settings)\b""")
+    private val CONTACT_CONTEXT = Regex("""(?i)\b(?:to|ko|la)\s+([\p{L}][\p{L} .'-]{1,40})""")
+    private val QUERY_CONTEXT = Regex("""(?i)\b(?:search|khojo|dhundo)\s+(.+)$""")
 
     const val MAX_STEPS = 5
 }
