@@ -226,7 +226,11 @@ object StepIntentParser {
         // A bare app name is accepted only from a conservative alias list. An explicit
         // launch verb may use any installed label, but never swallow a compound sentence.
         if (!hasVerb && candidate.joinToString(" ") !in APP_ALIASES) return null
-        if (candidate.any { it in APP_CONNECTORS || it in TEXT_DELIMS || it in MESSAGE_WORDS }) return null
+        // WhatsApp is both an app alias and a message transport. A bare app
+        // launch must remain launchable; message intent is recognized above only
+        // when an explicit send verb accompanies a message keyword.
+        val nonAppMessageWords = MESSAGE_WORDS - APP_ALIASES
+        if (candidate.any { it in APP_CONNECTORS || it in TEXT_DELIMS || it in nonAppMessageWords }) return null
         val label = candidate.joinToString(" ").trim()
         if (label.length !in 2..60) return null
         return StepIntent.AppLaunch(label)
