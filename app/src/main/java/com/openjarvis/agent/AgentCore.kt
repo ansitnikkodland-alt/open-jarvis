@@ -1347,7 +1347,7 @@ ${fullSystem.substringAfter("MEMORY:")}
 
                     // A follow-up such as "Amit ko bhi" inherits the previous message
                     // channel and body. It still opens a composer; it never taps Send.
-                    val continuationContact = messageContinuationContact(step)
+                    val continuationContact = CommandRouter.messageContinuationContact(step)
                     if (continuationContact != null && !ctx.messageText.isNullOrBlank()) {
                         return try {
                             val app = selectedMessageApp(ctx.app)

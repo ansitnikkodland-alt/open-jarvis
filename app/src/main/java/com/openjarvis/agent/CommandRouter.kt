@@ -32,7 +32,7 @@ internal object CommandRouter {
         return Route.NONE
     }
 
-    private fun messageContinuationContact(step: String): String? {
+    fun messageContinuationContact(step: String): String? {
         val cleaned = step.trim().replace(Regex("[\\p{Punct}।॥]+$"), "").trim()
         val match = Regex(
             "^(.+?)\\s+(?:ko|को|ला)\\s+(?:bhi|also|too|भी|सुद्धा)$",

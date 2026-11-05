@@ -15,6 +15,7 @@ class CommandSplitterTest {
         assertEquals(CommandRouter.Route.STEP_INTENT, CommandRouter.classify("torch on karo"))
         assertEquals(CommandRouter.Route.SEARCH, CommandRouter.classify("google par mausam search karo"))
         assertEquals(CommandRouter.Route.NONE, CommandRouter.classify("kal milte hain"))
+        assertEquals(CommandRouter.Route.MESSAGE_CONTINUATION, CommandRouter.classify("Amit ko bhi"))
     }
 
     @Test
