@@ -57,8 +57,4 @@ object MuteCommandPolicy {
             .replace(Regex("\\s+"), " ")
     }
 
-    /* legacy normalization body removed */
-    private fun legacyNormalizeUnused(command: String): Boolean {
-        return normalize(command) in mutePhrases
-    }
 }
