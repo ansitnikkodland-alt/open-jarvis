@@ -1103,27 +1103,12 @@ ${rawResponse.take(1000)}
             throw IllegalStateException("No app is available to open this message composer.")
         }
         context.startActivity(intent)
-        if (!request.sendNow) {
-            return when (request.channel) {
-                MessageRequest.Channel.WHATSAPP -> "WhatsApp chat opened for ${request.contactName}; message prefilled. Bhejne ke liye Send dabao."
-                MessageRequest.Channel.SMS -> "SMS composer opened for ${request.contactName}; message prefilled. Bhejne ke liye Send dabao."
-            }
+        // Sending is deliberately never automated. Even an utterance containing "bhejo/send"
+        // only opens a prefilled composer; the user must review and tap Send themselves.
+        return when (request.channel) {
+            MessageRequest.Channel.WHATSAPP -> "WhatsApp chat opened for ${request.contactName}; message prefilled. Review it and tap Send yourself. Jarvis did NOT send it."
+            MessageRequest.Channel.SMS -> "SMS composer opened for ${request.contactName}; message prefilled. Review it and tap Send yourself. Jarvis did NOT send it."
         }
-
-        // Give the target composer a moment to appear, then click at most once.
-        kotlinx.coroutines.delay(900)
-        val service = JarvisAccessibilityService.instance
-            ?: throw IllegalStateException("Message prefilled, but Accessibility is unavailable; message NOT sent.")
-        val sendLabel = when (java.util.Locale.getDefault().language) {
-            "hi" -> "भेजें"
-            "mr" -> "पाठवा"
-            else -> "Send"
-        }
-        val sendClicked = service.tapByText(sendLabel)
-        if (!sendClicked) {
-            throw IllegalStateException("Message prefilled, but Send control was not verified; message NOT sent. Tap Send manually.")
-        }
-        return "Send control clicked once for ${request.contactName}. Check the messaging app to confirm delivery."
     }
 
     private suspend fun resolveContactNumber(requestedName: String, purpose: String = "dial"): String {
@@ -1177,6 +1162,25 @@ ${rawResponse.take(1000)}
     private fun resolveAppPackage(label: String): String? {
         if (AppTargetResolver.isPlaceholder(label)) return null
         if (label.equals("settings", ignoreCase = true)) return "com.android.settings"
+
+        // Verify well-known package aliases directly. This avoids false "not found"
+        // results when Android package visibility filters launcher query results.
+        val normalized = label.trim().lowercase(java.util.Locale.ROOT)
+        val knownPackages = mapOf(
+            "youtube" to "com.google.android.youtube",
+            "you tube" to "com.google.android.youtube",
+            "yt" to "com.google.android.youtube",
+            "chatgpt" to "com.openai.chatgpt",
+            "chat gpt" to "com.openai.chatgpt",
+            "instagram" to "com.instagram.android",
+            "insta" to "com.instagram.android",
+            "whatsapp" to "com.whatsapp",
+            "facebook" to "com.facebook.katana"
+        )
+        val knownPackage = knownPackages[normalized]
+        if (knownPackage != null && context.packageManager.getLaunchIntentForPackage(knownPackage) != null) {
+            return knownPackage
+        }
         val matches = AppTargetResolver.findMentionedApps(label, getInstalledLauncherApps()) ?: return null
         return matches.singleOrNull()?.packageName ?: findPackageByLabel(label)
     }
