@@ -381,8 +381,12 @@ class OverlayService : Service() {
         panel?.visibility = if (isExpanded) android.view.View.VISIBLE else android.view.View.GONE
         windowParams?.let { params ->
             params.width = if (isExpanded) dp(304) else WindowManager.LayoutParams.WRAP_CONTENT
-            params.flags = if (isExpanded) WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN
-                else WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN
+            // The overlay must never be touch-modal: taps outside the floating panel
+            // must continue to reach the app underneath, even while the input panel is open.
+            // Keep the expanded panel focusable so its EditText can receive keyboard input.
+            params.flags = WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or
+                WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
+                (if (isExpanded) 0 else WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE)
             try { windowManager?.updateViewLayout(overlayView, params) } catch (_: Exception) { }
         }
         if (isExpanded) commandInput?.requestFocus()
