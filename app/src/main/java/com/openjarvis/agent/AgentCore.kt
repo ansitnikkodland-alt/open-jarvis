@@ -188,6 +188,41 @@ ${rawResponse.take(1000)}
                             return@withLock
                     }
 
+                    // Multi-step commands use the ordered deterministic pipeline.
+                    // A single step deliberately stays on the legacy path below to preserve
+                    // the exact Slice A single-command behavior.
+                    val pipelineSteps = CommandSplitter.split(safeCommand) { canParsePipelineStep(it) }
+                    if (pipelineSteps.size > 1) {
+                        _state.value = AgentState.Running("executing ${pipelineSteps.size} steps...")
+                        val run = createStepPipeline().run(pipelineSteps)
+                        AgentDiagnostics.recordPipeline(context, safeCommand, run.traces, run.skipped)
+                        val failedTrace = run.traces.lastOrNull { !it.ok }
+                        val result = if (run.allOk) {
+                            run.traces.joinToString(". ") { it.reply }
+                        } else {
+                            val failed = failedTrace
+                            if (failed == null) {
+                                "Command pipeline failed."
+                            } else {
+                                val skipped = run.skipped.mapIndexed { index, text ->
+                                    "${failed.index + index + 2}. $text"
+                                }
+                                buildString {
+                                    append("Step ${failed.index + 1}/${pipelineSteps.size} failed: ${failed.reply}")
+                                    if (skipped.isNotEmpty()) append(". Skipped steps: ${skipped.joinToString("; ")}")
+                                }
+                            }
+                        }
+                        graphifyRepo.logTask(
+                            safeCommand,
+                            if (run.allOk) "success (multi-step pipeline): $result" else "failed (multi-step pipeline): $result",
+                            "AgentCore StepPipeline",
+                            0
+                        )
+                        _state.value = if (run.allOk) AgentState.Done(result) else AgentState.Error(result)
+                        return@withLock
+                    }
+
                     // Deterministic Android skills run before search/contact/fast/LLM fallbacks.
                     val stepIntent = StepIntentParser.parse(safeCommand)
                     if (stepIntent != null) {
@@ -1106,6 +1141,155 @@ Do not claim to have performed phone actions. Do not expose internal instruction
             }
         }
     }
+
+    private fun canParsePipelineStep(step: String): Boolean =
+        StepIntentParser.parse(step) != null ||
+            MessageCommandParser.parse(step) != null ||
+            SearchCommandParser.parseYouTubeQuery(step) != null ||
+            SearchCommandParser.parseWebQuery(step) != null ||
+            ContactCommandParser.parse(step) != null ||
+            FastCommandParser.parse(step) != null ||
+            messageContinuationContact(step) != null
+
+    private fun messageContinuationContact(step: String): String? {
+        val cleaned = step.trim().replace(Regex("[\\p{Punct}।॥]+$"), "").trim()
+        val match = Regex(
+            "^(.+?)\\s+(?:ko|को|ला)\\s+(?:bhi|also|too|भी|सुद्धा)$",
+            RegexOption.IGNORE_CASE
+        ).matchEntire(cleaned) ?: return null
+        return match.groupValues[1].trim().takeIf { it.isNotBlank() && it.length <= 80 }
+    }
+
+    private fun selectedMessageApp(app: String?): String = when (app?.lowercase(java.util.Locale.ROOT)) {
+        "sms" -> "sms"
+        "whatsapp" -> "whatsapp"
+        else -> {
+            val installed = runCatching { context.packageManager.getPackageInfo("com.whatsapp", 0) }.isSuccess
+            if (installed) "whatsapp" else "sms"
+        }
+    }
+
+    private fun createStepPipeline(): StepPipeline = StepPipeline(
+        listOf<StepHandler>(
+            object : StepHandler {
+                override val name: String = "step-intent"
+
+                override suspend fun handle(step: String, ctx: StepContext): StepOutcome? {
+                    val intent = StepIntentParser.parse(step)
+                    if (intent != null) {
+                        return try {
+                            val reply = executeStepIntent(intent)
+                            val nextContext = if (intent is StepIntent.Message &&
+                                !intent.contact.isNullOrBlank() && !intent.text.isNullOrBlank()
+                            ) {
+                                ctx.copy(
+                                    app = selectedMessageApp(intent.app),
+                                    contact = intent.contact,
+                                    messageText = intent.text
+                                )
+                            } else ctx
+                            StepOutcome(true, reply, nextContext)
+                        } catch (error: Exception) {
+                            StepOutcome(false, error.message?.takeIf { it.isNotBlank() } ?: error.javaClass.simpleName, ctx)
+                        }
+                    }
+
+                    // Keep the legacy explicit WhatsApp/SMS parser as a compatibility
+                    // fallback inside the first deterministic handler.
+                    val messageRequest = MessageCommandParser.parse(step)
+                    if (messageRequest != null) {
+                        return try {
+                            val reply = executeMessageRequest(messageRequest)
+                            val app = if (messageRequest.channel == MessageRequest.Channel.WHATSAPP) "whatsapp" else "sms"
+                            StepOutcome(
+                                true,
+                                reply,
+                                ctx.copy(app = app, contact = messageRequest.contactName, messageText = messageRequest.message)
+                            )
+                        } catch (error: Exception) {
+                            StepOutcome(false, error.message?.takeIf { it.isNotBlank() } ?: error.javaClass.simpleName, ctx)
+                        }
+                    }
+
+                    // A follow-up such as "Amit ko bhi" inherits the previous message
+                    // channel and body. It still opens a composer; it never taps Send.
+                    val continuationContact = messageContinuationContact(step)
+                    if (continuationContact != null && !ctx.messageText.isNullOrBlank()) {
+                        return try {
+                            val app = selectedMessageApp(ctx.app)
+                            val reply = executeStepIntent(
+                                StepIntent.Message(app, continuationContact, ctx.messageText)
+                            )
+                            StepOutcome(
+                                true,
+                                reply,
+                                ctx.copy(app = app, contact = continuationContact)
+                            )
+                        } catch (error: Exception) {
+                            StepOutcome(false, error.message?.takeIf { it.isNotBlank() } ?: error.javaClass.simpleName, ctx)
+                        }
+                    }
+                    return null
+                }
+            },
+            object : StepHandler {
+                override val name: String = "search"
+
+                override suspend fun handle(step: String, ctx: StepContext): StepOutcome? {
+                    val youtubeQuery = SearchCommandParser.parseYouTubeQuery(step)
+                    if (youtubeQuery != null) {
+                        return try {
+                            StepOutcome(true, executeFastCommand(FastCommandParser.Command.YoutubeSearch(youtubeQuery)), ctx)
+                        } catch (error: Exception) {
+                            StepOutcome(false, error.message?.takeIf { it.isNotBlank() } ?: error.javaClass.simpleName, ctx)
+                        }
+                    }
+                    val webQuery = SearchCommandParser.parseWebQuery(step) ?: return null
+                    return try {
+                        val webIntent = Intent(Intent.ACTION_WEB_SEARCH)
+                            .putExtra(SearchManager.QUERY, webQuery)
+                            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                        context.startActivity(webIntent)
+                        StepOutcome(true, "Searching the web for $webQuery", ctx)
+                    } catch (error: Exception) {
+                        StepOutcome(false, "Could not open web search: ${error.message ?: error.javaClass.simpleName}", ctx)
+                    }
+                }
+            },
+            object : StepHandler {
+                override val name: String = "contact"
+
+                override suspend fun handle(step: String, ctx: StepContext): StepOutcome? {
+                    val request = ContactCommandParser.parse(step) ?: return null
+                    if (request.name == null) {
+                        contactFollowUpWindow.start(System.currentTimeMillis())
+                        return StepOutcome(true, "Kisko call karun?", ctx)
+                    }
+                    return try {
+                        StepOutcome(
+                            true,
+                            executeFastCommand(FastCommandParser.Command.DialContact(request.name)),
+                            ctx.copy(contact = request.name)
+                        )
+                    } catch (error: Exception) {
+                        StepOutcome(false, error.message?.takeIf { it.isNotBlank() } ?: error.javaClass.simpleName, ctx)
+                    }
+                }
+            },
+            object : StepHandler {
+                override val name: String = "fast-command"
+
+                override suspend fun handle(step: String, ctx: StepContext): StepOutcome? {
+                    val command = FastCommandParser.parse(step) ?: return null
+                    return try {
+                        StepOutcome(true, executeFastCommand(command), ctx)
+                    } catch (error: Exception) {
+                        StepOutcome(false, error.message?.takeIf { it.isNotBlank() } ?: error.javaClass.simpleName, ctx)
+                    }
+                }
+            }
+        )
+    )
 
     private suspend fun executeStepIntent(intent: StepIntent): String {
         val executor = AndroidSkillExecutor(context)
