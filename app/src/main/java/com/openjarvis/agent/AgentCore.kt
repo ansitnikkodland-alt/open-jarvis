@@ -22,6 +22,8 @@ import com.openjarvis.intelligence.FastCommandParser
 import com.openjarvis.intelligence.TaskWorkingMemory
 import com.openjarvis.llm.UniversalAdapter
 import com.openjarvis.vision.VisionModule
+import com.openjarvis.skills.AndroidSkillExecutor
+import com.openjarvis.skills.SkillRegistry
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -184,6 +186,22 @@ ${rawResponse.take(1000)}
                                 }
                             }
                             return@withLock
+                    }
+
+                    // Deterministic Android skills run before search/contact/fast/LLM fallbacks.
+                    val stepIntent = StepIntentParser.parse(safeCommand)
+                    if (stepIntent != null) {
+                        try {
+                            val stepResult = executeStepIntent(stepIntent)
+                            Log.i(TAG, "path=rule skill=step-intent type=${stepIntent.javaClass.simpleName}")
+                            graphifyRepo.logTask(safeCommand, "success (step intent): $stepResult", "Android skill executor", 0)
+                            _state.value = AgentState.Done(stepResult)
+                        } catch (error: Exception) {
+                            val detail = error.message?.takeIf { it.isNotBlank() } ?: error.javaClass.simpleName
+                            AgentDiagnostics.record(context, "step-intent-execution", safeCommand, detail, error = error, provider = "Android skill executor", model = "Not used")
+                            _state.value = AgentState.Error(detail)
+                        }
+                        return@withLock
                     }
 
                     // Search parsing must precede compound splitting and all LLM requests.
@@ -1085,6 +1103,48 @@ Do not claim to have performed phone actions. Do not expose internal instruction
                 } else {
                     "Opened YouTube search for ${command.query} (foreground confirmed)"
                 }
+            }
+        }
+    }
+
+    private suspend fun executeStepIntent(intent: StepIntent): String {
+        val executor = AndroidSkillExecutor(context)
+        suspend fun run(kind: SkillRegistry.Kind, args: Map<String, String>) {
+            executor.execute(SkillRegistry.Request(kind, args)).getOrElse { throw it }
+        }
+        return when (intent) {
+            is StepIntent.Alarm -> {
+                run(SkillRegistry.Kind.ALARM, mapOf("hour" to intent.hour.toString(), "minute" to intent.minute.toString()))
+                String.format(java.util.Locale.ROOT, "Alarm set for %02d:%02d", intent.hour, intent.minute)
+            }
+            is StepIntent.Timer -> {
+                run(SkillRegistry.Kind.TIMER, mapOf("seconds" to intent.seconds.toString()))
+                "Timer started for ${intent.seconds} seconds"
+            }
+            is StepIntent.Torch -> {
+                run(SkillRegistry.Kind.TORCH, mapOf("enabled" to intent.on.toString()))
+                if (intent.on) "Torch turned on" else "Torch turned off"
+            }
+            is StepIntent.Volume -> {
+                run(SkillRegistry.Kind.VOLUME, mapOf("direction" to if (intent.up) "up" else "down"))
+                if (intent.up) "Volume increased" else "Volume decreased"
+            }
+            is StepIntent.Navigate -> {
+                run(SkillRegistry.Kind.MAPS, mapOf("destination" to intent.place))
+                "Opening navigation to ${intent.place}"
+            }
+            is StepIntent.Message -> {
+                val contact = intent.contact?.takeIf { it.isNotBlank() } ?: return "Kisko message bhejna hai?"
+                val body = intent.text?.takeIf { it.isNotBlank() } ?: return "Kya message bhejna hai?"
+                val channel = when (intent.app?.lowercase(java.util.Locale.ROOT)) {
+                    "sms" -> MessageRequest.Channel.SMS
+                    "whatsapp" -> MessageRequest.Channel.WHATSAPP
+                    else -> {
+                        val installed = runCatching { context.packageManager.getPackageInfo("com.whatsapp", 0) }.isSuccess
+                        if (installed) MessageRequest.Channel.WHATSAPP else MessageRequest.Channel.SMS
+                    }
+                }
+                executeMessageRequest(MessageRequest(contact, channel, body, false))
             }
         }
     }
