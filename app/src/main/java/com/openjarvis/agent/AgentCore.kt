@@ -239,6 +239,39 @@ ${rawResponse.take(1000)}
                         return@withLock
                     }
 
+                    // Native registry skills are resolved before any LLM planning.
+                    val nativeSkill = SkillRegistry.parse(safeCommand)
+                    if (nativeSkill != null) {
+                        _state.value = AgentState.Running("running native ${nativeSkill.kind.name.lowercase()} skill...")
+                        val nativeResult = AndroidSkillExecutor(context).execute(nativeSkill)
+                        nativeResult.fold(
+                            onSuccess = {
+                                val reply = when (nativeSkill.kind) {
+                                    SkillRegistry.Kind.OPEN_APP -> "Opened ${nativeSkill.args["app"]}"
+                                    SkillRegistry.Kind.SETTINGS -> "Opened ${nativeSkill.args["screen"]} settings"
+                                    SkillRegistry.Kind.WHATSAPP_MESSAGE -> "WhatsApp composer opened"
+                                    SkillRegistry.Kind.SMS_MESSAGE -> "SMS composer opened"
+                                    SkillRegistry.Kind.ALARM -> "Alarm set"
+                                    SkillRegistry.Kind.TIMER -> "Timer started"
+                                    SkillRegistry.Kind.TORCH -> if (nativeSkill.args["enabled"] == "true") "Torch turned on" else "Torch turned off"
+                                    SkillRegistry.Kind.VOLUME -> "Volume adjusted"
+                                    SkillRegistry.Kind.MAPS -> "Opening navigation"
+                                    SkillRegistry.Kind.CALL -> "Dialer opened"
+                                    SkillRegistry.Kind.SEARCH -> "Search opened"
+                                }
+                                graphifyRepo.logTask(safeCommand, "success (native skill): $reply", "Android SkillRegistry", 0)
+                                _state.value = AgentState.Done(reply)
+                            },
+                            onFailure = { error ->
+                                val detail = error.message?.takeIf { it.isNotBlank() } ?: error.javaClass.simpleName
+                                AgentDiagnostics.record(context, "native-skill-execution", safeCommand, detail, error = error, provider = "Android SkillRegistry", model = "Not used")
+                                graphifyRepo.logTask(safeCommand, "failed (native skill): $detail", "Android SkillRegistry", 0)
+                                _state.value = AgentState.Error(detail)
+                            }
+                        )
+                        return@withLock
+                    }
+
                     // Search parsing must precede compound splitting and all LLM requests.
                     val youtubeQuery = SearchCommandParser.parseYouTubeQuery(safeCommand)
                     if (youtubeQuery != null) {
