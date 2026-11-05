@@ -78,7 +78,13 @@ class SkillEngine(private val context: Context) {
                     packageName = obj.optString("package", null),
                     label = obj.optString("label", null),
                     text = obj.optString("text", null),
-                    value = obj.optString("value", null)
+                    value = obj.optString("value", null),
+                    hint = obj.optString("hint", null).takeIf { it.isNotBlank() },
+                    direction = obj.optString("direction", null).takeIf { it.isNotBlank() },
+                    timeoutMs = obj.optLong("timeoutMs", 3000L),
+                    message = obj.optString("message", null).takeIf { it.isNotBlank() },
+                    prompt = obj.optString("prompt", null).takeIf { it.isNotBlank() },
+                    outputKey = obj.optString("outputKey", null).takeIf { it.isNotBlank() }
                 )
             }
         }
@@ -208,7 +214,19 @@ Actions: [$actionsJson]
             }))
             put("llmHint", skill.llmHint)
             put("actionTemplate", JSONArray(skill.actionTemplate.map {
-                JSONObject().put("action", it.action).put("package", it.packageName).put("value", it.value)
+                JSONObject().apply {
+                    put("action", it.action)
+                    put("package", it.packageName)
+                    put("label", it.label)
+                    put("text", it.text)
+                    put("value", it.value)
+                    put("hint", it.hint)
+                    put("direction", it.direction)
+                    put("timeoutMs", it.timeoutMs)
+                    put("message", it.message)
+                    put("prompt", it.prompt)
+                    put("outputKey", it.outputKey)
+                }
             }))
             put("successVerification", skill.successVerification)
             put("tags", JSONArray(skill.tags))
