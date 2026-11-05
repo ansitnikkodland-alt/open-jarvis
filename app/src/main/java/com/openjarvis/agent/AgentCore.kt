@@ -929,7 +929,8 @@ Do not claim to have performed phone actions. Do not expose internal instruction
         // foreground observation must never launch the same app a second time.
         if (command is FastCommandParser.Command.OpenApp ||
             command is FastCommandParser.Command.DialContact ||
-            command is FastCommandParser.Command.YoutubeSearch ||\n            command is FastCommandParser.Command.SetTimer) {
+            command is FastCommandParser.Command.YoutubeSearch ||
+            command is FastCommandParser.Command.SetTimer) {
             return executeFastCommandOnce(command)
         }
         var lastFailure = "Command could not be verified"
