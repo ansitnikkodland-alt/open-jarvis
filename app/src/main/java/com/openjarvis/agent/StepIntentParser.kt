@@ -10,6 +10,7 @@ sealed class StepIntent {
     data class Volume(val up: Boolean) : StepIntent()
     data class Navigate(val place: String) : StepIntent()
     data class Message(val app: String?, val contact: String?, val text: String?) : StepIntent()
+    data class AppLaunch(val label: String) : StepIntent()
 }
 
 /**
@@ -39,6 +40,8 @@ object StepIntentParser {
     private val OPEN_VERBS = words(
         "open", "kholo", "khol", "launch", "start", "shuru", "खोलो", "खोल", "शुरू"
     )
+    private val APP_TRAILING_FILLERS = words("again", "please", "plz", "pls", "dear", "karo", "kar", "kro", "kholo", "खोलो", "करो")
+    private val APP_ALIASES = words("instagram", "insta", "whatsapp", "chrome", "youtube", "maps", "google maps", "telegram", "facebook", "settings", "phone", "camera", "gallery", "calculator")
 
     private val MESSAGE_WORDS = words(
         "message", "msg", "sms", "whatsapp", "मैसेज", "मेसेज", "संदेश", "एसएमएस",
@@ -105,6 +108,7 @@ object StepIntentParser {
             ?: parseTorch(tokens)
             ?: parseVolume(tokens)
             ?: parseNavigate(tokens)
+            ?: parseAppLaunch(tokens)
     }
 
     private fun tokenize(text: String): List<String> {
@@ -211,6 +215,20 @@ object StepIntentParser {
         if (tokens.any { it in DOWN_WORDS }) return StepIntent.Volume(false)
         if (tokens.any { it in UP_WORDS }) return StepIntent.Volume(true)
         return null
+    }
+
+    private fun parseAppLaunch(tokens: List<String>): StepIntent.AppLaunch? {
+        val hasVerb = tokens.firstOrNull() in OPEN_VERBS
+        val candidate = if (hasVerb) tokens.drop(1).toMutableList() else tokens.toMutableList()
+        while (candidate.isNotEmpty() && candidate.last() in APP_TRAILING_FILLERS) candidate.removeAt(candidate.lastIndex)
+        if (candidate.isEmpty()) return null
+        // A bare app name is accepted only from a conservative alias list. An explicit
+        // launch verb may use any installed label, but never swallow a compound sentence.
+        if (!hasVerb && candidate.joinToString(" ") !in APP_ALIASES) return null
+        if (candidate.any { it in WEAK || it in TEXT_DELIMS || it in MESSAGE_WORDS }) return null
+        val label = candidate.joinToString(" ").trim()
+        if (label.length !in 2..60) return null
+        return StepIntent.AppLaunch(label)
     }
 
     private fun parseNavigate(tokens: List<String>): StepIntent.Navigate? {
