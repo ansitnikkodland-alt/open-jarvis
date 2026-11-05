@@ -235,8 +235,7 @@ class JarvisAccessibilityService : AccessibilityService() {
     fun extractVisibleText(maxCharacters: Int = 12000): String {
         val roots = interactionRoots()
         val output = linkedSetOf<String>()
-        try {
-            for (root in roots) {
+        for (root in roots) {
                 val queue = ArrayDeque<AccessibilityNodeInfo>()
                 queue.add(AccessibilityNodeInfo.obtain(root))
                 try {
@@ -259,7 +258,6 @@ class JarvisAccessibilityService : AccessibilityService() {
                     for (remaining in roots.dropWhile { it !== root }.drop(1)) remaining.recycle()
                     break
                 }
-            }
         }
         return output.joinToString(" ").take(maxCharacters)
     }
