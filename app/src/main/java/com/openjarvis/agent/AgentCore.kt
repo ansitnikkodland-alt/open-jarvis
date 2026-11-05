@@ -1466,6 +1466,10 @@ ${fullSystem.substringAfter("MEMORY:")}
                 run(SkillRegistry.Kind.MAPS, mapOf("destination" to intent.place))
                 "Opening navigation to ${intent.place}"
             }
+            is StepIntent.AppLaunch -> {
+                run(SkillRegistry.Kind.OPEN_APP, mapOf("app" to intent.label))
+                "Opened ${intent.label}"
+            }
             is StepIntent.Message -> {
                 val contact = intent.contact?.takeIf { it.isNotBlank() } ?: return "Kisko message bhejna hai?"
                 val body = intent.text?.takeIf { it.isNotBlank() } ?: return "Kya message bhejna hai?"
