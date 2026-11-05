@@ -24,7 +24,7 @@ if [[ "$MODE" == "all" ]]; then
   # The English GigaSpeech model expects BPE-tokenized custom keywords.
   # Passing plain "JARVIS" to createStream() is not valid token syntax.
   python3 -m venv /tmp/jarvis-sherpa-tokenizer
-  /tmp/jarvis-sherpa-tokenizer/bin/pip install --disable-pip-version-check sherpa-onnx
+  /tmp/jarvis-sherpa-tokenizer/bin/pip install --disable-pip-version-check sherpa-onnx click
   printf 'JARVIS\n' > /tmp/jarvis-wake-keywords.raw
   /tmp/jarvis-sherpa-tokenizer/bin/sherpa-onnx-cli text2token \
     --tokens "$MODEL_DIR/tokens.txt" \
