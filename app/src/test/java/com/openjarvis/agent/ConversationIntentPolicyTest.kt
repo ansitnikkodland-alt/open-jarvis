@@ -8,6 +8,7 @@ class ConversationIntentPolicyTest {
     @Test fun routesGeneralQuestionsToChat() {
         listOf(
             "India ka capital kya hai?",
+            "India ka capital kya hai",
             "Aaj ka din kaisa hai?",
             "Mujhe ek joke sunao",
             "Ollama kya hai?",
