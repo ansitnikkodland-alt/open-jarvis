@@ -85,11 +85,12 @@ class StepIntentParserTest {
 
     @Test
     fun otherCommandsAreIgnored() {
-        assertNull(p("WhatsApp kholo"))
+        assertEquals(StepIntent.AppLaunch("whatsapp"), p("WhatsApp kholo"))
         assertNull(p("Rahul ko call karo"))
         assertNull(p("YouTube par lofi search karo"))
-        assertNull(p("Chrome kholo"))
+        assertEquals(StepIntent.AppLaunch("chrome"), p("Chrome kholo"))
         assertNull(p("hello"))
+        assertNull(p("open instagram and tell me what to do dear"))
         assertNull(p(""))
     }
 }
