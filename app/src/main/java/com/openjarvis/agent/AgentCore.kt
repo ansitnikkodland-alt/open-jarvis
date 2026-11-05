@@ -6,6 +6,7 @@ import android.content.Intent
 import android.content.pm.ResolveInfo
 import android.net.Uri
 import android.provider.Settings
+import android.provider.AlarmClock
 import android.provider.ContactsContract
 import android.app.SearchManager
 import android.content.pm.PackageManager
