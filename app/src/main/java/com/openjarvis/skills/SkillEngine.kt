@@ -140,7 +140,7 @@ class SkillEngine(private val context: Context) {
     /** Persist a verified generated skill and make it available to this engine immediately. */
     suspend fun saveGeneratedSkill(skill: Skill) = withContext(Dispatchers.IO) {
         require(skill.author == "generated") { "Only generated skills can be saved as learned skills" }
-        require(skill.actionTemplate.size >= 4) { "A learned skill needs at least four verified actions" }
+        require(skill.actionTemplate.size >= 2) { "A learned skill needs at least two verified actions" }
         saveSkill(skill)
         val existing = skillsCache.indexOfFirst { it.id == skill.id }
         if (existing >= 0) skillsCache[existing] = skill else skillsCache.add(skill)
@@ -249,7 +249,7 @@ Actions: [$actionsJson]
     }
     
     fun generateSkill(command: String, actions: List<Action>, usedPackage: String?): Skill? {
-        if (actions.size < 4) return null
+        if (actions.size < 2) return null
         if (usedPackage == null) return null
         
         return Skill(
