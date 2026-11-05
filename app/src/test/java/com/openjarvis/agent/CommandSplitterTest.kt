@@ -12,7 +12,6 @@ class CommandSplitterTest {
             SearchCommandParser.parseYouTubeQuery(s) != null ||
             SearchCommandParser.parseWebQuery(s) != null ||
             ContactCommandParser.parse(s) != null ||
-            FastCommandParser.parse(s) != null
     }
     private fun s(t: String) = CommandSplitter.split(t, can)
 
