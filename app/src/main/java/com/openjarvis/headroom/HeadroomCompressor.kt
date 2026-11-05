@@ -32,37 +32,33 @@ object HeadroomCompressor {
     )
 
     fun compressContext(input: String): HeadroomCompressionResult {
-        val output = StringBuilder(input.length)
-        var previousLine: String? = null
-        var previousWasBlank = false
+        val output = mutableListOf<String>()
+        var previousRepeatableLine: String? = null
+        var blankLinePending = false
 
-        input.lineSequence().forEach { rawLine ->
+        input.lines().forEach { rawLine ->
             val line = rawLine.trimEnd()
-            val isBlank = line.isBlank()
-
-            // Collapse repeated empty lines without changing paragraph boundaries.
-            if (isBlank) {
-                if (!previousWasBlank && output.isNotEmpty()) output.append('\n')
-                previousWasBlank = true
-                previousLine = null
+            if (line.isBlank()) {
+                if (output.isNotEmpty()) blankLinePending = true
+                previousRepeatableLine = null
                 return@forEach
             }
 
-            val normalizedForCheck = line.trimStart()
+            val candidate = line.trimStart()
             val isRepeatable = repeatableLinePrefixes.any {
-                normalizedForCheck.startsWith(it, ignoreCase = true)
+                candidate.startsWith(it, ignoreCase = true)
+            }
+            if (isRepeatable && previousRepeatableLine == line) {
+                return@forEach
             }
 
-            // Only drop an immediately repeated tool/log/result line.
-            if (!(isRepeatable && previousLine == line)) {
-                if (output.isNotEmpty() && output.last() != '\n') output.append('\n')
-                output.append(line)
-            }
-            previousLine = line.takeIf { isRepeatable }
-            previousWasBlank = false
+            if (blankLinePending && output.isNotEmpty()) output.add("")
+            blankLinePending = false
+            output.add(line)
+            previousRepeatableLine = line.takeIf { isRepeatable }
         }
 
-        val compressed = output.toString().trimEnd()
+        val compressed = output.joinToString("\n")
         return HeadroomCompressionResult(
             original = input,
             compressed = compressed,
