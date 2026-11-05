@@ -229,6 +229,39 @@ class JarvisAccessibilityService : AccessibilityService() {
         }
     }
 
+    /** Read visible text from the target app and other interactive windows.
+     * The floating assistant can own rootInActiveWindow, so inspect every window.
+     */
+    fun extractVisibleText(maxCharacters: Int = 12000): String {
+        val roots = interactionRoots()
+        val output = linkedSetOf<String>()
+        try {
+            for (root in roots) {
+                val queue = ArrayDeque<AccessibilityNodeInfo>()
+                queue.add(AccessibilityNodeInfo.obtain(root))
+                try {
+                    while (queue.isNotEmpty() && output.sumOf { it.length } < maxCharacters) {
+                        val node = queue.removeFirst()
+                        if (node.isVisibleToUser) {
+                            node.text?.toString()?.trim()?.takeIf { it.isNotBlank() }?.let(output::add)
+                            node.contentDescription?.toString()?.trim()?.takeIf { it.isNotBlank() }?.let(output::add)
+                        }
+                        for (index in 0 until node.childCount) {
+                            node.getChild(index)?.let(queue::add)
+                        }
+                        node.recycle()
+                    }
+                } finally {
+                    while (queue.isNotEmpty()) queue.removeFirst().recycle()
+                }
+                if (output.sumOf { it.length } >= maxCharacters) break
+            }
+        } finally {
+            // Each root is owned by this method and recycled by its traversal wrapper.
+        }
+        return output.joinToString(" ").take(maxCharacters)
+    }
+
     /**
      * Compact live UI map for the planner. Includes icon descriptions and Android
      * resource ids so the model does not assume every control has a text label.
