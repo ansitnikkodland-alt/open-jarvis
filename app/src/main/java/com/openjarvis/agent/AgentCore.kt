@@ -451,7 +451,12 @@ ${rawResponse.take(1000)}
                                         val retryActions = resolveOpenAppTargets(
                                             retryValidation.second.actions, safeCommand, installedAppTargets
                                         )
-                                        if (AgentPlanPolicy.isExecutablePlan(retryActions, safeCommand)) {
+                                        val retryIsExecutable = if (screenText.isBlank()) {
+                                            AgentPlanPolicy.canLaunchResolvedAppWithoutScreen(retryActions)
+                                        } else {
+                                            AgentPlanPolicy.isExecutablePlan(retryActions, safeCommand)
+                                        }
+                                        if (retryIsExecutable) {
                                             effectiveRawJson = retryValidation.first
                                             validation = retryValidation.second
                                             actions = retryActions
