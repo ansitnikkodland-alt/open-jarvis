@@ -39,6 +39,7 @@ import com.openjarvis.agent.AgentCore
 import com.openjarvis.graphify.GraphifyRepository
 import com.openjarvis.graphify.nodes.TaskNode
 import com.openjarvis.voice.VoiceManager
+import com.openjarvis.voice.ActivationGate
 import com.openjarvis.voice.PorcupineWakeWordController
 import com.openjarvis.voice.WakeWordEngine
 import com.openjarvis.voice.SherpaOnnxWakeWordController
@@ -78,6 +79,7 @@ class OverlayService : Service() {
     private var wakeWordControllerKey: String? = null
     private var wakeWordCpuLock: PowerManager.WakeLock? = null
     private val mainHandler = Handler(Looper.getMainLooper())
+    private val activationGate = ActivationGate(windowMs = 10_000L, duplicateCooldownMs = 2_500L)
     private var wakeWordCommandPending = false
     private var wakeWordResponsePending = false
     private var recentTasks = emptyList<TaskNode>()
@@ -317,12 +319,11 @@ class OverlayService : Service() {
                     } else if (!voiceManager.isVoiceEnabled()) {
                         status.text = "Enable Voice Assistant in Jarvis Settings first"
                     } else {
-                        if (wakeWordController?.isRunning() == true) {
-                            stopWakeWordListening()
-                            wakeWordCommandPending = true
-                            wakeWordResponsePending = true
-                        }
-                        // Manual mic is independent of wake-word initialization/key state.
+                        if (wakeWordController?.isRunning() == true) stopWakeWordListening()
+                        // A manual mic tap is an explicit activation in both STT modes.
+                        activationGate.activate(ActivationGate.Source.PUSH_TO_TALK)
+                        wakeWordCommandPending = true
+                        wakeWordResponsePending = true
                         voiceManager.startListening()
                     }
                 }
@@ -401,6 +402,16 @@ class OverlayService : Service() {
     private fun submitCommand(voiceCommand: String? = null) {
         val command = voiceCommand?.trim().takeUnless { it.isNullOrBlank() }
             ?: commandInput?.text?.toString()?.trim().orEmpty()
+        // Typed commands are explicit UI input and intentionally bypass the voice gate.
+        // Voice transcripts must have a fresh wake-word or manual-mic activation token.
+        if (voiceCommand != null) {
+            val decision = activationGate.validateTranscript(command, System.currentTimeMillis())
+            if (!decision.accepted) {
+                statusText?.text = "Voice ignored: ${decision.reason}"
+                if (wakeWordResponsePending) resumeWakeWordAfterResponse()
+                return
+            }
+        }
         if (command.isBlank()) {
             statusText?.text = "Type a command first"
             return
@@ -480,6 +491,7 @@ class OverlayService : Service() {
         val wasMuted = mutedUntilWakeWord
         if (wasMuted) awaitingUnmuteCommand = true
         stopWakeWordListening()
+        activationGate.activate(ActivationGate.Source.WAKE_WORD)
         wakeWordCommandPending = true
         wakeWordResponsePending = true
         statusText?.text = if (wasMuted) {
