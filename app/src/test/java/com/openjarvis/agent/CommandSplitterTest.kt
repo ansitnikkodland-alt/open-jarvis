@@ -4,16 +4,18 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 
 class CommandSplitterTest {
-    // Mirror AgentCore.canParsePipelineStep so search/message/contact steps
-    // are tested with the same route coverage as production.
+    // Use the exact same classifier that AgentCore uses for pipeline steps.
     private val can: (String) -> Boolean = { s ->
-        StepIntentParser.parse(s) != null ||
-            MessageCommandParser.parse(s) != null ||
-            SearchCommandParser.parseYouTubeQuery(s) != null ||
-            SearchCommandParser.parseWebQuery(s) != null ||
-            ContactCommandParser.parse(s) != null ||
+        CommandRouter.classify(s) != CommandRouter.Route.NONE
     }
     private fun s(t: String) = CommandSplitter.split(t, can)
+
+    @Test
+    fun productionClassifierIsSharedWithSplitter() {
+        assertEquals(CommandRouter.Route.STEP_INTENT, CommandRouter.classify("torch on karo"))
+        assertEquals(CommandRouter.Route.SEARCH, CommandRouter.classify("google par mausam search karo"))
+        assertEquals(CommandRouter.Route.NONE, CommandRouter.classify("kal milte hain"))
+    }
 
     @Test
     fun strongSequencers() {

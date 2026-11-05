@@ -1292,22 +1292,7 @@ ${fullSystem.substringAfter("MEMORY:")}
     }
 
     private fun canParsePipelineStep(step: String): Boolean =
-        StepIntentParser.parse(step) != null ||
-            MessageCommandParser.parse(step) != null ||
-            SearchCommandParser.parseYouTubeQuery(step) != null ||
-            SearchCommandParser.parseWebQuery(step) != null ||
-            ContactCommandParser.parse(step) != null ||
-            FastCommandParser.parse(step) != null ||
-            messageContinuationContact(step) != null
-
-    private fun messageContinuationContact(step: String): String? {
-        val cleaned = step.trim().replace(Regex("[\\p{Punct}।॥]+$"), "").trim()
-        val match = Regex(
-            "^(.+?)\\s+(?:ko|को|ला)\\s+(?:bhi|also|too|भी|सुद्धा)$",
-            RegexOption.IGNORE_CASE
-        ).matchEntire(cleaned) ?: return null
-        return match.groupValues[1].trim().takeIf { it.isNotBlank() && it.length <= 80 }
-    }
+        CommandRouter.classify(step) != CommandRouter.Route.NONE
 
     private fun selectedMessageApp(app: String?): String = when (app?.lowercase(java.util.Locale.ROOT)) {
         "sms" -> "sms"
