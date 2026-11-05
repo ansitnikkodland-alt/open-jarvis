@@ -104,15 +104,21 @@ internal object FastCommandParser {
         val normalized = normalize(command)
         if (normalized.isBlank()) return null
         val match = englishOpen.matchEntire(normalized) ?: hindiOpen.matchEntire(normalized) ?: return null
-        return match.groupValues[1].trim().takeIf { target ->
-            target.isNotBlank() &&
-                target.length <= 60 &&
-                // A fast-path target must be only an app label. Compound requests
-                // (open WhatsApp and send a message...) must reach the AI planner.
-                !Regex(
-                    "\\b(and|then|also|aur|phir|fir|send|message|text|reply|type|search|play|karo)\\b",
-                    RegexOption.IGNORE_CASE
-                ).containsMatchIn(target)
+        val target = match.groupValues[1].trim()
+        if (target.isBlank() || target.length > 60) return null
+        // Canonicalize common Devanagari app names so package/installed-label
+        // resolution receives a stable target instead of a translated display name.
+        val canonicalTarget = when (target.lowercase()) {
+            "यूट्यूब", "यु ट्यूब", "यूट्युब", "युट्युब" -> "YouTube"
+            else -> target
+        }
+        // A fast-path target must be only an app label. Compound requests
+        // (open WhatsApp and send a message...) must reach the AI planner.
+        return canonicalTarget.takeIf {
+            !Regex(
+                "\\b(and|then|also|aur|phir|fir|send|message|text|reply|type|search|play|karo)\\b",
+                RegexOption.IGNORE_CASE
+            ).containsMatchIn(it)
         }
     }
 
