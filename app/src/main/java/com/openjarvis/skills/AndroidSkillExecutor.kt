@@ -54,8 +54,8 @@ class AndroidSkillExecutor(private val context: Context) : SkillRegistry.SkillEx
                 }; launch(i)
             }
             SkillRegistry.Kind.SMS_MESSAGE -> launch(Intent(Intent.ACTION_SENDTO, Uri.parse("smsto:")).putExtra("sms_body", args.getValue("text")))
-            SkillRegistry.Kind.ALARM -> launch(Intent(AlarmClock.ACTION_SET_ALARM).putExtra(AlarmClock.EXTRA_HOUR, args.getValue("hour").toInt()).putExtra(AlarmClock.EXTRA_MINUTES, args.getValue("minute").toInt()).putExtra(AlarmClock.EXTRA_MESSAGE, "Jarvis alarm"))
-            SkillRegistry.Kind.TIMER -> launch(Intent(AlarmClock.ACTION_SET_TIMER).putExtra(AlarmClock.EXTRA_LENGTH, args.getValue("seconds").toInt()).putExtra(AlarmClock.EXTRA_SKIP_UI, false))
+            SkillRegistry.Kind.ALARM -> launch(Intent(AlarmClock.ACTION_SET_ALARM).putExtra(AlarmClock.EXTRA_HOUR, args.getValue("hour").toInt()).putExtra(AlarmClock.EXTRA_MINUTES, args.getValue("minute").toInt()).putExtra(AlarmClock.EXTRA_SKIP_UI, true).putExtra(AlarmClock.EXTRA_MESSAGE, "Jarvis alarm"))
+            SkillRegistry.Kind.TIMER -> launch(Intent(AlarmClock.ACTION_SET_TIMER).putExtra(AlarmClock.EXTRA_LENGTH, args.getValue("seconds").toInt()).putExtra(AlarmClock.EXTRA_SKIP_UI, true))
             SkillRegistry.Kind.TORCH -> {
                 val manager = context.getSystemService(Context.CAMERA_SERVICE) as CameraManager
                 val cameraId = manager.cameraIdList.firstOrNull { manager.getCameraCharacteristics(it).get(android.hardware.camera2.CameraCharacteristics.FLASH_INFO_AVAILABLE) == true }
@@ -64,15 +64,30 @@ class AndroidSkillExecutor(private val context: Context) : SkillRegistry.SkillEx
             }
             SkillRegistry.Kind.VOLUME -> {
                 val audio = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
-                audio.adjustStreamVolume(AudioManager.STREAM_MUSIC, if (args.getValue("direction") == "up") AudioManager.ADJUST_RAISE else AudioManager.ADJUST_LOWER, AudioManager.FLAG_SHOW_UI)
+                val adjustment = if (args.getValue("direction") == "up") AudioManager.ADJUST_RAISE else AudioManager.ADJUST_LOWER
+                audio.adjustStreamVolume(AudioManager.STREAM_MUSIC, adjustment, AudioManager.FLAG_SHOW_UI)
+                audio.adjustStreamVolume(AudioManager.STREAM_MUSIC, adjustment, AudioManager.FLAG_SHOW_UI)
             }
-            SkillRegistry.Kind.MAPS -> launch(Intent(Intent.ACTION_VIEW, Uri.parse("google.navigation:q=" + Uri.encode(args.getValue("destination")))).setPackage("com.google.android.apps.maps"))
+            SkillRegistry.Kind.MAPS -> {
+                val destination = args.getValue("destination")
+                val mapsIntent = Intent(Intent.ACTION_VIEW, Uri.parse("google.navigation:q=" + Uri.encode(destination)))
+                    .setPackage("com.google.android.apps.maps")
+                if (mapsIntent.resolveActivity(context.packageManager) != null) launch(mapsIntent)
+                else launch(Intent(Intent.ACTION_VIEW, Uri.parse("geo:0,0?q=" + Uri.encode(destination))))
+            }
         }
     }
 
     private fun launch(intent: Intent) {
         intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-        context.startActivity(intent)
+        if (intent.resolveActivity(context.packageManager) == null) {
+            throw IllegalStateException("No Android app can handle this action: ${intent.action ?: "unknown"}")
+        }
+        try {
+            context.startActivity(intent)
+        } catch (error: android.content.ActivityNotFoundException) {
+            throw IllegalStateException("No Android app can handle this action: ${intent.action ?: "unknown"}", error)
+        }
     }
 
     private fun resolvePackage(label: String): String = when (label.lowercase()) {
