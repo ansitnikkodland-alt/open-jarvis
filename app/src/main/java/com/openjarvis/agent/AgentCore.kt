@@ -23,6 +23,7 @@ import com.openjarvis.intelligence.TaskWorkingMemory
 import com.openjarvis.llm.UniversalAdapter
 import com.openjarvis.vision.VisionModule
 import com.openjarvis.skills.AndroidSkillExecutor
+import com.openjarvis.skills.SkillEngine
 import com.openjarvis.skills.SkillRegistry
 import com.openjarvis.llm.providers.OllamaSkillPlanParser
 import kotlinx.coroutines.CoroutineScope
@@ -48,6 +49,7 @@ class AgentCore(private val context: Context) {
     private val appAnalyzer = AppAnalyzer(context)
     private val aiAppInteractor = AIAppInteractor(context)
     private val personalMemoryStore = PersonalMemoryStore(context)
+    private val skillEngine = SkillEngine(context)
 
     private var workingMemory = TaskWorkingMemory()
     private val contactFollowUpWindow = ContactFollowUpWindow()
@@ -466,6 +468,40 @@ Do not claim to have performed phone actions. Do not expose internal instruction
 
                     val startTime = System.currentTimeMillis()
 
+                    // Learned skills are considered only after deterministic native routes.
+                    // They are replayed only when the same final action-plan safety policy accepts
+                    // the stored actions; a failed learned execution is never silently retried by Ollama.
+                    skillEngine.loadSkills()
+                    val learnedSkill = skillEngine.findLearnedMatch(safeCommand)
+                    if (learnedSkill != null) {
+                        val learnedActions = resolveOpenAppTargets(
+                            learnedSkill.actionTemplate, safeCommand, installedAppTargets
+                        )
+                        if (AgentPlanPolicy.isExecutablePlan(learnedActions, safeCommand)) {
+                            _state.value = AgentState.Running("running learned skill: ${learnedSkill.name}")
+                            val learnedExecution = executeActions(learnedActions)
+                            skillEngine.recordUsage(learnedSkill.id, learnedExecution.succeeded)
+                            if (learnedExecution.succeeded) {
+                                graphifyRepo.logTask(
+                                    safeCommand, "success (learned skill): ${learnedSkill.name}",
+                                    "Learned SkillEngine", 0
+                                )
+                                _state.value = AgentState.Done("Completed learned skill: ${learnedSkill.name}")
+                            } else {
+                                val detail = learnedExecution.failure ?: "Learned skill execution failed"
+                                AgentDiagnostics.record(
+                                    context, "learned-skill-execution", safeCommand, detail,
+                                    provider = "Learned SkillEngine", model = learnedSkill.id
+                                )
+                                _state.value = AgentState.Error(detail)
+                            }
+                            return@withLock
+                        } else {
+                            skillEngine.recordUsage(learnedSkill.id, false)
+                            Log.w(TAG, "Learned skill rejected by final action-plan safety policy: ${learnedSkill.id}")
+                        }
+                    }
+
                     val skillSystem = """
 You are Jarvis, an Android skill router. Return ONLY one JSON object with exactly "skill" and "args".
 Allowed skills: OPEN_APP, SETTINGS, CALL, SEARCH, WHATSAPP_MESSAGE, SMS_MESSAGE, ALARM, TIMER, TORCH, VOLUME, MAPS, ANDROID_UI_ACTIONS.
@@ -774,6 +810,16 @@ ${fullSystem.substringAfter("MEMORY:")}
                                 AgentDiagnostics.record(context, "action-execution", safeCommand, failure, reEvaluationResponse.ifBlank { effectiveRawJson }, provider = universalAdapter.getProviderName(), model = "qwen3:1.7b")
                                 graphifyRepo.logTask(safeCommand, "failed: action execution", universalAdapter.getProviderName(), latency)
                                 return@fold
+                            }
+
+                            // Persist only a fully successful, safety-validated multi-action plan.
+                            // Single-step and ungrounded plans are not promoted into learned skills.
+                            runCatching {
+                                val usedPackage = actions.firstOrNull { it.action == Action.OPEN_APP }?.packageName
+                                val generated = skillEngine.generateSkill(safeCommand, actions, usedPackage)
+                                if (generated != null) skillEngine.saveGeneratedSkill(generated)
+                            }.onFailure { error ->
+                                Log.w(TAG, "Could not persist learned skill after successful execution", error)
                             }
 
                             graphifyRepo.logTask(
