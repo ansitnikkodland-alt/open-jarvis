@@ -46,6 +46,23 @@ class CommandSplitterTest {
     }
 
     @Test
+    fun appLaunchStepsAreRecognizedWithoutSwallowingConversation() {
+        assertEquals(
+            listOf("open Instagram", "open WhatsApp"),
+            s("open Instagram then open WhatsApp")
+        )
+        assertEquals(
+            listOf("open Instagram", "WhatsApp"),
+            s("open Instagram and WhatsApp")
+        )
+        assertEquals(
+            listOf("open instagram and tell me what to do dear"),
+            s("open instagram and tell me what to do dear")
+        )
+        assertEquals(StepIntent.AppLaunch("instagram"), StepIntentParser.parse("open insta again"))
+    }
+
+    @Test
     fun messageRecipientContinuationCanSplitForContextCarry() {
         val canWithContinuation: (String) -> Boolean = { value ->
             StepIntentParser.parse(value) != null ||
