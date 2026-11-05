@@ -115,7 +115,7 @@ class SkillEngine(private val context: Context) {
     private fun triggerPattern(phrase: String): Pattern {
         // Trigger text is user data, not a regular expression. Quote literal characters
         // and retain only the documented '*' capture wildcard.
-        val pattern = Pattern.quote(phrase).replace("\\Q*\\E", "(.+)")
+        val pattern = phrase.split("*").joinToString("(.+?)") { Pattern.quote(it) }
         return Pattern.compile(pattern, Pattern.CASE_INSENSITIVE)
     }
 
@@ -153,15 +153,14 @@ class SkillEngine(private val context: Context) {
         
         for (skillVar in skill.variables) {
             for (phrase in skill.triggerPhrases) {
-                val pattern = phrase.replace("*", "(.+)")
-                val regex = Pattern.compile(pattern, Pattern.CASE_INSENSITIVE)
+                val regex = triggerPattern(phrase)
                 val matcher = regex.matcher(lower)
                 
                 if (matcher.find()) {
                     val group = matcher.group(1)?.trim() ?: continue
                     
                     when (skillVar.key) {
-                        "contact", "message", "query", "time" -> {
+                        "contact", "message", "query", "time", "input" -> {
                             result[skillVar.key] = group
                         }
                     }
