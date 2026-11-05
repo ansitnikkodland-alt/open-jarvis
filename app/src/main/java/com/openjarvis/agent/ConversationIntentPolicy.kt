@@ -7,12 +7,12 @@ package com.openjarvis.agent
  */
 internal object ConversationIntentPolicy {
     private val actionIntent = Regex(
-        """\\b(open|launch|start|close|exit|click|tap|press|type|write|send|reply|call|dial|scroll|back|home|play|pause|stop|search|find|install|uninstall|mute|unmute|खोलो|खोल|उघडा|उघड|दाबा|लिहा|पाठवा|कॉल|मागे|घरी|चलाओ|बंद करो|चालू करो)\\b""",
+        """\b(open|launch|start|close|exit|click|tap|press|type|write|send|reply|call|dial|scroll|back|home|play|pause|stop|search|find|install|uninstall|mute|unmute|खोलो|खोल|उघडा|उघड|दाबा|लिहा|पाठवा|कॉल|मागे|घरी|चलाओ|बंद करो|चालू करो)\b""",
         RegexOption.IGNORE_CASE
     )
 
     private val questionIntent = Regex(
-        """(\\?|\\b(what|who|when|where|why|how|which|explain|describe|define|difference|compare|meaning|tell me|teach me|joke|story|translate|summarize|आज|कसा|कशी|कसे|काय|का|कधी|कुठे|कोण|समजाव|सांग|फरक|म्हणजे|विनोद|कहानी|जोक|बताओ|समझाओ|क्यों|कैसे|कब|कहाँ|कौन|मतलब)\\b)""",
+        """(\?|\b(what|who|when|where|why|how|which|explain|describe|define|difference|compare|meaning|tell me|teach me|joke|story|translate|summarize|आज|कसा|कशी|कसे|काय|का|कधी|कुठे|कोण|समजाव|सांग|फरक|म्हणजे|विनोद|कहानी|जोक|बताओ|समझाओ|क्यों|कैसे|कब|कहाँ|कौन|मतलब)\b)""",
         RegexOption.IGNORE_CASE
     )
 
