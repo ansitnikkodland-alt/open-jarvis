@@ -56,7 +56,15 @@ object SkillRegistry {
             if (!destination.isNullOrBlank()) return Request(Kind.MAPS, mapOf("destination" to destination))
         }
         val app = if (s in setOf("open maps", "launch maps", "maps kholo", "maps खोलो")) null else Regex("^(?:open|launch|start|kholo|खोलो) (.+)$").matchEntire(s)
-        if (app != null && app.groupValues[1].isNotBlank()) return Request(Kind.OPEN_APP, mapOf("app" to app.groupValues[1]))
+        if (app != null) {
+            val label = app.groupValues[1].trim().split(Regex("\\s+")).toMutableList()
+            val trailing = setOf("again", "please", "plz", "pls", "dear", "karo", "kar", "kro", "खोलो", "करो")
+            while (label.isNotEmpty() && label.last() in trailing) label.removeAt(label.lastIndex)
+            val conjunctions = setOf("and", "aur", "और", "आणि", "then", "phir", "फिर")
+            if (label.isNotEmpty() && label.none { it in conjunctions } && label.joinToString(" ").length <= 60) {
+                return Request(Kind.OPEN_APP, mapOf("app" to label.joinToString(" ")))
+            }
+        }
         return null
     }
 
