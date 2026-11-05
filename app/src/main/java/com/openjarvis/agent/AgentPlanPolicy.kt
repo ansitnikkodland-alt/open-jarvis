@@ -10,6 +10,10 @@ internal object AgentPlanPolicy {
     fun hasUnresolvedAppLaunch(actions: List<Action>): Boolean =
         actions.any { it.action == Action.OPEN_APP && AppTargetResolver.isPlaceholder(it.label) }
 
+    /** A lone error marker is a model planning refusal, not an executable action. */
+    fun isSingleModelRefusal(actions: List<Action>): Boolean =
+        actions.size == 1 && actions.single().action == Action.ERROR
+
     fun needsCompactReplan(actions: List<Action>): Boolean =
         actions.size > MAX_ACTIONS ||
             (actions.any { it.action == Action.ERROR } && actions.any { it.action != Action.ERROR }) ||
