@@ -58,8 +58,13 @@ class AgentCore(private val context: Context) {
 You are Jarvis, an Android action planner. Return ONLY a JSON array of action objects.
 Example: [{"action":"open_app","label":"<exact installed label>"}]
 Actions: open_app, click, type_text, wait, scroll, back, home, read_screen, extract_text, error.
-Use exact app labels from INSTALLED APPS and exact targets from SCREEN ELEMENTS. For type_text include target and value.
-Never invent contacts, app labels, UI controls, or results. If uncertain, return [{"action":"error","message":"brief reason"}].
+Map the user's intent to these action names; NEVER use the user's words or an app/command name as the action value.
+Examples: "WhatsApp kholo" -> [{"action":"open_app","label":"WhatsApp"}];
+"Search par click karo" -> [{"action":"click","target":"Search"}];
+"hello type karo" -> [{"action":"type_text","value":"hello"}];
+"back jao" -> [{"action":"back"}].
+Use exact app labels from INSTALLED APPS and exact visible targets from SCREEN ELEMENTS. For type_text include value and target when known.
+Do not return an error just because the request is phrased in Hindi, Marathi or Hinglish. If intent is clear, create the matching action. Never invent contacts, app labels, UI controls, or results. Use one error action only when the intent/target is genuinely unclear.
 Understand Hindi, Marathi, Hinglish and English. Do not explain or use markdown.
 MEMORY: {PERSONAL_MEMORY}
 SCREEN: {SCREEN_OCR}
@@ -419,6 +424,43 @@ ${rawResponse.take(1000)}
 
                             // Ground app launches in the user's command and actual installed launcher list.
                             actions = resolveOpenAppTargets(actions, safeCommand, installedAppTargets)
+
+                            // Small local models can emit a lone error marker for an otherwise
+                            // understandable command. Give the planner one bounded, intent-focused
+                            // retry before refusing. This does not execute anything or bypass the
+                            // normal app-target, screen, and final execution guards.
+                            if (AgentPlanPolicy.isSingleModelRefusal(actions) &&
+                                remainingLlmBudgetMs(startTime) > 0L
+                            ) {
+                                _state.value = AgentState.Running("clarifying command with local model...")
+                                val refusalRetryPrompt = fullSystem +
+                                    "\n\nPLANNING RETRY: Your previous answer was only an error marker. " +
+                                    "Re-read the original user request and map its intent to the supported action schema. " +
+                                    "Do not copy the user's command into the action field. " +
+                                    "Use open_app for launching an explicitly named installed app, click for a visible control, " +
+                                    "type_text for text entry, and back/home/scroll/wait only when requested or required. " +
+                                    "Use exact installed app labels and visible screen targets. " +
+                                    "If the requested UI target cannot be grounded from the screen, return one error action. " +
+                                    "Return ONLY a JSON array of action objects."
+                                val retryRaw = completeWithinBudget(refusalRetryPrompt, safeCommand, startTime).getOrNull()
+                                if (!retryRaw.isNullOrBlank()) {
+                                    val retryValidation = validateWithOneRepair(
+                                        refusalRetryPrompt, safeCommand, retryRaw, startTime
+                                    )
+                                    if (retryValidation.second.isValid) {
+                                        val retryActions = resolveOpenAppTargets(
+                                            retryValidation.second.actions, safeCommand, installedAppTargets
+                                        )
+                                        if (AgentPlanPolicy.isExecutablePlan(retryActions, safeCommand)) {
+                                            effectiveRawJson = retryValidation.first
+                                            validation = retryValidation.second
+                                            actions = retryActions
+                                            latency = System.currentTimeMillis() - startTime
+                                            Log.i(TAG, "path=LLM action-plan-refusal-recovered")
+                                        }
+                                    }
+                                }
+                            }
 
                             // OpenDroid-style bounded plan repair: small local models sometimes
                             // append an error marker after a partial plan or emit a long mixed
