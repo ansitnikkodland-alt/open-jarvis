@@ -55,7 +55,7 @@ object SkillRegistry {
             val destination = Regex("(?:to|तक|के लिए) (.+)$").find(s)?.groupValues?.get(1)
             if (!destination.isNullOrBlank()) return Request(Kind.MAPS, mapOf("destination" to destination))
         }
-        val app = Regex("^(?:open|launch|start|kholo|खोलो) (.+)$").matchEntire(s)
+        val app = if (s in setOf("open maps", "launch maps", "maps kholo", "maps खोलो")) null else Regex("^(?:open|launch|start|kholo|खोलो) (.+)$").matchEntire(s)
         if (app != null && app.groupValues[1].isNotBlank()) return Request(Kind.OPEN_APP, mapOf("app" to app.groupValues[1]))
         return null
     }
