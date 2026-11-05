@@ -84,7 +84,10 @@ class SkillEngine(private val context: Context) {
                     timeoutMs = obj.optLong("timeoutMs", 3000L),
                     message = obj.optString("message", null).takeIf { it.isNotBlank() },
                     prompt = obj.optString("prompt", null).takeIf { it.isNotBlank() },
-                    outputKey = obj.optString("outputKey", null).takeIf { it.isNotBlank() }
+                    outputKey = obj.optString("outputKey", null).takeIf { it.isNotBlank() },
+                    x = if (obj.has("x")) obj.optInt("x") else null,
+                    y = if (obj.has("y")) obj.optInt("y") else null,
+                    distance = obj.optString("distance", null).takeIf { it.isNotBlank() }
                 )
             }
         }
@@ -109,12 +112,18 @@ class SkillEngine(private val context: Context) {
         )
     }
     
-    private fun matchesTrigger(command: String, phrase: String): Boolean {
+    private fun triggerPattern(phrase: String): Pattern {
         // Trigger text is user data, not a regular expression. Quote literal characters
         // and retain only the documented '*' capture wildcard.
         val pattern = Pattern.quote(phrase).replace("\\Q*\\E", "(.+)")
-        return Pattern.compile(pattern, Pattern.CASE_INSENSITIVE).matcher(command).find()
+        return Pattern.compile(pattern, Pattern.CASE_INSENSITIVE)
     }
+
+    private fun matchesTrigger(command: String, phrase: String): Boolean =
+        triggerPattern(phrase).matcher(command).find()
+
+    private fun matchesExactTrigger(command: String, phrase: String): Boolean =
+        triggerPattern(phrase).matcher(command.trim()).matches()
 
     fun findMatch(command: String): Skill? =
         skillsCache.firstOrNull { skill ->
@@ -125,7 +134,7 @@ class SkillEngine(private val context: Context) {
     fun findLearnedMatch(command: String): Skill? =
         skillsCache.firstOrNull { skill ->
             skill.author == "generated" &&
-                skill.triggerPhrases.any { phrase -> matchesTrigger(command, phrase) }
+                skill.triggerPhrases.any { phrase -> matchesExactTrigger(command, phrase) }
         }
 
     /** Persist a verified generated skill and make it available to this engine immediately. */
@@ -226,6 +235,9 @@ Actions: [$actionsJson]
                     put("message", it.message)
                     put("prompt", it.prompt)
                     put("outputKey", it.outputKey)
+                    put("x", it.x)
+                    put("y", it.y)
+                    put("distance", it.distance)
                 }
             }))
             put("successVerification", skill.successVerification)
