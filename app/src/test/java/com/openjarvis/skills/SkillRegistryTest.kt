@@ -40,4 +40,9 @@ class SkillRegistryTest {
         assertNull(SkillRegistry.parse("open maps"))
     }
     @Test fun unknownIsNegative() { assertNull(SkillRegistry.parse("hello jarvis")) }
+    @Test fun appLaunchParserRemovesTrailingFillerAndRejectsCompoundSentence() {
+        assertEquals("instagram", SkillRegistry.parse("open instagram again")?.args?.get("app"))
+        assertNull(SkillRegistry.parse("open insta and tell me what to do dear"))
+    }
+
 }
