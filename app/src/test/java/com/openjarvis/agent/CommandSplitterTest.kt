@@ -40,6 +40,18 @@ class CommandSplitterTest {
     }
 
     @Test
+    fun commaAndWeakConnectorSplitCommandSequenceButNeverMessageBody() {
+        assertEquals(
+            listOf("torch on karo", "volume badhao", "WhatsApp kholo"),
+            s("torch on karo, volume badhao aur WhatsApp kholo")
+        )
+        assertEquals(
+            listOf("Rahul ko message bhejo ki kal aur parso milte hain"),
+            s("Rahul ko message bhejo ki kal aur parso milte hain")
+        )
+    }
+
+    @Test
     fun singleAndEmpty() {
         assertEquals(listOf("torch on karo"), s("torch on karo"))
         assertEquals(emptyList<String>(), s("   "))
