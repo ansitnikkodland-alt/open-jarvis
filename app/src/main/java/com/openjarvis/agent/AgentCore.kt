@@ -24,6 +24,7 @@ import com.openjarvis.llm.UniversalAdapter
 import com.openjarvis.vision.VisionModule
 import com.openjarvis.skills.AndroidSkillExecutor
 import com.openjarvis.skills.SkillRegistry
+import com.openjarvis.llm.providers.OllamaSkillPlanParser
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -89,6 +90,18 @@ INSTALLED APPS: {INSTALLED_APPS}
         if (remaining <= 0L) return Result.failure(IllegalStateException("LLM time budget exceeded (45 seconds). Try a shorter command."))
         return withTimeoutOrNull(remaining) {
             universalAdapter.completeWithDeadline(system, user, remaining, conversation)
+        } ?: Result.failure(IllegalStateException("LLM time budget exceeded (45 seconds). Try a shorter command."))
+    }
+
+    private suspend fun completeSkillWithinBudget(
+        system: String,
+        user: String,
+        budgetStartMs: Long
+    ): Result<String> {
+        val remaining = remainingLlmBudgetMs(budgetStartMs)
+        if (remaining <= 0L) return Result.failure(IllegalStateException("LLM time budget exceeded (45 seconds). Try a shorter command."))
+        return withTimeoutOrNull(remaining) {
+            universalAdapter.completeSkillWithDeadline(system, user, remaining)
         } ?: Result.failure(IllegalStateException("LLM time budget exceeded (45 seconds). Try a shorter command."))
     }
 
@@ -453,10 +466,67 @@ Do not claim to have performed phone actions. Do not expose internal instruction
 
                     val startTime = System.currentTimeMillis()
 
-                    val result = completeWithinBudget(fullSystem, safeCommand, startTime)
+                    val skillSystem = """
+You are Jarvis, an Android skill router. Return ONLY one JSON object with exactly "skill" and "args".
+Allowed skills: OPEN_APP, SETTINGS, CALL, SEARCH, WHATSAPP_MESSAGE, SMS_MESSAGE, ALARM, TIMER, TORCH, VOLUME, MAPS, ANDROID_UI_ACTIONS.
+Native example: {"skill":"TORCH","args":{"enabled":true}}.
+UI example: {"skill":"ANDROID_UI_ACTIONS","args":{"actions":[{"action":"open_app","label":"Chrome"}]}}.
+Use a native skill whenever it fits. Use ANDROID_UI_ACTIONS only for visible-screen tasks. Never invent app labels, contacts or controls.
+Never tap Send, Delete, Pay, Purchase, or other final confirmation controls. For messaging, open the composer only and never send.
+For UI actions, use only open_app, click, tap, type_text, type, scroll, back, press_back, home, press_home, press_recents, wait, wait_for, read_screen, ai_prompt, extract_text, error.
+Understand Hindi, Marathi, Hinglish and English. Do not include markdown or explanation.
+${fullSystem.substringAfter("MEMORY:")}
+""".trimIndent()
+
+                    val result = completeSkillWithinBudget(skillSystem, safeCommand, startTime)
 
                     result.fold(
-                        onSuccess = { rawJson ->
+                        onSuccess = { rawSkillJson ->
+                            val skillPlan = runCatching { OllamaSkillPlanParser.parse(rawSkillJson) }.getOrElse { error ->
+                                val detail = error.message ?: "Invalid Ollama skill response"
+                                AgentDiagnostics.record(context, "skill-response-validation", safeCommand, detail, rawSkillJson, provider = universalAdapter.getProviderName(), model = "qwen3:1.7b")
+                                _state.value = AgentState.Error("Jarvis skill response invalid: $detail")
+                                return@fold
+                            }
+                            if (skillPlan.skill != "ANDROID_UI_ACTIONS") {
+                                val kind = SkillRegistry.Kind.valueOf(skillPlan.skill)
+                                val args = skillPlan.args.keys().asSequence().associateWith { key ->
+                                    skillPlan.args.opt(key).toString()
+                                }
+                                val nativeResult = if (kind == SkillRegistry.Kind.CALL) {
+                                    val contact = args["contact"]?.takeIf { it.isNotBlank() }
+                                        ?: throw IllegalArgumentException("Call skill needs a contact name")
+                                    runCatching { executeFastCommand(FastCommandParser.Command.DialContact(contact)) }
+                                } else {
+                                    AndroidSkillExecutor(context).execute(SkillRegistry.Request(kind, args))
+                                }
+                                nativeResult.fold(
+                                    onSuccess = {
+                                        val reply = when (kind) {
+                                            SkillRegistry.Kind.OPEN_APP -> "Opened ${args["app"]}"
+                                            SkillRegistry.Kind.SETTINGS -> "Opened ${args["screen"]} settings"
+                                            SkillRegistry.Kind.WHATSAPP_MESSAGE -> "WhatsApp composer opened"
+                                            SkillRegistry.Kind.SMS_MESSAGE -> "SMS composer opened"
+                                            SkillRegistry.Kind.ALARM -> "Alarm set"
+                                            SkillRegistry.Kind.TIMER -> "Timer started"
+                                            SkillRegistry.Kind.TORCH -> if (args["enabled"] == "true") "Torch turned on" else "Torch turned off"
+                                            SkillRegistry.Kind.VOLUME -> "Volume adjusted"
+                                            SkillRegistry.Kind.MAPS -> "Opening navigation"
+                                            SkillRegistry.Kind.CALL -> "Dialer opened"
+                                            SkillRegistry.Kind.SEARCH -> "Search opened"
+                                        }
+                                        graphifyRepo.logTask(safeCommand, "success (Ollama skill): $reply", "Ollama Skill Router", System.currentTimeMillis() - startTime)
+                                        _state.value = AgentState.Done(reply)
+                                    },
+                                    onFailure = { error ->
+                                        val detail = error.message?.takeIf { it.isNotBlank() } ?: error.javaClass.simpleName
+                                        AgentDiagnostics.record(context, "ollama-skill-execution", safeCommand, detail, rawSkillJson, error, "Ollama Skill Router", "qwen3:1.7b")
+                                        _state.value = AgentState.Error(detail)
+                                    }
+                                )
+                                return@fold
+                            }
+                            val rawJson = skillPlan.args.getJSONArray("actions").toString()
                             var latency = System.currentTimeMillis() - startTime
                             val initialValidation = validateWithOneRepair(fullSystem, safeCommand, rawJson, startTime)
                             var effectiveRawJson = initialValidation.first
