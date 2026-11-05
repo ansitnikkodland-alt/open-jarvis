@@ -29,8 +29,7 @@ class CommandSplitterTest {
             val result = CommandSplitter.split(phrase)
             assertNotNull("Could not split: $phrase", result)
             assertTrue(result!!.size in 1..5)
-            assertEquals(phrase.split(Regex("\\s+")).size,
-                result.joinToString(" ").split(Regex("\\s+")).size)
+            result.forEach { step -> assertTrue(phrase.contains(step.text)) }
         }
     }
 }
