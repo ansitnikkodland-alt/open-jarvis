@@ -42,6 +42,7 @@ object StepIntentParser {
     )
     private val APP_TRAILING_FILLERS = words("again", "please", "plz", "pls", "dear", "karo", "kar", "kro", "kholo", "खोलो", "करो")
     private val APP_ALIASES = words("instagram", "insta", "whatsapp", "chrome", "youtube", "maps", "google maps", "telegram", "facebook", "settings", "phone", "camera", "gallery", "calculator")
+    private val APP_CONNECTORS = words("and", "aur", "और", "आणि", "then", "phir", "फिर")
 
     private val MESSAGE_WORDS = words(
         "message", "msg", "sms", "whatsapp", "मैसेज", "मेसेज", "संदेश", "एसएमएस",
@@ -225,7 +226,7 @@ object StepIntentParser {
         // A bare app name is accepted only from a conservative alias list. An explicit
         // launch verb may use any installed label, but never swallow a compound sentence.
         if (!hasVerb && candidate.joinToString(" ") !in APP_ALIASES) return null
-        if (candidate.any { it in WEAK || it in TEXT_DELIMS || it in MESSAGE_WORDS }) return null
+        if (candidate.any { it in APP_CONNECTORS || it in TEXT_DELIMS || it in MESSAGE_WORDS }) return null
         val label = candidate.joinToString(" ").trim()
         if (label.length !in 2..60) return null
         return StepIntent.AppLaunch(label)
