@@ -4,6 +4,10 @@
 
     <queries>
         <package android:name="com.google.android.youtube" />
+        <package android:name="com.openai.chatgpt" />
+        <package android:name="com.instagram.android" />
+        <package android:name="com.whatsapp" />
+        <package android:name="com.facebook.katana" />
         <intent>
             <action android:name="android.intent.action.VIEW" />
             <data android:scheme="https" />
