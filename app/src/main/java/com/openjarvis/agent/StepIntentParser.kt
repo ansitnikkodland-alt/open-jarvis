@@ -218,7 +218,7 @@ object StepIntentParser {
     }
 
     private fun parseAppLaunch(tokens: List<String>): StepIntent.AppLaunch? {
-        val hasVerb = tokens.firstOrNull() in OPEN_VERBS
+        val hasVerb = tokens.firstOrNull()?.let { it in OPEN_VERBS } == true
         val candidate = if (hasVerb) tokens.drop(1).toMutableList() else tokens.toMutableList()
         while (candidate.isNotEmpty() && candidate.last() in APP_TRAILING_FILLERS) candidate.removeAt(candidate.lastIndex)
         if (candidate.isEmpty()) return null
