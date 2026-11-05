@@ -104,6 +104,14 @@ class OverlayService : Service() {
             voiceManager.state.collect { state ->
                 when (state) {
                     is VoiceManager.VoiceState.Result -> {
+                        if (MuteCommandPolicy.isUnmuteCommand(state.text)) {
+                            wakeWordCommandPending = false
+                            mutedUntilWakeWord = false
+                            voiceManager.stopListening()
+                            statusText?.text = "JARVIS active — listening for Jarvis"
+                            voiceManager.speak("Jarvis is active. I am listening.") { resumeWakeWordAfterResponse() }
+                            return@collect
+                        }
                         if (MuteCommandPolicy.isMuteCommand(state.text)) {
                             wakeWordCommandPending = false
                             enterMuteMode()
