@@ -4,7 +4,16 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 
 class CommandSplitterTest {
-    private val can = { s: String -> StepIntentParser.parse(s) != null }
+    // Mirror AgentCore.canParsePipelineStep so search/message/contact steps
+    // are tested with the same route coverage as production.
+    private val can: (String) -> Boolean = { s ->
+        StepIntentParser.parse(s) != null ||
+            MessageCommandParser.parse(s) != null ||
+            SearchCommandParser.parseYouTubeQuery(s) != null ||
+            SearchCommandParser.parseWebQuery(s) != null ||
+            ContactCommandParser.parse(s) != null ||
+            FastCommandParser.parse(s) != null
+    }
     private fun s(t: String) = CommandSplitter.split(t, can)
 
     @Test
@@ -48,6 +57,26 @@ class CommandSplitterTest {
         assertEquals(
             listOf("Rahul ko message bhejo ki kal aur parso milte hain"),
             s("Rahul ko message bhejo ki kal aur parso milte hain")
+        )
+    }
+
+    @Test
+    fun requestedSixPhraseRegressionCoverage() {
+        assertEquals(
+            listOf("torch on karo", "volume badhao", "WhatsApp kholo"),
+            s("torch on karo, volume badhao aur WhatsApp kholo")
+        )
+        assertEquals(
+            listOf("Open Settings", "go back"),
+            s("Open Settings, then go back")
+        )
+        assertEquals(
+            listOf("WhatsApp kholo", "Rahul ko message bhejo ki hello"),
+            s("WhatsApp kholo, phir Rahul ko message bhejo ki hello")
+        )
+        assertEquals(
+            listOf("Chrome kholo", "google par mausam search karo"),
+            s("Chrome kholo, google par mausam search karo")
         )
     }
 
