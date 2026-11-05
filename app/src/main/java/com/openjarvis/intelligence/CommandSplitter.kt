@@ -14,7 +14,7 @@ object CommandSplitter {
 
     fun split(command: String, maxSteps: Int = MAX_STEPS): List<Step>? {
         if (maxSteps !in 1..MAX_STEPS) return null
-        val normalized = command.trim().replace(Regex("\s+"), " ")
+        val normalized = command.trim().replace(Regex("\\s+"), " ")
         if (normalized.isBlank()) return null
         val parts = normalized.split(separators).map(String::trim)
         if (parts.any(String::isBlank) || parts.size > maxSteps) return null
