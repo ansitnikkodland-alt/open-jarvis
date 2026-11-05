@@ -85,6 +85,7 @@ class OverlayService : Service() {
     private var isExpanded = false
     private var responseLanguage = "hi"
     @Volatile private var mutedUntilWakeWord = false
+    @Volatile private var awaitingUnmuteCommand = false
 
     override fun onCreate() {
         super.onCreate()
@@ -104,11 +105,26 @@ class OverlayService : Service() {
             voiceManager.state.collect { state ->
                 when (state) {
                     is VoiceManager.VoiceState.Result -> {
+                        if (awaitingUnmuteCommand) {
+                            wakeWordCommandPending = false
+                            voiceManager.stopListening()
+                            if (MuteCommandPolicy.isUnmuteCommand(state.text)) {
+                                awaitingUnmuteCommand = false
+                                mutedUntilWakeWord = false
+                                statusText?.text = "JARVIS active"
+                                voiceManager.speak("Jarvis is active. I am listening.") { resumeWakeWordAfterResponse() }
+                            } else {
+                                statusText?.text = "Still muted — say Jarvis, then say unmute ho ja"
+                                wakeWordResponsePending = false
+                                startWakeWordListening()
+                            }
+                            return@collect
+                        }
                         if (MuteCommandPolicy.isUnmuteCommand(state.text)) {
                             wakeWordCommandPending = false
-                            mutedUntilWakeWord = false
                             voiceManager.stopListening()
-                            statusText?.text = "JARVIS active — listening for Jarvis"
+                            mutedUntilWakeWord = false
+                            statusText?.text = "JARVIS active"
                             voiceManager.speak("Jarvis is active. I am listening.") { resumeWakeWordAfterResponse() }
                             return@collect
                         }
@@ -373,6 +389,7 @@ class OverlayService : Service() {
 
     private fun enterMuteMode() {
         mutedUntilWakeWord = true
+        awaitingUnmuteCommand = false
         wakeWordCommandPending = false
         wakeWordResponsePending = false
         voiceManager.stopListening()
@@ -460,11 +477,16 @@ class OverlayService : Service() {
 
     private fun handleWakeWordDetected() {
         if (!voiceManager.isVoiceEnabled() || wakeWordCommandPending) return
-        mutedUntilWakeWord = false
+        val wasMuted = mutedUntilWakeWord
+        if (wasMuted) awaitingUnmuteCommand = true
         stopWakeWordListening()
         wakeWordCommandPending = true
         wakeWordResponsePending = true
-        statusText?.text = "Yes? Listening for your command…"
+        statusText?.text = if (wasMuted) {
+            "Jarvis heard — say unmute ho ja"
+        } else {
+            "Yes? Listening for your command…"
+        }
         voiceManager.startListening()
     }
 
