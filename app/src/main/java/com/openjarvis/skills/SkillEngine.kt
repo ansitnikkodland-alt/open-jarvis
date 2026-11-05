@@ -103,22 +103,33 @@ class SkillEngine(private val context: Context) {
         )
     }
     
-    fun findMatch(command: String): Skill? {
-        val lower = command.lowercase()
-        
-        for (skill in skillsCache) {
-            for (phrase in skill.triggerPhrases) {
-                val pattern = phrase.replace("*", "(.+)")
-                val regex = Pattern.compile(pattern, Pattern.CASE_INSENSITIVE)
-                val matcher = regex.matcher(lower)
-                
-                if (matcher.find()) {
-                    return skill
-                }
-            }
+    private fun matchesTrigger(command: String, phrase: String): Boolean {
+        // Trigger text is user data, not a regular expression. Quote literal characters
+        // and retain only the documented '*' capture wildcard.
+        val pattern = Pattern.quote(phrase).replace("\\Q*\\E", "(.+)")
+        return Pattern.compile(pattern, Pattern.CASE_INSENSITIVE).matcher(command).find()
+    }
+
+    fun findMatch(command: String): Skill? =
+        skillsCache.firstOrNull { skill ->
+            skill.triggerPhrases.any { phrase -> matchesTrigger(command, phrase) }
         }
-        
-        return null
+
+    /** Only auto-generated, previously successful skills participate in learned routing. */
+    fun findLearnedMatch(command: String): Skill? =
+        skillsCache.firstOrNull { skill ->
+            skill.author == "generated" &&
+                skill.triggerPhrases.any { phrase -> matchesTrigger(command, phrase) }
+        }
+
+    /** Persist a verified generated skill and make it available to this engine immediately. */
+    suspend fun saveGeneratedSkill(skill: Skill) = withContext(Dispatchers.IO) {
+        require(skill.author == "generated") { "Only generated skills can be saved as learned skills" }
+        require(skill.actionTemplate.size >= 4) { "A learned skill needs at least four verified actions" }
+        saveSkill(skill)
+        val existing = skillsCache.indexOfFirst { it.id == skill.id }
+        if (existing >= 0) skillsCache[existing] = skill else skillsCache.add(skill)
+        skillsLoaded = true
     }
     
     fun extractVariables(command: String, skill: Skill): Map<String, String> {
