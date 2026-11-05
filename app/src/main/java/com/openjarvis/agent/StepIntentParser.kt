@@ -40,8 +40,27 @@ object StepIntentParser {
     private val OPEN_VERBS = words(
         "open", "kholo", "khol", "launch", "start", "shuru", "खोलो", "खोल", "शुरू"
     )
-    private val APP_TRAILING_FILLERS = words("again", "please", "plz", "pls", "dear", "karo", "kar", "kro", "kholo", "खोलो", "करो")
-    private val APP_ALIASES = words("instagram", "insta", "whatsapp", "chrome", "youtube", "maps", "google maps", "telegram", "facebook", "settings", "phone", "camera", "gallery", "calculator")
+    // Suffixes are removed only from app-launch candidates, never from message text.
+    private val APP_TRAILING_NOISE: List<List<String>> = listOf(
+        listOf("phir", "se"), listOf("ek", "baar"),
+        listOf("again"), listOf("please"), listOf("plz"), listOf("pls"),
+        listOf("dobara"), listOf("dear"), listOf("app"),
+        listOf("karo"), listOf("kar"), listOf("kro"),
+        listOf("kholo"), listOf("खोलो"), listOf("करो")
+    )
+    private val APP_ALIAS_CANONICAL = mapOf(
+        "instagram" to "instagram", "insta" to "instagram", "insta app" to "instagram", "ig" to "instagram",
+        "whatsapp" to "whatsapp", "wa" to "whatsapp", "व्हाट्सएप" to "whatsapp", "व्हॉट्सऍप" to "whatsapp",
+        "chrome" to "chrome",
+        "youtube" to "youtube", "yt" to "youtube",
+        "maps" to "maps", "google maps" to "google maps",
+        "telegram" to "telegram",
+        "facebook" to "facebook", "fb" to "facebook",
+        "settings" to "settings", "phone" to "phone", "camera" to "camera",
+        "gallery" to "gallery", "calculator" to "calculator",
+        "gpay" to "google pay", "google pay" to "google pay"
+    )
+    private val APP_ALIASES = APP_ALIAS_CANONICAL.keys
     private val APP_CONNECTORS = words("and", "aur", "और", "आणि", "then", "phir", "फिर")
 
     private val MESSAGE_WORDS = words(
@@ -221,17 +240,25 @@ object StepIntentParser {
     private fun parseAppLaunch(tokens: List<String>): StepIntent.AppLaunch? {
         val hasVerb = tokens.firstOrNull()?.let { it in OPEN_VERBS } == true
         val candidate = if (hasVerb) tokens.drop(1).toMutableList() else tokens.toMutableList()
-        while (candidate.isNotEmpty() && candidate.last() in APP_TRAILING_FILLERS) candidate.removeAt(candidate.lastIndex)
+        while (candidate.isNotEmpty()) {
+            val suffix = APP_TRAILING_NOISE.firstOrNull { seq ->
+                seq.size <= candidate.size && seq.indices.all { k ->
+                    candidate[candidate.size - seq.size + k] == seq[k]
+                }
+            } ?: break
+            repeat(suffix.size) { candidate.removeAt(candidate.lastIndex) }
+        }
         if (candidate.isEmpty()) return null
         // A bare app name is accepted only from a conservative alias list. An explicit
         // launch verb may use any installed label, but never swallow a compound sentence.
-        if (!hasVerb && candidate.joinToString(" ") !in APP_ALIASES) return null
+        val candidateName = candidate.joinToString(" ").trim()
+        if (!hasVerb && candidateName !in APP_ALIASES) return null
         // WhatsApp is both an app alias and a message transport. A bare app
         // launch must remain launchable; message intent is recognized above only
         // when an explicit send verb accompanies a message keyword.
         val nonAppMessageWords = MESSAGE_WORDS - APP_ALIASES
         if (candidate.any { it in APP_CONNECTORS || it in TEXT_DELIMS || it in nonAppMessageWords }) return null
-        val label = candidate.joinToString(" ").trim()
+        val label = APP_ALIAS_CANONICAL[candidateName] ?: candidateName
         if (label.length !in 2..60) return null
         return StepIntent.AppLaunch(label)
     }

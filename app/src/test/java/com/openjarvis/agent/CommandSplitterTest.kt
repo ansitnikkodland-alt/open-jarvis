@@ -60,6 +60,10 @@ class CommandSplitterTest {
             s("open instagram and tell me what to do dear")
         )
         assertEquals(StepIntent.AppLaunch("instagram"), StepIntentParser.parse("open insta again"))
+        assertEquals(
+            listOf("open Instagram", "open WhatsApp"),
+            s("open Instagram and then open WhatsApp")
+        )
     }
 
     @Test
