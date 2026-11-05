@@ -90,11 +90,27 @@ class AndroidSkillExecutor(private val context: Context) : SkillRegistry.SkillEx
         }
     }
 
-    private fun resolvePackage(label: String): String = when (label.lowercase()) {
-        "youtube" -> "com.google.android.youtube"
-        "whatsapp" -> "com.whatsapp"
-        "chrome" -> "com.android.chrome"
-        "maps", "google maps" -> "com.google.android.apps.maps"
-        else -> label
+    private fun resolvePackage(label: String): String {
+        val normalized = label.trim().lowercase(java.util.Locale.ROOT)
+        val known = when (normalized) {
+            "youtube" -> "com.google.android.youtube"
+            "whatsapp" -> "com.whatsapp"
+            "chrome" -> "com.android.chrome"
+            "instagram", "insta" -> "com.instagram.android"
+            "maps", "google maps" -> "com.google.android.apps.maps"
+            "telegram" -> "org.telegram.messenger"
+            "facebook" -> "com.facebook.katana"
+            else -> null
+        }
+        if (known != null && context.packageManager.getLaunchIntentForPackage(known) != null) return known
+
+        val installedMatch = runCatching {
+            context.packageManager.getInstalledApplications(0).firstOrNull { app ->
+                context.packageManager.getLaunchIntentForPackage(app.packageName) != null &&
+                    context.packageManager.getApplicationLabel(app).toString().trim()
+                        .equals(label.trim(), ignoreCase = true)
+            }?.packageName
+        }.getOrNull()
+        return installedMatch ?: known ?: label.trim()
     }
 }
