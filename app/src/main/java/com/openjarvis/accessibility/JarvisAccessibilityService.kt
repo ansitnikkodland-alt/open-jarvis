@@ -253,11 +253,13 @@ class JarvisAccessibilityService : AccessibilityService() {
                     }
                 } finally {
                     while (queue.isNotEmpty()) queue.removeFirst().recycle()
+                    root.recycle()
                 }
-                if (output.sumOf { it.length } >= maxCharacters) break
+                if (output.sumOf { it.length } >= maxCharacters) {
+                    for (remaining in roots.dropWhile { it !== root }.drop(1)) remaining.recycle()
+                    break
+                }
             }
-        } finally {
-            // Each root is owned by this method and recycled by its traversal wrapper.
         }
         return output.joinToString(" ").take(maxCharacters)
     }
