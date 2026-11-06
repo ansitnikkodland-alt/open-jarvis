@@ -99,7 +99,8 @@ class AndroidSTTEngine(private val context: Context) : STTEngine {
                     retryRunnable?.let(mainHandler::removeCallbacks)
                     retryRunnable = null
                     val matches = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
-                    val text = matches?.firstOrNull()?.trim()
+                    val confidenceScores = results?.getFloatArray(SpeechRecognizer.CONFIDENCE_SCORES)
+                    val text = SpeechLanguage.selectBestTranscript(matches, confidenceScores)
                     pendingResult = text
                     if (!text.isNullOrBlank()) {
                         sessionActive = false
@@ -160,8 +161,14 @@ class AndroidSTTEngine(private val context: Context) : STTEngine {
                 putExtra("android.speech.extra.ENABLE_LANGUAGE_DETECTION", true)
                 putStringArrayListExtra("android.speech.extra.LANGUAGE_DETECTION_ALLOWED_LANGUAGES",
                     ArrayList(SpeechLanguage.recognitionLocales))
+                // Permit Hindi, Marathi and Indian English to switch inside one utterance.
+                putExtra("android.speech.extra.ENABLE_LANGUAGE_SWITCH", true)
+                putStringArrayListExtra("android.speech.extra.LANGUAGE_SWITCH_ALLOWED_LANGUAGES",
+                    ArrayList(SpeechLanguage.recognitionLocales))
             }
-            putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 3)
+            putStringArrayListExtra(RecognizerIntent.EXTRA_BIASING_STRINGS,
+                ArrayList(SpeechLanguage.commandBiasingPhrases))
+            putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 5)
             putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
             putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS, SILENCE_TIMEOUT_MS)
         }
