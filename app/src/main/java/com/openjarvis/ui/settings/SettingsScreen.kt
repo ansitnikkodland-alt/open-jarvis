@@ -42,6 +42,7 @@ import com.openjarvis.ui.theme.VoidColor
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.delay
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsScreen(
     onNavigateBack: () -> Unit,
