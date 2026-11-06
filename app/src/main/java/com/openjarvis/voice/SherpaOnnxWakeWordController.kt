@@ -44,10 +44,18 @@ class SherpaOnnxWakeWordController(
             val model = getKwsModelConfig(type = 1)
                 ?: throw IllegalStateException("English sherpa KWS model config is unavailable")
             val keywordFile = getKeywordsFile(type = 1)
-            val keywordFileReadable = runCatching {
-                appContext.assets.open(keywordFile).use { true }
-            }.getOrDefault(false)
-            val keywords = if (keywordFileReadable) WakeWordConfig.KEYWORD_PHRASES else emptyList()
+            val keywordAssetLines = runCatching {
+                appContext.assets.open(keywordFile).bufferedReader().use { it.readLines() }
+            }.getOrElse { error ->
+                throw IllegalStateException("JARVIS keyword asset is missing or unreadable: $keywordFile", error)
+            }
+            if (!WakeWordConfig.isValidTokenizedKeywordAsset(keywordAssetLines)) {
+                throw IllegalStateException(
+                    "JARVIS keyword asset is invalid: expected at least ${WakeWordConfig.EXPECTED_KEYWORD_TOKEN_LINES} " +
+                        "BPE-tokenized keyword lines in $keywordFile"
+                )
+            }
+            val keywords = WakeWordConfig.KEYWORD_PHRASES
             val sensitivity = WakeWordConfig.Sensitivity.fromPreference(
                 appContext.getSharedPreferences(WakeWordConfig.SENSITIVITY_PREFS, Context.MODE_PRIVATE)
                     .getString(WakeWordConfig.SENSITIVITY_KEY, WakeWordConfig.Sensitivity.MEDIUM.name)
