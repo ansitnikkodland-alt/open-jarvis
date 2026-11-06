@@ -82,6 +82,29 @@ class OverlayService : Service() {
     private val activationGate = ActivationGate(windowMs = 10_000L, duplicateCooldownMs = 2_500L)
     private var wakeWordCommandPending = false
     private var wakeWordResponsePending = false
+    private var wakeWordTranscriptReceived = false
+    private var wakeWordPendingSinceMs = 0L
+    private val wakeWordWatchdog = object : Runnable {
+        override fun run() {
+            if (wakeWordCommandPending && wakeWordPendingSinceMs > 0L &&
+                System.currentTimeMillis() - wakeWordPendingSinceMs >= WAKE_WORD_STT_WATCHDOG_MS
+            ) {
+                android.util.Log.w("OpenJarvisWakeWord", "STT watchdog expired; clearing pending wake-word state")
+                wakeWordCommandPending = false
+                wakeWordResponsePending = false
+                wakeWordPendingSinceMs = 0L
+                wakeWordTranscriptReceived = false
+                activationGate.reset()
+                voiceManager.stopListening()
+                statusText?.text = "Voice capture timed out — wake word restarted"
+                serviceScope.launch {
+                    delay(350)
+                    startWakeWordListening()
+                }
+            }
+            mainHandler.postDelayed(this, WAKE_WORD_WATCHDOG_TICK_MS)
+        }
+    }
     private var recentTasks = emptyList<TaskNode>()
     private val serviceScope = CoroutineScope(Dispatchers.Main + SupervisorJob())
     private var isExpanded = false
@@ -103,10 +126,14 @@ class OverlayService : Service() {
             startForeground(NOTIFICATION_ID, createNotification())
         }
         attachAssistant()
+        mainHandler.postDelayed(wakeWordWatchdog, WAKE_WORD_WATCHDOG_TICK_MS)
         serviceScope.launch {
             voiceManager.state.collect { state ->
                 when (state) {
                     is VoiceManager.VoiceState.Result -> {
+                        wakeWordCommandPending = false
+                        wakeWordPendingSinceMs = 0L
+                        wakeWordTranscriptReceived = true
                         if (awaitingUnmuteCommand) {
                             wakeWordCommandPending = false
                             voiceManager.stopListening()
@@ -145,9 +172,9 @@ class OverlayService : Service() {
                     }
                     is VoiceManager.VoiceState.Error -> {
                         statusText?.text = state.message
-                        if (wakeWordCommandPending) {
-                            wakeWordCommandPending = false
-                            wakeWordResponsePending = false
+                        if (wakeWordCommandPending || wakeWordResponsePending) {
+                            clearWakeWordPendingState()
+                            activationGate.reset()
                             voiceManager.stopListening()
                             serviceScope.launch { delay(700); startWakeWordListening() }
                         }
@@ -155,7 +182,18 @@ class OverlayService : Service() {
                     is VoiceManager.VoiceState.Recording -> setVisualState("LISTENING", "Listening… speak now")
                     is VoiceManager.VoiceState.Transcribing -> setVisualState("THINKING", "Thinking…")
                     is VoiceManager.VoiceState.Speaking -> setVisualState("SPEAKING", "Speaking…")
-                    is VoiceManager.VoiceState.Idle -> setVisualState("IDLE", "Ready — type a command or use mic")
+                    is VoiceManager.VoiceState.Idle -> {
+                        val wasWaitingForTranscript = wakeWordCommandPending
+                        // Idle can be emitted when STT ends without a Result. Always
+                        // clear stale flags here; only re-arm immediately when no
+                        // transcript was delivered (a real command resumes after TTS).
+                        clearWakeWordPendingState()
+                        setVisualState("IDLE", "Ready — type a command or use mic")
+                        if (wasWaitingForTranscript && !wakeWordTranscriptReceived) {
+                            activationGate.reset()
+                            serviceScope.launch { delay(350); startWakeWordListening() }
+                        }
+                    }
                 }
             }
         }
@@ -198,7 +236,9 @@ class OverlayService : Service() {
         overlayView = null
         visualState = "IDLE"
         mainHandler.removeCallbacks(waveformRunnable)
+        mainHandler.removeCallbacks(wakeWordWatchdog)
         waveformText = null
+        clearWakeWordPendingState()
         stopWakeWordListening()
         voiceManager.release()
         serviceScope.cancel()
@@ -327,8 +367,7 @@ class OverlayService : Service() {
                         if (wakeWordController?.isRunning() == true) stopWakeWordListening()
                         // A manual mic tap is an explicit activation in both STT modes.
                         activationGate.activate(ActivationGate.Source.PUSH_TO_TALK)
-                        wakeWordCommandPending = true
-                        wakeWordResponsePending = true
+                        markWakeWordCommandPending()
                         voiceManager.startListening()
                     }
                 }
@@ -400,8 +439,7 @@ class OverlayService : Service() {
     private fun enterMuteMode() {
         mutedUntilWakeWord = true
         awaitingUnmuteCommand = false
-        wakeWordCommandPending = false
-        wakeWordResponsePending = false
+        clearWakeWordPendingState()
         voiceManager.stopListening()
         voiceManager.stopSpeaking()
         statusText?.text = "MUTED — say Jarvis to wake"
@@ -515,14 +553,26 @@ class OverlayService : Service() {
         if (wasMuted) awaitingUnmuteCommand = true
         stopWakeWordListening()
         activationGate.activate(ActivationGate.Source.WAKE_WORD)
-        wakeWordCommandPending = true
-        wakeWordResponsePending = true
+        markWakeWordCommandPending()
         statusText?.text = if (wasMuted) {
             "Jarvis heard — say unmute ho ja"
         } else {
             "Yes? Listening for your command…"
         }
         voiceManager.startListening()
+    }
+
+    private fun markWakeWordCommandPending() {
+        wakeWordCommandPending = true
+        wakeWordResponsePending = true
+        wakeWordTranscriptReceived = false
+        wakeWordPendingSinceMs = System.currentTimeMillis()
+    }
+
+    private fun clearWakeWordPendingState() {
+        wakeWordCommandPending = false
+        wakeWordResponsePending = false
+        wakeWordPendingSinceMs = 0L
     }
 
     private fun stopWakeWordListening() {
@@ -547,8 +597,9 @@ class OverlayService : Service() {
     }
 
     private fun resumeWakeWordAfterResponse() {
-        if (!wakeWordResponsePending) return
-        wakeWordResponsePending = false
+        clearWakeWordPendingState()
+        wakeWordTranscriptReceived = false
+        if (!voiceManager.isVoiceEnabled()) return
         serviceScope.launch {
             delay(500)
             startWakeWordListening()
@@ -609,6 +660,8 @@ class OverlayService : Service() {
             }
         }
         private const val NOTIFICATION_ID = 1
+        private const val WAKE_WORD_STT_WATCHDOG_MS = 15_000L
+        private const val WAKE_WORD_WATCHDOG_TICK_MS = 1_000L
         fun start(context: Context) {
             context.startForegroundService(Intent(context, OverlayService::class.java))
         }
