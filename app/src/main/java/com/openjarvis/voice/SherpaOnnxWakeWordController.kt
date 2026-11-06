@@ -78,7 +78,7 @@ class SherpaOnnxWakeWordController(
                 throw IllegalStateException("Android microphone buffer is unavailable")
             }
             val audio = AudioRecord(
-                MediaRecorder.AudioSource.VOICE_RECOGNITION,
+                MediaRecorder.AudioSource.MIC,
                 sampleRate,
                 AudioFormat.CHANNEL_IN_MONO,
                 AudioFormat.ENCODING_PCM_16BIT,
@@ -114,7 +114,7 @@ class SherpaOnnxWakeWordController(
                 isDaemon = true
                 start()
             }
-            Log.i(TAG, "Key-free sherpa-onnx wake-word engine started")
+            Log.i(TAG, "Key-free sherpa-onnx wake-word engine started with Android MIC source")
             null
         } catch (error: Exception) {
             stop()
