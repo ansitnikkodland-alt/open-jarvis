@@ -1488,9 +1488,184 @@ ${fullSystem.substringAfter("MEMORY:")}
                         )
                     }
                 }
+            },
+            object : StepHandler {
+                override val name: String = "llm"
+
+                override suspend fun handle(step: String, ctx: StepContext): StepOutcome =
+                    try {
+                        executePipelineLlmStep(step, ctx)
+                    } catch (error: Exception) {
+                        StepOutcome(
+                            false,
+                            error.message?.takeIf { it.isNotBlank() } ?: error.javaClass.simpleName,
+                            ctx
+                        )
+                    }
             }
         )
     )
+
+
+
+    private suspend fun executePipelineLlmStep(step: String, ctx: StepContext): StepOutcome {
+        val startedAt = System.currentTimeMillis()
+        val screenText = runCatching { screenReader.extractAllText() }
+            .onFailure { Log.w(TAG, "Pipeline LLM screen extraction failed", it) }
+            .getOrDefault("")
+        val screenElements = runCatching { screenReader.extractInteractiveElements() }
+            .onFailure { Log.w(TAG, "Pipeline LLM element extraction failed", it) }
+            .getOrDefault("")
+        val installedApps = getInstalledLauncherApps()
+        val installedAppsPrompt = installedApps
+            .filter { step.contains(it.label, ignoreCase = true) }
+            .joinToString(", ") { it.label }
+            .take(150)
+        val memoryPrompt = personalMemoryStore.promptContext(step)
+        val fullSystem = systemPrompt
+            .replace("{PERSONAL_MEMORY}", memoryPrompt)
+            .replace("{SCREEN_OCR}", screenText.take(150))
+            .replace("{SCREEN_ELEMENTS}", screenElements.take(650))
+            .replace("{INSTALLED_APPS}", installedAppsPrompt)
+        val skillSystem = """
+You are Jarvis, an Android skill router. Return ONLY one JSON object with exactly "skill" and "args".
+Allowed skills: OPEN_APP, SETTINGS, CALL, SEARCH, WHATSAPP_MESSAGE, SMS_MESSAGE, ALARM, TIMER, TORCH, VOLUME, MAPS, ANDROID_UI_ACTIONS.
+Native example: {"skill":"TORCH","args":{"enabled":true}}.
+UI example: {"skill":"ANDROID_UI_ACTIONS","args":{"actions":[{"action":"open_app","label":"Chrome"}]}}.
+Use a native skill whenever it fits. Use ANDROID_UI_ACTIONS only for visible-screen tasks. Never invent app labels, contacts or controls.
+Never tap Send, Delete, Pay, Purchase, or other final confirmation controls. For messaging, open the composer only and never send.
+For UI actions, use only open_app, click, tap, type_text, type, scroll, back, press_back, home, press_home, press_recents, wait, wait_for, read_screen, ai_prompt, extract_text, error.
+Understand Hindi, Marathi, Hinglish and English. Do not include markdown or explanation.
+${fullSystem.substringAfter("MEMORY:")}
+""".trimIndent()
+        val contextDetails = listOfNotNull(
+            ctx.app?.takeIf { it.isNotBlank() }?.let { "app=$it" },
+            ctx.contact?.takeIf { it.isNotBlank() }?.let { "contact=$it" },
+            ctx.messageText?.takeIf { it.isNotBlank() }?.let { "messageText=$it" }
+        )
+        val contextualCommand = if (contextDetails.isEmpty()) {
+            step
+        } else {
+            "$step\n\nPrevious-step context: ${contextDetails.joinToString("; ")}"
+        }
+        val rawResult = completeSkillWithinBudget(skillSystem, contextualCommand, startedAt)
+        if (rawResult.isFailure) {
+            val error = rawResult.exceptionOrNull()
+            return StepOutcome(
+                false,
+                error?.message?.takeIf { it.isNotBlank() } ?: "LLM step failed",
+                ctx
+            )
+        }
+        val rawSkillJson = rawResult.getOrThrow()
+        val plan = try {
+            OllamaSkillPlanParser.parse(rawSkillJson)
+        } catch (error: Exception) {
+            return StepOutcome(
+                false,
+                "LLM response invalid: ${error.message ?: error.javaClass.simpleName}",
+                ctx
+            )
+        }
+
+        if (plan.skill != "ANDROID_UI_ACTIONS") {
+            val kind = try {
+                SkillRegistry.Kind.valueOf(plan.skill)
+            } catch (error: IllegalArgumentException) {
+                return StepOutcome(false, "Unsupported LLM skill: ${plan.skill}", ctx)
+            }
+            val args = plan.args.keys().asSequence().associateWith { key ->
+                plan.args.opt(key).toString()
+            }
+            if (kind == SkillRegistry.Kind.CALL) {
+                val contact = args["contact"]?.takeIf { it.isNotBlank() }
+                    ?: return StepOutcome(false, "Call skill needs a contact name", ctx)
+                return try {
+                    val reply = executeFastCommand(FastCommandParser.Command.DialContact(contact))
+                    StepOutcome(true, reply, ctx.copy(contact = contact))
+                } catch (error: Exception) {
+                    StepOutcome(
+                        false,
+                        error.message?.takeIf { it.isNotBlank() } ?: error.javaClass.simpleName,
+                        ctx
+                    )
+                }
+            }
+            val nativeResult = AndroidSkillExecutor(context).execute(SkillRegistry.Request(kind, args))
+            return nativeResult.fold(
+                onSuccess = {
+                    val reply = when (kind) {
+                        SkillRegistry.Kind.OPEN_APP -> "Opened ${args["app"]}"
+                        SkillRegistry.Kind.SETTINGS -> "Opened ${args["screen"]} settings"
+                        SkillRegistry.Kind.SEARCH -> "Search opened"
+                        SkillRegistry.Kind.WHATSAPP_MESSAGE -> "WhatsApp composer opened"
+                        SkillRegistry.Kind.SMS_MESSAGE -> "SMS composer opened"
+                        SkillRegistry.Kind.ALARM -> "Alarm set"
+                        SkillRegistry.Kind.TIMER -> "Timer started"
+                        SkillRegistry.Kind.TORCH -> if (args["enabled"] == "true") "Torch turned on" else "Torch turned off"
+                        SkillRegistry.Kind.VOLUME -> "Volume adjusted"
+                        SkillRegistry.Kind.MAPS -> "Opening navigation"
+                        SkillRegistry.Kind.CALL -> "Dialer opened"
+                    }
+                    val nextContext = when (kind) {
+                        SkillRegistry.Kind.OPEN_APP -> ctx.copy(app = args["app"])
+                        SkillRegistry.Kind.WHATSAPP_MESSAGE -> ctx.copy(
+                            app = "whatsapp",
+                            contact = args["contact"] ?: ctx.contact,
+                            messageText = args["text"] ?: ctx.messageText
+                        )
+                        SkillRegistry.Kind.SMS_MESSAGE -> ctx.copy(
+                            app = "sms",
+                            contact = args["contact"] ?: ctx.contact,
+                            messageText = args["text"] ?: ctx.messageText
+                        )
+                        else -> ctx
+                    }
+                    StepOutcome(true, reply, nextContext)
+                },
+                onFailure = { error ->
+                    StepOutcome(
+                        false,
+                        error.message?.takeIf { it.isNotBlank() } ?: error.javaClass.simpleName,
+                        ctx
+                    )
+                }
+            )
+        }
+
+        val rawActions = plan.args.optJSONArray("actions")
+            ?: return StepOutcome(false, "LLM UI skill is missing actions", ctx)
+        val validation = LLMResponseValidator.validate(rawActions.toString())
+        if (!validation.isValid) {
+            return StepOutcome(
+                false,
+                validation.errors.firstOrNull() ?: "LLM action plan is invalid",
+                ctx
+            )
+        }
+        val actions = resolveOpenAppTargets(validation.actions, step, installedApps)
+        val executable = if (screenText.isBlank()) {
+            AgentPlanPolicy.canLaunchResolvedAppWithoutScreen(actions)
+        } else {
+            AgentPlanPolicy.isExecutablePlan(actions, step)
+        }
+        if (!executable) {
+            val rule = AgentPlanPolicy.failureRule(actions, step) ?: "RULE_NOT_EXECUTABLE"
+            return StepOutcome(false, AgentPlanPolicy.userGuidance(rule), ctx)
+        }
+        val execution = executeActions(actions)
+        if (!execution.succeeded) {
+            return StepOutcome(
+                false,
+                execution.failure ?: "LLM action execution failed",
+                ctx
+            )
+        }
+        val openedApp = actions.firstOrNull { it.action == Action.OPEN_APP }
+        val nextContext = openedApp?.let { ctx.copy(app = it.label ?: it.packageName) } ?: ctx
+        Log.i(TAG, "path=LLM route=step-pipeline elapsed_ms=${System.currentTimeMillis() - startedAt}")
+        return StepOutcome(true, "Completed requested UI step", nextContext)
+    }
 
     private suspend fun executeStepIntent(intent: StepIntent): String {
         val executor = AndroidSkillExecutor(context)

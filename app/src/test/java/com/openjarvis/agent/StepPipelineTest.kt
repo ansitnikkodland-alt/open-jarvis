@@ -59,6 +59,31 @@ class StepPipelineTest {
     }
 
     @Test
+    fun recordsSkillFastLearnedAndLlmFallbackRouteOrder() = runBlocking {
+        val attempted = mutableListOf<String>()
+        fun route(routeName: String, accepts: Boolean) = object : StepHandler {
+            override val name = routeName
+            override suspend fun handle(step: String, ctx: StepContext): StepOutcome? {
+                attempted += routeName
+                return if (accepts) StepOutcome(true, "$routeName handled", ctx) else null
+            }
+        }
+
+        val result = StepPipeline(
+            listOf(
+                route("skill", false),
+                route("fast", false),
+                route("learned", false),
+                route("llm", true)
+            )
+        ).run(listOf("unknown but strong-sequenced step"))
+
+        assertEquals(listOf("skill", "fast", "learned", "llm"), attempted)
+        assertEquals("llm", result.traces.single().route)
+        assertTrue(result.allOk)
+    }
+
+    @Test
     fun failureMessageIncludesStepPositionAndSkippedSteps() = runBlocking {
         val handler = object : StepHandler {
             override val name = "fast"
