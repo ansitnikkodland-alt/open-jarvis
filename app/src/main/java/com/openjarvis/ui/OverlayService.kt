@@ -85,6 +85,7 @@ class OverlayService : Service() {
     private var wakeWordCpuLock: PowerManager.WakeLock? = null
     private var wakeWordRestartAttempt = 0
     private var wakeWordRestartRunnable: Runnable? = null
+    private var wakeWordFeedbackActive = false
     private val mainHandler = Handler(Looper.getMainLooper())
     private val activationGate = ActivationGate(windowMs = 10_000L, duplicateCooldownMs = 2_500L)
     private val wakeWordSession = WakeWordSessionStateMachine(WAKE_WORD_STT_WATCHDOG_MS)
@@ -133,6 +134,7 @@ class OverlayService : Service() {
                 when (state) {
                     is VoiceManager.VoiceState.Result -> {
                         val hadPendingTranscript = wakeWordSession.commandPending
+                        wakeWordFeedbackActive = false
                         wakeWordSession.onTranscriptReceived()
                         if (awaitingUnmuteCommand) {
                             voiceManager.stopListening()
@@ -167,6 +169,7 @@ class OverlayService : Service() {
                         submitCommand(state.text)
                     }
                     is VoiceManager.VoiceState.Error -> {
+                        wakeWordFeedbackActive = false
                         statusText?.text = state.message
                         if (wakeWordCommandPending || wakeWordResponsePending) {
                             clearWakeWordPendingState()
@@ -175,7 +178,10 @@ class OverlayService : Service() {
                             serviceScope.launch { delay(700); startWakeWordListening() }
                         }
                     }
-                    is VoiceManager.VoiceState.Recording -> setVisualState("LISTENING", "Listening… speak now")
+                    is VoiceManager.VoiceState.Recording -> setVisualState(
+                        "LISTENING",
+                        if (wakeWordFeedbackActive) "Jarvis ✓ — listening… speak now" else "Listening… speak now"
+                    )
                     is VoiceManager.VoiceState.Transcribing -> setVisualState("THINKING", "Thinking…")
                     is VoiceManager.VoiceState.Speaking -> setVisualState("SPEAKING", "Speaking…")
                     is VoiceManager.VoiceState.Idle -> {
@@ -370,6 +376,7 @@ class OverlayService : Service() {
                         if (wakeWordController?.isRunning() == true) stopWakeWordListening()
                         // A manual mic tap is an explicit activation in both STT modes.
                         activationGate.activate(ActivationGate.Source.PUSH_TO_TALK)
+                        wakeWordFeedbackActive = false
                         markWakeWordCommandPending()
                         voiceManager.startListening()
                     }
@@ -583,6 +590,7 @@ class OverlayService : Service() {
         stopWakeWordListening()
         activationGate.activate(ActivationGate.Source.WAKE_WORD)
         markWakeWordCommandPending()
+        wakeWordFeedbackActive = true
         provideWakeWordFeedback()
         statusText?.text = if (wasMuted) {
             "Jarvis ✓ — say unmute ho ja"
