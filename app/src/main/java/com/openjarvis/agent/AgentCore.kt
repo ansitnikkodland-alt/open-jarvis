@@ -518,10 +518,17 @@ Never invent contact names or app labels. Understand Hindi, Marathi, Hinglish an
                     val nativeRaw = nativeRawResult.getOrElse { error ->
                         val detail = error.message?.takeIf { it.isNotBlank() } ?: error.javaClass.simpleName
                         AgentDiagnostics.record(context, "native-intent-router", safeCommand, detail, provider = "Ollama (Local)", model = "qwen3:1.7b")
-                        _state.value = AgentState.Error(detail)
-                        return@withLock
+                        if (remainingLlmBudgetMs(startTime) <= 0L ||
+                            detail.contains("time budget", ignoreCase = true)
+                        ) {
+                            _state.value = AgentState.Error(detail)
+                            return@withLock
+                        }
+                        // A non-timeout provider failure is treated as no native answer;
+                        // the existing legacy planner below remains the fallback.
+                        ""
                     }
-                    val nativeIntent = NativeStepIntentParser.parse(nativeRaw)
+                    val nativeIntent = nativeRaw.takeIf { it.isNotBlank() }?.let(NativeStepIntentParser::parse)
                     if (nativeIntent != null) {
                         _state.value = AgentState.Running("running native ${nativeIntent.javaClass.simpleName.lowercase()} skill...")
                         try {
