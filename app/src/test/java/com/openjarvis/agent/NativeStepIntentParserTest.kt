@@ -25,7 +25,7 @@ class NativeStepIntentParserTest {
         assertNull(NativeStepIntentParser.parse("""{"skill":"torch","args":{"on":"yes"}}"""))
         assertNull(NativeStepIntentParser.parse("""{"skill":"timer","args":{"seconds":"90"}}"""))
         assertNull(NativeStepIntentParser.parse("""{"skill":"timer","args":{"seconds":90.5}}"""))
-        assertNull(NativeStepIntentParser.parse("""{"skill":"alarm","args":{"hour":7.0,"minute":30}}"""))
+        assertNull(NativeStepIntentParser.parse("""{"skill":"alarm","args":{"hour":7.5,"minute":30}}"""))
         assertNull(NativeStepIntentParser.parse("""{"skill":"message","args":{"contact":42,"text":"hello"}}"""))
         assertNull(NativeStepIntentParser.parse("""{"skill":"app_launch","args":{"label":"Chrome","extra":"x"}}"""))
     }
