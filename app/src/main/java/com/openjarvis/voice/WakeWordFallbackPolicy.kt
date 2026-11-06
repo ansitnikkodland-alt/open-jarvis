@@ -17,7 +17,7 @@ object WakeWordFallbackPolicy {
         timeoutMs: Long = DEFAULT_TIMEOUT_MS
     ): Decision {
         if (startedAtMs <= 0L || nowMs - startedAtMs < timeoutMs) return Decision.WAIT
-        if (lastDetectionAtMs != null && lastDetectionAtMs >= startedAtMs) return Decision.WAIT
+        if (lastDetectionAtMs != null && nowMs - lastDetectionAtMs < timeoutMs) return Decision.WAIT
         val activeFrames = (framesProcessed - silentFrames).coerceAtLeast(0L)
         if (activeFrames < MIN_ACTIVE_FRAMES) return Decision.WAIT
         return if (hasValidAccessKey) Decision.FALLBACK_TO_PORCUPINE else Decision.NO_FALLBACK_KEY
