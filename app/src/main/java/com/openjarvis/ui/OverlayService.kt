@@ -527,6 +527,7 @@ class OverlayService : Service() {
                 onError = { message -> mainHandler.post { scheduleWakeWordRestart(message) } }
             )
         }
+        val wasAlreadyRunning = wakeWordController?.isRunning() == true
         var error = wakeWordController?.start()
         if (error != null && accessKey.isNotBlank() && wakeWordController !is PorcupineWakeWordController) {
             stopWakeWordListening()
@@ -542,8 +543,10 @@ class OverlayService : Service() {
         if (error == null) {
             wakeWordRestartAttempt = 0
             if (wakeWordController is SherpaOnnxWakeWordController) {
-                wakeWordListeningStartedAtMs = System.currentTimeMillis()
-                wakeWordFallbackWarningShown = false
+                if (!wasAlreadyRunning || wakeWordListeningStartedAtMs <= 0L) {
+                    wakeWordListeningStartedAtMs = System.currentTimeMillis()
+                    wakeWordFallbackWarningShown = false
+                }
             } else {
                 wakeWordListeningStartedAtMs = 0L
             }
@@ -567,12 +570,13 @@ class OverlayService : Service() {
     private fun checkWakeWordRecognitionTimeout(nowMs: Long) {
         if (wakeWordController !is SherpaOnnxWakeWordController || wakeWordController?.isRunning() != true) return
         val accessKey = voiceManager.getPicovoiceAccessKey()
+        val diagnostics = com.openjarvis.voice.WakeWordDiagnostics.snapshot()
         val decision = WakeWordFallbackPolicy.evaluate(
             nowMs = nowMs,
             startedAtMs = wakeWordListeningStartedAtMs,
-            lastDetectionAtMs = com.openjarvis.voice.WakeWordDiagnostics.snapshot().lastDetectionAtMs,
-            framesProcessed = com.openjarvis.voice.WakeWordDiagnostics.snapshot().framesProcessed,
-            silentFrames = com.openjarvis.voice.WakeWordDiagnostics.snapshot().silentFrames,
+            lastDetectionAtMs = diagnostics.lastDetectionAtMs,
+            framesProcessed = diagnostics.framesProcessed,
+            silentFrames = diagnostics.silentFrames,
             hasValidAccessKey = WakeWordConfig.validateAccessKey(accessKey) == null
         )
         when (decision) {
