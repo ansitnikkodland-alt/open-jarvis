@@ -132,6 +132,7 @@ class OverlayService : Service() {
             voiceManager.state.collect { state ->
                 when (state) {
                     is VoiceManager.VoiceState.Result -> {
+                        val hadPendingTranscript = wakeWordSession.commandPending
                         wakeWordSession.onTranscriptReceived()
                         if (awaitingUnmuteCommand) {
                             voiceManager.stopListening()
@@ -158,8 +159,7 @@ class OverlayService : Service() {
                             enterMuteMode()
                             return@collect
                         }
-                        if (wakeWordCommandPending) {
-                            wakeWordSession.onTranscriptReceived()
+                        if (hadPendingTranscript) {
                             voiceManager.stopListening()
                         }
                         commandInput?.setText(state.text)
