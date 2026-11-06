@@ -458,7 +458,7 @@ class OverlayService : Service() {
             val decision = activationGate.validateTranscript(command, System.currentTimeMillis())
             if (!decision.accepted) {
                 statusText?.text = "Voice ignored: ${decision.reason}"
-                if (wakeWordResponsePending) resumeWakeWordAfterResponse()
+                resumeWakeWordAfterResponse()
                 return
             }
         }
@@ -472,6 +472,7 @@ class OverlayService : Service() {
         }
         if (com.openjarvis.accessibility.JarvisAccessibilityService.instance == null) {
             statusText?.text = "Accessibility service is OFF. Enable Open Jarvis in Android Accessibility settings."
+            if (voiceCommand != null) resumeWakeWordAfterResponse()
             return
         }
         if (wakeWordController?.isRunning() == true) {
