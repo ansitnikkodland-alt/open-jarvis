@@ -34,4 +34,25 @@ class NativeStepIntentParserTest {
         assertNull(NativeStepIntentParser.parse("""{"skill":"none","args":{}}"""))
         assertNull(NativeStepIntentParser.parse("""{"skill":"unknown","args":{}}"""))
     }
+
+    @Test fun parsesMessageIntentWithoutSending() {
+        assertEquals(
+            StepIntent.Message("whatsapp", "Amit", "I am on the way"),
+            NativeStepIntentParser.parse("""{"skill":"message","args":{"app":"whatsapp","contact":"Amit","text":"I am on the way"}}""")
+        )
+        assertEquals(
+            StepIntent.Message("sms", null, "Reached"),
+            NativeStepIntentParser.parse("""{"skill":"message","args":{"app":"sms","text":"Reached"}}""")
+        )
+    }
+
+    @Test fun rejectsUnsafeOrAmbiguousMessageAndEnvelopeData() {
+        assertNull(NativeStepIntentParser.parse("""{"skill":"message","args":{}}"""))
+        assertNull(NativeStepIntentParser.parse("""{"skill":"message","args":{"app":"telegram","contact":"Amit","text":"Hi"}}"""))
+        assertNull(NativeStepIntentParser.parse("""{"skill":"message","args":{"app":"whatsapp","contact":42,"text":"Hi"}}"""))
+        assertNull(NativeStepIntentParser.parse("""{"skill":"message","args":{"contact":"Amit","text":"Hi","send":true}}"""))
+        assertNull(NativeStepIntentParser.parse("""{"skill":"torch","args":{"on":true},"extra":1}"""))
+        assertNull(NativeStepIntentParser.parse("""{"skill":"none","args":{"ignored":true}}"""))
+    }
+
 }
