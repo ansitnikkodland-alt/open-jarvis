@@ -4,6 +4,27 @@ package com.openjarvis.voice
 internal object SpeechLanguage {
     val recognitionLocales: List<String> = listOf("hi-IN", "mr-IN", "en-IN")
 
+    val commandBiasingPhrases: List<String> = listOf(
+        "Jarvis", "open", "launch", "close", "back", "home", "settings",
+        "call", "phone", "message", "WhatsApp", "Instagram", "YouTube",
+        "Google Maps", "Bluetooth", "Wi-Fi", "volume", "brightness",
+        "screenshot", "torch", "flashlight", "alarm", "timer", "reminder",
+        "search", "scroll", "tap", "swipe", "खोलो", "बंद करो", "वापस",
+        "कॉल करो", "मैसेज भेजो", "उघड", "बंद कर", "मागे जा", "फोन लाव",
+        "मेसेज पाठव"
+    )
+
+    fun selectBestTranscript(matches: List<String>?, confidenceScores: FloatArray?): String? {
+        val candidates = matches.orEmpty().mapIndexedNotNull { index, raw ->
+            val value = raw.trim()
+            if (value.isEmpty()) null else Triple(index, value, confidenceScores?.getOrNull(index))
+        }
+        return candidates.maxWithOrNull(
+            compareBy<Triple<Int, String, Float?>> { it.third ?: Float.NEGATIVE_INFINITY }
+                .thenBy { -it.first }
+        )?.second
+    }
+
     fun preferredRecognitionLocale(deviceLanguage: String): String = when (deviceLanguage.lowercase()) {
         "mr" -> "mr-IN"
         "en" -> "en-IN"
