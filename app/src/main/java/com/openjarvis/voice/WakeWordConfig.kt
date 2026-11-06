@@ -11,8 +11,8 @@ object WakeWordConfig {
 
     enum class Sensitivity(val title: String, val threshold: Float, val keywordBoost: Float) {
         LOW("Low", 0.28f, 1.2f),
-        MEDIUM("Medium", 0.20f, 1.7f),
-        HIGH("High", 0.12f, 2.2f);
+        MEDIUM("Medium", 0.10f, 2.5f),
+        HIGH("High", 0.05f, 3.0f);
 
         companion object {
             fun fromPreference(value: String?): Sensitivity =
