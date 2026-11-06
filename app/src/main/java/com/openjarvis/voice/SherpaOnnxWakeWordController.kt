@@ -55,7 +55,8 @@ class SherpaOnnxWakeWordController(
                 modelConfig = model,
                 keywordsFile = keywordFile,
                 keywordsScore = keywordBoost,
-                keywordsThreshold = threshold
+                keywordsThreshold = threshold,
+                numTrailingBlanks = 1
             )
             val createdSpotter = KeywordSpotter(assetManager = appContext.assets, config = config)
             // prepare-sherpa.sh generates the model-compatible BPE keyword file
