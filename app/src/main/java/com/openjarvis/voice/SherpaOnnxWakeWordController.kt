@@ -217,7 +217,7 @@ class SherpaOnnxWakeWordController(
                     if (keyword.isNotBlank()) {
                         kws.reset(inputStream)
                         val now = System.currentTimeMillis()
-                        if (now - lastWakeWordAtMs >= WAKE_WORD_COOLDOWN_MS) {
+                        if (WakeWordDetectionPolicy.shouldAccept(now, lastWakeWordAtMs)) {
                             lastWakeWordAtMs = now
                             WakeWordDiagnostics.detected(keyword, score = null)
                             Log.i(TAG, "Offline wake word detected: keyword=$keyword score=unavailable")
@@ -263,6 +263,5 @@ class SherpaOnnxWakeWordController(
 
     companion object {
         private const val TAG = "JarvisSherpaKws"
-        private const val WAKE_WORD_COOLDOWN_MS = 2_000L
     }
 }
