@@ -209,6 +209,7 @@ ${rawResponse.take(1000)}
                     val pipelineSteps = CommandSplitter.split(safeCommand) { canParsePipelineStep(it) }
                     if (pipelineSteps.size > 1) {
                         _state.value = AgentState.Running("executing ${pipelineSteps.size} steps...")
+                        skillEngine.loadSkills()
                         val run = createStepPipeline().run(pipelineSteps)
                         AgentDiagnostics.recordPipeline(context, safeCommand, run.traces, run.skipped)
                         val result = run.failureMessage(pipelineSteps.size)
@@ -1447,9 +1448,44 @@ ${fullSystem.substringAfter("MEMORY:")}
                 override suspend fun handle(step: String, ctx: StepContext): StepOutcome? {
                     val command = FastCommandParser.parse(step) ?: return null
                     return try {
-                        StepOutcome(true, executeFastCommand(command), ctx)
+                        val reply = executeFastCommand(command)
+                        val nextContext = when (command) {
+                            is FastCommandParser.Command.OpenApp -> ctx.copy(app = command.target)
+                            is FastCommandParser.Command.DialContact -> ctx.copy(contact = command.name)
+                            else -> ctx
+                        }
+                        StepOutcome(true, reply, nextContext)
                     } catch (error: Exception) {
                         StepOutcome(false, error.message?.takeIf { it.isNotBlank() } ?: error.javaClass.simpleName, ctx)
+                    }
+                }
+            },
+            object : StepHandler {
+                override val name: String = "learned"
+
+                override suspend fun handle(step: String, ctx: StepContext): StepOutcome? {
+                    val learnedSkill = skillEngine.findLearnedMatch(step) ?: return null
+                    val learnedActions = resolveOpenAppTargets(
+                        learnedSkill.actionTemplate,
+                        step,
+                        getInstalledLauncherApps()
+                    )
+                    if (!AgentPlanPolicy.isExecutablePlan(learnedActions, step)) {
+                        skillEngine.recordUsage(learnedSkill.id, false)
+                        Log.w(TAG, "Learned pipeline skill rejected by final action-plan safety policy: ${learnedSkill.id}")
+                        return null
+                    }
+
+                    val execution = executeActions(learnedActions)
+                    skillEngine.recordUsage(learnedSkill.id, execution.succeeded)
+                    return if (execution.succeeded) {
+                        StepOutcome(true, "Completed learned skill: ${learnedSkill.name}", ctx)
+                    } else {
+                        StepOutcome(
+                            false,
+                            execution.failure ?: "Learned skill execution failed",
+                            ctx
+                        )
                     }
                 }
             }
