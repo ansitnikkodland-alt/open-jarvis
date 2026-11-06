@@ -18,6 +18,10 @@ import android.graphics.drawable.GradientDrawable
 import android.os.Build
 import android.os.IBinder
 import android.os.PowerManager
+import android.os.Vibrator
+import android.os.VibrationEffect
+import android.media.AudioManager
+import android.media.ToneGenerator
 import android.os.Handler
 import android.os.Looper
 import android.provider.Settings
@@ -533,6 +537,23 @@ class OverlayService : Service() {
         }
     }
 
+    private fun provideWakeWordFeedback() {
+        runCatching {
+            val vibrator = getSystemService(Context.VIBRATOR_SERVICE) as Vibrator
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                vibrator.vibrate(VibrationEffect.createOneShot(55L, VibrationEffect.DEFAULT_AMPLITUDE))
+            } else {
+                @Suppress("DEPRECATION")
+                vibrator.vibrate(55L)
+            }
+        }
+        runCatching {
+            val tone = ToneGenerator(AudioManager.STREAM_NOTIFICATION, 55)
+            tone.startTone(ToneGenerator.TONE_PROP_ACK, 100)
+            mainHandler.postDelayed({ tone.release() }, 180L)
+        }
+    }
+
     private fun runSimulatedWakeWordFlow(transcript: String) {
         if (transcript.isBlank()) {
             statusText?.text = "Simulation needs a recognized command"
@@ -554,10 +575,11 @@ class OverlayService : Service() {
         stopWakeWordListening()
         activationGate.activate(ActivationGate.Source.WAKE_WORD)
         markWakeWordCommandPending()
+        provideWakeWordFeedback()
         statusText?.text = if (wasMuted) {
-            "Jarvis heard — say unmute ho ja"
+            "Jarvis ✓ — say unmute ho ja"
         } else {
-            "Yes? Listening for your command…"
+            "Jarvis ✓ — listening for your command…"
         }
         voiceManager.startListening()
     }
@@ -607,7 +629,20 @@ class OverlayService : Service() {
     }
 
     private fun copyLatestDebugLog() {
-        val report = com.openjarvis.agent.AgentDiagnostics.latest(this)
+        val baseReport = com.openjarvis.agent.AgentDiagnostics.latest(this)
+        val wake = com.openjarvis.voice.WakeWordDiagnostics.snapshot()
+        val detectionAt = wake.lastDetectionAtMs?.let {
+            android.text.format.DateFormat.format("yyyy-MM-dd HH:mm:ss", java.util.Date(it)).toString()
+        } ?: "never"
+        val wakeReport = buildString {
+            appendLine("Wake-word diagnostics:")
+            appendLine("engine=${wake.engineName}, state=${wake.state}, micPermission=${wake.micPermissionGranted}")
+            appendLine("framesProcessed=${wake.framesProcessed}, liveRms=${"%.4f".format(wake.rms)}")
+            appendLine("lastDetectionAt=$detectionAt, keyword=${wake.lastDetectionKeyword ?: "none"}, score=${wake.lastDetectionScore?.toString() ?: "unavailable"}")
+            appendLine("keywords=${wake.keywords.joinToString()}, threshold=${wake.threshold}, keywordBoost=${wake.keywordBoost}")
+            appendLine("lastError=${wake.lastError ?: "none"}")
+        }
+        val report = "$baseReport\n\n$wakeReport"
         val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
         clipboard.setPrimaryClip(ClipData.newPlainText("JARVIS Debug Log", report))
         Toast.makeText(this, "Debug log copied. Paste it here in ChatGPT.", Toast.LENGTH_LONG).show()
