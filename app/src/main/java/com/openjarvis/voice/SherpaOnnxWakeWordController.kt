@@ -4,6 +4,8 @@ import android.content.Context
 import android.media.AudioFormat
 import android.media.AudioRecord
 import android.media.MediaRecorder
+import android.media.audiofx.AutomaticGainControl
+import android.media.audiofx.NoiseSuppressor
 import android.os.Build
 import android.util.Log
 import android.content.pm.PackageManager
@@ -29,6 +31,8 @@ class SherpaOnnxWakeWordController(
     private var spotter: KeywordSpotter? = null
     private var stream: com.k2fsa.sherpa.onnx.OnlineStream? = null
     private var recorder: AudioRecord? = null
+    private var automaticGainControl: AutomaticGainControl? = null
+    private var noiseSuppressor: NoiseSuppressor? = null
     private var worker: Thread? = null
     @Volatile private var lastWakeWordAtMs = 0L
 
@@ -91,9 +95,18 @@ class SherpaOnnxWakeWordController(
                 throw IllegalStateException("Android could not initialize microphone capture")
             }
 
+            // Enable device-provided processing when available. OEMs may not expose
+            // either effect; diagnostics record availability and actual enabled state.
+            val agc = runCatching { AutomaticGainControl.create(audio.audioSessionId) }.getOrNull()
+            val ns = runCatching { NoiseSuppressor.create(audio.audioSessionId) }.getOrNull()
+            val agcEnabled = agc?.let { effect -> runCatching { effect.enabled = true; effect.enabled }.getOrDefault(false) } ?: false
+            val nsEnabled = ns?.let { effect -> runCatching { effect.enabled = true; effect.enabled }.getOrDefault(false) } ?: false
+
             spotter = createdSpotter
             stream = createdStream
             recorder = audio
+            automaticGainControl = agc
+            noiseSuppressor = ns
             audio.startRecording()
             if (audio.recordingState != AudioRecord.RECORDSTATE_RECORDING) {
                 throw IllegalStateException("Android microphone did not enter recording state")
@@ -110,6 +123,14 @@ class SherpaOnnxWakeWordController(
                 appContext, android.Manifest.permission.RECORD_AUDIO
             ) == PackageManager.PERMISSION_GRANTED
             WakeWordDiagnostics.started(micGranted, keywords, threshold, keywordBoost)
+            WakeWordDiagnostics.audioConfiguration(
+                agcAvailable = agc != null,
+                agcEnabled = agcEnabled,
+                noiseSuppressorAvailable = ns != null,
+                noiseSuppressorEnabled = nsEnabled,
+                audioSource = "MIC",
+                sampleRate = sampleRate
+            )
             worker = Thread({ processAudio(sampleRate) }, "JarvisSherpaKws").apply {
                 isDaemon = true
                 start()
@@ -160,8 +181,13 @@ class SherpaOnnxWakeWordController(
                     break
                 }
                 var energy = 0.0
+                var peak = 0f
+                var clippedSamples = 0
                 val samples = FloatArray(count) {
                     val value = buffer[it] / 32768.0f
+                    val magnitude = kotlin.math.abs(value)
+                    if (magnitude > peak) peak = magnitude
+                    if (magnitude >= 0.98f) clippedSamples++
                     energy += value * value
                     value
                 }
@@ -175,7 +201,7 @@ class SherpaOnnxWakeWordController(
                     running = false
                     break
                 }
-                WakeWordDiagnostics.audioFrame(rms)
+                WakeWordDiagnostics.audioFrame(rms, peak, clippedSamples)
                 inputStream.acceptWaveform(samples, sampleRate = sampleRate)
                 while (running && kws.isReady(inputStream)) {
                     kws.decode(inputStream)
@@ -214,6 +240,10 @@ class SherpaOnnxWakeWordController(
         worker?.interrupt()
         worker?.join(500)
         worker = null
+        automaticGainControl?.let { runCatching { it.release() } }
+        automaticGainControl = null
+        noiseSuppressor?.let { runCatching { it.release() } }
+        noiseSuppressor = null
         stream?.let { runCatching { it.release() } }
         stream = null
         spotter?.let { runCatching { it.release() } }
