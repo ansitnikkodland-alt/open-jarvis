@@ -37,8 +37,10 @@ import com.openjarvis.llm.UniversalAdapter
 import com.openjarvis.llm.providers.OllamaProvider
 import com.openjarvis.llm.providers.OllamaResponseParser
 import com.openjarvis.voice.WakeWordConfig
+import com.openjarvis.voice.WakeWordDiagnostics
 import com.openjarvis.ui.theme.VoidColor
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.delay
 
 @Composable
 fun SettingsScreen(
@@ -93,6 +95,15 @@ fun SettingsScreen(
     var voiceEnabled by remember { mutableStateOf(voicePrefs.getBoolean("voice_enabled", false)) }
     var wakeWordAccessKey by remember { mutableStateOf(voicePrefs.getString(WakeWordConfig.PREFERENCE_KEY, "") ?: "") }
     var showWakeWordKey by remember { mutableStateOf(false) }
+    var wakeWordTestCommand by remember { mutableStateOf("open settings") }
+    var wakeWordDiagnostics by remember { mutableStateOf(WakeWordDiagnostics.snapshot()) }
+
+    LaunchedEffect(voiceEnabled) {
+        while (voiceEnabled) {
+            wakeWordDiagnostics = WakeWordDiagnostics.snapshot()
+            delay(250)
+        }
+    }
     var speakResults by remember { mutableStateOf(voicePrefs.getBoolean("speak_results", true)) }
     var speechRate by remember { mutableStateOf(1.05f) }
     var sttMode by remember { mutableStateOf("Push to Talk") }
@@ -332,6 +343,71 @@ fun SettingsScreen(
                         text = "Primary engine: sherpa-onnx — no key needed. Add a Picovoice key only for optional fallback.",
                         style = TextStyle(fontSize = 11.sp, color = VoidColor.TextDisabled)
                     )
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    SectionLabel("WAKE WORD TEST")
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Surface(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(16.dp),
+                        color = VoidColor.Void900,
+                        border = BorderStroke(1.dp, VoidColor.BorderSubtle)
+                    ) {
+                        Column(modifier = Modifier.padding(14.dp)) {
+                            Text("Engine: ${wakeWordDiagnostics.engineName}", color = VoidColor.TextPrimary, fontSize = 12.sp)
+                            Text(
+                                "State: ${wakeWordDiagnostics.state}  •  Mic permission: ${if (wakeWordDiagnostics.micPermissionGranted) "GRANTED" else "NOT GRANTED"}",
+                                color = VoidColor.TextSecondary, fontSize = 11.sp
+                            )
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text("Live microphone RMS", color = VoidColor.TextSecondary, fontSize = 11.sp)
+                            LinearProgressIndicator(
+                                progress = wakeWordDiagnostics.rms.coerceIn(0f, 1f),
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                            Text(
+                                "RMS ${"%.3f".format(wakeWordDiagnostics.rms)}  •  Frames processed: ${wakeWordDiagnostics.framesProcessed}",
+                                color = VoidColor.TextSecondary, fontSize = 11.sp
+                            )
+                            val detectedAt = wakeWordDiagnostics.lastDetectionAtMs?.let {
+                                android.text.format.DateFormat.format("HH:mm:ss", java.util.Date(it)).toString()
+                            } ?: "Never"
+                            Text("Last detection: $detectedAt (${wakeWordDiagnostics.lastDetectionKeyword ?: "—"})", color = VoidColor.TextSecondary, fontSize = 11.sp)
+                            Text(
+                                "Last score: ${wakeWordDiagnostics.lastDetectionScore?.let { "%.3f".format(it) } ?: "Unavailable in Sherpa result API"}",
+                                color = VoidColor.TextSecondary, fontSize = 11.sp
+                            )
+                            Text("Keywords: ${wakeWordDiagnostics.keywords.joinToString().ifBlank { "Not loaded" }}", color = VoidColor.TextSecondary, fontSize = 11.sp)
+                            Text(
+                                "Threshold: ${wakeWordDiagnostics.threshold}  •  Keyword boost: ${wakeWordDiagnostics.keywordBoost}",
+                                color = VoidColor.TextSecondary, fontSize = 11.sp
+                            )
+                            wakeWordDiagnostics.lastError?.let {
+                                Text("Last error: $it", color = VoidColor.Red, fontSize = 11.sp)
+                            }
+                            Spacer(modifier = Modifier.height(10.dp))
+                            OutlinedTextField(
+                                value = wakeWordTestCommand,
+                                onValueChange = { wakeWordTestCommand = it },
+                                label = { Text("Simulated recognized command") },
+                                modifier = Modifier.fillMaxWidth(),
+                                singleLine = true
+                            )
+                            Button(
+                                onClick = {
+                                    com.openjarvis.ui.OverlayService.simulateWakeWordDetection(context, wakeWordTestCommand)
+                                },
+                                modifier = Modifier.fillMaxWidth(),
+                                enabled = wakeWordTestCommand.isNotBlank()
+                            ) {
+                                Text("Simulate detection (no mic)")
+                            }
+                            Text(
+                                "Injects a synthetic STT transcript into the post-wake command path. It does not test microphone capture or speech recognition.",
+                                color = VoidColor.TextDisabled, fontSize = 10.sp
+                            )
+                        }
+                    }
                     Spacer(modifier = Modifier.height(12.dp))
 
                     SettingsToggleRow(

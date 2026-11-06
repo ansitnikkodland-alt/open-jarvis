@@ -5,6 +5,9 @@ import android.media.AudioFormat
 import android.media.AudioRecord
 import android.media.MediaRecorder
 import android.util.Log
+import android.content.pm.PackageManager
+import androidx.core.content.ContextCompat
+import kotlin.math.sqrt
 import com.k2fsa.sherpa.onnx.KeywordSpotter
 import com.k2fsa.sherpa.onnx.KeywordSpotterConfig
 import com.k2fsa.sherpa.onnx.getFeatureConfig
@@ -35,10 +38,20 @@ class SherpaOnnxWakeWordController(
             val sampleRate = 16_000
             val model = getKwsModelConfig(type = 1)
                 ?: throw IllegalStateException("English sherpa KWS model config is unavailable")
+            val keywordFile = getKeywordsFile(type = 1)
+            val keywords = runCatching {
+                appContext.assets.open(keywordFile).bufferedReader().useLines { lines ->
+                    lines.map { it.trim() }.filter { it.isNotEmpty() }.toList()
+                }
+            }.getOrDefault(emptyList())
+            val threshold = DEFAULT_KEYWORD_THRESHOLD
+            val keywordBoost = DEFAULT_KEYWORD_BOOST
             val config = KeywordSpotterConfig(
                 featConfig = getFeatureConfig(sampleRate = sampleRate, featureDim = 80),
                 modelConfig = model,
-                keywordsFile = getKeywordsFile(type = 1)
+                keywordsFile = keywordFile,
+                keywordsScore = keywordBoost,
+                keywordsThreshold = threshold
             )
             val createdSpotter = KeywordSpotter(assetManager = appContext.assets, config = config)
             // prepare-sherpa.sh generates the model-compatible BPE keyword file
@@ -81,6 +94,10 @@ class SherpaOnnxWakeWordController(
                 throw IllegalStateException("Android microphone did not enter recording state")
             }
             running = true
+            val micGranted = ContextCompat.checkSelfPermission(
+                appContext, android.Manifest.permission.RECORD_AUDIO
+            ) == PackageManager.PERMISSION_GRANTED
+            WakeWordDiagnostics.started(micGranted, keywords, threshold, keywordBoost)
             worker = Thread({ processAudio(sampleRate) }, "JarvisSherpaKws").apply {
                 isDaemon = true
                 start()
@@ -92,6 +109,7 @@ class SherpaOnnxWakeWordController(
             val detail = error.message?.takeIf { it.isNotBlank() } ?: error.javaClass.simpleName
             Log.e(TAG, "sherpa-onnx wake-word initialization failed: $detail", error)
             val friendly = "Offline JARVIS wake-word model start nahi hua: $detail. Manual mic abhi bhi use kar sakte ho."
+            WakeWordDiagnostics.failed(detail)
             onError(friendly)
             friendly
         }
@@ -106,11 +124,21 @@ class SherpaOnnxWakeWordController(
             while (running && !Thread.currentThread().isInterrupted) {
                 val count = audio.read(buffer, 0, buffer.size)
                 if (count <= 0) {
-                    if (running) onError("Wake-word microphone read failed (AudioRecord=$count)")
+                    if (running) {
+                        WakeWordDiagnostics.failed("AudioRecord read returned $count")
+                        onError("Wake-word microphone read failed (AudioRecord=$count)")
+                    }
                     running = false
                     break
                 }
-                val samples = FloatArray(count) { buffer[it] / 32768.0f }
+                var energy = 0.0
+                val samples = FloatArray(count) {
+                    val value = buffer[it] / 32768.0f
+                    energy += value * value
+                    value
+                }
+                val rms = if (count > 0) sqrt(energy / count).toFloat() else 0f
+                WakeWordDiagnostics.audioFrame(rms)
                 inputStream.acceptWaveform(samples, sampleRate = sampleRate)
                 while (running && kws.isReady(inputStream)) {
                     kws.decode(inputStream)
@@ -120,14 +148,18 @@ class SherpaOnnxWakeWordController(
                         val now = System.currentTimeMillis()
                         if (now - lastWakeWordAtMs >= WAKE_WORD_COOLDOWN_MS) {
                             lastWakeWordAtMs = now
-                            Log.i(TAG, "Offline wake word detected")
+                            WakeWordDiagnostics.detected(keyword, score = null)
+                            Log.i(TAG, "Offline wake word detected: keyword=$keyword score=unavailable")
                             onWakeWord()
                         }
                     }
                 }
             }
         } catch (error: Exception) {
-            if (running) onError("Wake-word processing failed: ${error.message ?: error.javaClass.simpleName}")
+            if (running) {
+                WakeWordDiagnostics.failed(error.message ?: error.javaClass.simpleName)
+                onError("Wake-word processing failed: ${error.message ?: error.javaClass.simpleName}")
+            }
             Log.e(TAG, "sherpa-onnx audio loop failed", error)
             running = false
         }
@@ -149,6 +181,7 @@ class SherpaOnnxWakeWordController(
         stream = null
         spotter?.let { runCatching { it.release() } }
         spotter = null
+        WakeWordDiagnostics.stopped()
     }
 
     override fun isRunning(): Boolean = running
@@ -156,5 +189,7 @@ class SherpaOnnxWakeWordController(
     companion object {
         private const val TAG = "JarvisSherpaKws"
         private const val WAKE_WORD_COOLDOWN_MS = 2_000L
+        private const val DEFAULT_KEYWORD_THRESHOLD = 0.25f
+        private const val DEFAULT_KEYWORD_BOOST = 1.5f
     }
 }

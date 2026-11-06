@@ -181,6 +181,11 @@ class OverlayService : Service() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        if (intent?.action == ACTION_SIMULATE_WAKE_WORD) {
+            val transcript = intent.getStringExtra(EXTRA_SIMULATED_TRANSCRIPT).orEmpty()
+            mainHandler.post { runSimulatedWakeWordFlow(transcript) }
+            return START_STICKY
+        }
         // Re-check the saved AccessKey whenever the app asks the existing service to start.
         // This also refreshes wake-word setup after the user edits the key in Settings.
         if (::voiceManager.isInitialized) startWakeWordListening()
@@ -490,6 +495,20 @@ class OverlayService : Service() {
         }
     }
 
+    private fun runSimulatedWakeWordFlow(transcript: String) {
+        if (transcript.isBlank()) {
+            statusText?.text = "Simulation needs a recognized command"
+            return
+        }
+        if (!voiceManager.isVoiceEnabled()) {
+            statusText?.text = "Enable Voice Assistant before running the wake-word simulation"
+            return
+        }
+        activationGate.activate(ActivationGate.Source.WAKE_WORD)
+        statusText?.text = "Simulated Jarvis ✓ — injecting STT transcript"
+        submitCommand(transcript)
+    }
+
     private fun handleWakeWordDetected() {
         if (!voiceManager.isVoiceEnabled() || wakeWordCommandPending) return
         val wasMuted = mutedUntilWakeWord
@@ -575,6 +594,20 @@ class OverlayService : Service() {
 
     companion object {
         private const val CHANNEL_ID = "jarvis_overlay_channel"
+        private const val ACTION_SIMULATE_WAKE_WORD = "com.openjarvis.action.SIMULATE_WAKE_WORD"
+        private const val EXTRA_SIMULATED_TRANSCRIPT = "simulated_transcript"
+
+        fun simulateWakeWordDetection(context: Context, transcript: String) {
+            val intent = Intent(context, OverlayService::class.java).apply {
+                action = ACTION_SIMULATE_WAKE_WORD
+                putExtra(EXTRA_SIMULATED_TRANSCRIPT, transcript)
+            }
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                androidx.core.content.ContextCompat.startForegroundService(context, intent)
+            } else {
+                context.startService(intent)
+            }
+        }
         private const val NOTIFICATION_ID = 1
         fun start(context: Context) {
             context.startForegroundService(Intent(context, OverlayService::class.java))
