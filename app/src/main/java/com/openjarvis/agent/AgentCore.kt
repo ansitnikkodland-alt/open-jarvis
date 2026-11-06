@@ -50,6 +50,7 @@ class AgentCore(private val context: Context) {
     private val aiAppInteractor = AIAppInteractor(context)
     private val personalMemoryStore = PersonalMemoryStore(context)
     private val skillEngine = SkillEngine(context)
+    private val nativeLearnedStore = NativeLearnedStore(context)
 
     private var workingMemory = TaskWorkingMemory()
     private val contactFollowUpWindow = ContactFollowUpWindow()
@@ -1341,10 +1342,24 @@ ${fullSystem.substringAfter("MEMORY:")}
                         )
                     }
 
+                    // Exact native learned matches run before parsing/LLM and are replayed
+                    // only as typed native intents, never as arbitrary UI action plans.
+                    val learnedNativeIntent = nativeLearnedStore.find(step)
+                    if (learnedNativeIntent != null) {
+                        return try {
+                            val reply = executeStepIntent(learnedNativeIntent)
+                            StepOutcome(true, reply, ctx)
+                        } catch (error: Exception) {
+                            StepOutcome(false, error.message?.takeIf { it.isNotBlank() } ?: error.javaClass.simpleName, ctx)
+                        }
+                    }
+
                     val intent = StepIntentParser.parse(step)
                     if (intent != null) {
                         return try {
                             val reply = executeStepIntent(intent)
+                            // Learning is success-only; failed execution is never persisted.
+                            nativeLearnedStore.save(step, intent)
                             val nextContext = if (intent is StepIntent.Message &&
                                 !intent.contact.isNullOrBlank() && !intent.text.isNullOrBlank()
                             ) {
