@@ -48,6 +48,7 @@ import com.openjarvis.voice.PorcupineWakeWordController
 import com.openjarvis.voice.WakeWordEngine
 import com.openjarvis.voice.SherpaOnnxWakeWordController
 import com.openjarvis.voice.WakeWordConfig
+import com.openjarvis.voice.WakeWordSessionStateMachine
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -86,20 +87,14 @@ class OverlayService : Service() {
     private var wakeWordRestartRunnable: Runnable? = null
     private val mainHandler = Handler(Looper.getMainLooper())
     private val activationGate = ActivationGate(windowMs = 10_000L, duplicateCooldownMs = 2_500L)
-    private var wakeWordCommandPending = false
-    private var wakeWordResponsePending = false
-    private var wakeWordTranscriptReceived = false
-    private var wakeWordPendingSinceMs = 0L
+    private val wakeWordSession = WakeWordSessionStateMachine(WAKE_WORD_STT_WATCHDOG_MS)
+    private val wakeWordCommandPending get() = wakeWordSession.commandPending
+    private val wakeWordResponsePending get() = wakeWordSession.responsePending
+    private val wakeWordTranscriptReceived get() = wakeWordSession.transcriptReceived
     private val wakeWordWatchdog = object : Runnable {
         override fun run() {
-            if (wakeWordCommandPending && wakeWordPendingSinceMs > 0L &&
-                System.currentTimeMillis() - wakeWordPendingSinceMs >= WAKE_WORD_STT_WATCHDOG_MS
-            ) {
+            wakeWordSession.onWatchdog(System.currentTimeMillis(), wakeWordController) {
                 android.util.Log.w("OpenJarvisWakeWord", "STT watchdog expired; clearing pending wake-word state")
-                wakeWordCommandPending = false
-                wakeWordResponsePending = false
-                wakeWordPendingSinceMs = 0L
-                wakeWordTranscriptReceived = false
                 activationGate.reset()
                 voiceManager.stopListening()
                 statusText?.text = "Voice capture timed out — wake word restarted"
@@ -137,11 +132,8 @@ class OverlayService : Service() {
             voiceManager.state.collect { state ->
                 when (state) {
                     is VoiceManager.VoiceState.Result -> {
-                        wakeWordCommandPending = false
-                        wakeWordPendingSinceMs = 0L
-                        wakeWordTranscriptReceived = true
+                        wakeWordSession.onTranscriptReceived()
                         if (awaitingUnmuteCommand) {
-                            wakeWordCommandPending = false
                             voiceManager.stopListening()
                             if (MuteCommandPolicy.isUnmuteCommand(state.text)) {
                                 awaitingUnmuteCommand = false
@@ -150,13 +142,12 @@ class OverlayService : Service() {
                                 voiceManager.speak("Jarvis is active. I am listening.") { resumeWakeWordAfterResponse() }
                             } else {
                                 statusText?.text = "Still muted — say Jarvis, then say unmute ho ja"
-                                wakeWordResponsePending = false
+                                wakeWordSession.clearPending()
                                 startWakeWordListening()
                             }
                             return@collect
                         }
                         if (MuteCommandPolicy.isUnmuteCommand(state.text)) {
-                            wakeWordCommandPending = false
                             voiceManager.stopListening()
                             mutedUntilWakeWord = false
                             statusText?.text = "JARVIS active"
@@ -164,12 +155,11 @@ class OverlayService : Service() {
                             return@collect
                         }
                         if (MuteCommandPolicy.isMuteCommand(state.text)) {
-                            wakeWordCommandPending = false
                             enterMuteMode()
                             return@collect
                         }
                         if (wakeWordCommandPending) {
-                            wakeWordCommandPending = false
+                            wakeWordSession.onTranscriptReceived()
                             voiceManager.stopListening()
                         }
                         commandInput?.setText(state.text)
@@ -189,16 +179,14 @@ class OverlayService : Service() {
                     is VoiceManager.VoiceState.Transcribing -> setVisualState("THINKING", "Thinking…")
                     is VoiceManager.VoiceState.Speaking -> setVisualState("SPEAKING", "Speaking…")
                     is VoiceManager.VoiceState.Idle -> {
-                        val wasWaitingForTranscript = wakeWordCommandPending
-                        // Idle can be emitted when STT ends without a Result. Always
-                        // clear stale flags here; only re-arm immediately when no
-                        // transcript was delivered (a real command resumes after TTS).
-                        clearWakeWordPendingState()
-                        setVisualState("IDLE", "Ready — type a command or use mic")
-                        if (wasWaitingForTranscript && !wakeWordTranscriptReceived) {
+                        // Always clear both flags on Idle. If STT ended without a
+                        // transcript, re-arm immediately; successful transcripts resume
+                        // after the agent response/TTS callback.
+                        wakeWordSession.onIdle(wakeWordController) {
                             activationGate.reset()
                             serviceScope.launch { delay(350); startWakeWordListening() }
                         }
+                        setVisualState("IDLE", "Ready — type a command or use mic")
                     }
                 }
             }
@@ -488,7 +476,7 @@ class OverlayService : Service() {
         }
         if (wakeWordController?.isRunning() == true) {
             stopWakeWordListening()
-            wakeWordResponsePending = true
+            wakeWordSession.markResponsePending()
         }
         statusText?.text = "Jarvis is working…"
         voiceManager.markThinking()
@@ -623,16 +611,11 @@ class OverlayService : Service() {
     }
 
     private fun markWakeWordCommandPending() {
-        wakeWordCommandPending = true
-        wakeWordResponsePending = true
-        wakeWordTranscriptReceived = false
-        wakeWordPendingSinceMs = System.currentTimeMillis()
+        wakeWordSession.beginCommand()
     }
 
     private fun clearWakeWordPendingState() {
-        wakeWordCommandPending = false
-        wakeWordResponsePending = false
-        wakeWordPendingSinceMs = 0L
+        wakeWordSession.reset()
     }
 
     private fun stopWakeWordListening(cancelRestart: Boolean = true) {
@@ -662,7 +645,7 @@ class OverlayService : Service() {
 
     private fun resumeWakeWordAfterResponse() {
         clearWakeWordPendingState()
-        wakeWordTranscriptReceived = false
+        wakeWordSession.finishResponse()
         if (!voiceManager.isVoiceEnabled()) return
         serviceScope.launch {
             delay(500)
