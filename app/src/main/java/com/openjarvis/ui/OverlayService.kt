@@ -82,6 +82,8 @@ class OverlayService : Service() {
     private var wakeWordController: WakeWordEngine? = null
     private var wakeWordControllerKey: String? = null
     private var wakeWordCpuLock: PowerManager.WakeLock? = null
+    private var wakeWordRestartAttempt = 0
+    private var wakeWordRestartRunnable: Runnable? = null
     private val mainHandler = Handler(Looper.getMainLooper())
     private val activationGate = ActivationGate(windowMs = 10_000L, duplicateCooldownMs = 2_500L)
     private var wakeWordCommandPending = false
@@ -248,6 +250,8 @@ class OverlayService : Service() {
         visualState = "IDLE"
         mainHandler.removeCallbacks(waveformRunnable)
         mainHandler.removeCallbacks(wakeWordWatchdog)
+        wakeWordRestartRunnable?.let { mainHandler.removeCallbacks(it) }
+        wakeWordRestartRunnable = null
         waveformText = null
         clearWakeWordPendingState()
         stopWakeWordListening()
@@ -519,7 +523,7 @@ class OverlayService : Service() {
             wakeWordController = SherpaOnnxWakeWordController(
                 this,
                 onWakeWord = { mainHandler.post { handleWakeWordDetected() } },
-                onError = { message -> mainHandler.post { statusText?.text = "Wake-word error: $message"; if (wakeWordController?.isRunning() != true) stopWakeWordListening() } }
+                onError = { message -> mainHandler.post { scheduleWakeWordRestart(message) } }
             )
         }
         var error = wakeWordController?.start()
@@ -529,12 +533,20 @@ class OverlayService : Service() {
                 this,
                 accessKey,
                 onWakeWord = { mainHandler.post { handleWakeWordDetected() } },
-                onError = { message -> mainHandler.post { statusText?.text = "Wake-word error: $message" } }
+                onError = { message -> mainHandler.post { scheduleWakeWordRestart(message) } }
             )
             wakeWordControllerKey = accessKey
             error = wakeWordController?.start()
         }
-        if (error == null) acquireWakeWordCpuLock() else releaseWakeWordCpuLock()
+        if (error == null) {
+            wakeWordRestartAttempt = 0
+            wakeWordRestartRunnable?.let { mainHandler.removeCallbacks(it) }
+            wakeWordRestartRunnable = null
+            acquireWakeWordCpuLock()
+        } else {
+            releaseWakeWordCpuLock()
+            scheduleWakeWordRestart(error)
+        }
         statusText?.text = error ?: if (mutedUntilWakeWord) {
             "MUTED — say Jarvis to wake"
         } else if (wakeWordController is SherpaOnnxWakeWordController) {
@@ -591,6 +603,25 @@ class OverlayService : Service() {
         voiceManager.startListening()
     }
 
+    private fun scheduleWakeWordRestart(message: String) {
+        if (!::voiceManager.isInitialized || !voiceManager.isVoiceEnabled() || wakeWordCommandPending) {
+            statusText?.text = "Wake-word unavailable: $message"
+            return
+        }
+        stopWakeWordListening(cancelRestart = false)
+        wakeWordRestartRunnable?.let { mainHandler.removeCallbacks(it) }
+        val delays = longArrayOf(1_000L, 2_000L, 4_000L, 8_000L, 15_000L)
+        val retryDelay = delays[wakeWordRestartAttempt.coerceIn(0, delays.lastIndex)]
+        wakeWordRestartAttempt = (wakeWordRestartAttempt + 1).coerceAtMost(delays.lastIndex)
+        statusText?.text = "Mic/wake-word error: $message — retry in ${retryDelay / 1_000}s"
+        val retry = Runnable {
+            wakeWordRestartRunnable = null
+            if (voiceManager.isVoiceEnabled() && !wakeWordCommandPending) startWakeWordListening()
+        }
+        wakeWordRestartRunnable = retry
+        mainHandler.postDelayed(retry, retryDelay)
+    }
+
     private fun markWakeWordCommandPending() {
         wakeWordCommandPending = true
         wakeWordResponsePending = true
@@ -604,7 +635,11 @@ class OverlayService : Service() {
         wakeWordPendingSinceMs = 0L
     }
 
-    private fun stopWakeWordListening() {
+    private fun stopWakeWordListening(cancelRestart: Boolean = true) {
+        if (cancelRestart) {
+            wakeWordRestartRunnable?.let { mainHandler.removeCallbacks(it) }
+            wakeWordRestartRunnable = null
+        }
         wakeWordController?.stop()
         releaseWakeWordCpuLock()
     }

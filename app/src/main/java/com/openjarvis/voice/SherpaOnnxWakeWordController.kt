@@ -4,6 +4,7 @@ import android.content.Context
 import android.media.AudioFormat
 import android.media.AudioRecord
 import android.media.MediaRecorder
+import android.os.Build
 import android.util.Log
 import android.content.pm.PackageManager
 import androidx.core.content.ContextCompat
@@ -96,6 +97,13 @@ class SherpaOnnxWakeWordController(
             if (audio.recordingState != AudioRecord.RECORDSTATE_RECORDING) {
                 throw IllegalStateException("Android microphone did not enter recording state")
             }
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q &&
+                audio.activeRecordingConfiguration?.isClientSilenced == true
+            ) {
+                throw IllegalStateException(
+                    "Microphone is silenced by Android because another app has capture priority (Google Assistant or another recorder)."
+                )
+            }
             running = true
             val micGranted = ContextCompat.checkSelfPermission(
                 appContext, android.Manifest.permission.RECORD_AUDIO
@@ -111,7 +119,14 @@ class SherpaOnnxWakeWordController(
             stop()
             val detail = error.message?.takeIf { it.isNotBlank() } ?: error.javaClass.simpleName
             Log.e(TAG, "sherpa-onnx wake-word initialization failed: $detail", error)
-            val friendly = "Offline JARVIS wake-word model start nahi hua: $detail. Manual mic abhi bhi use kar sakte ho."
+            val micProblem = detail.contains("microphone", ignoreCase = true) ||
+                detail.contains("AudioRecord", ignoreCase = true) ||
+                detail.contains("silenced", ignoreCase = true)
+            val friendly = if (micProblem) {
+                "Microphone unavailable: $detail. Google Assistant/Recorder ko mic chhodne do; JARVIS retry karega."
+            } else {
+                "Offline JARVIS wake-word model start nahi hua: $detail. Manual mic abhi bhi use kar sakte ho."
+            }
             WakeWordDiagnostics.failed(detail)
             onError(friendly)
             friendly
@@ -128,8 +143,17 @@ class SherpaOnnxWakeWordController(
                 val count = audio.read(buffer, 0, buffer.size)
                 if (count <= 0) {
                     if (running) {
-                        WakeWordDiagnostics.failed("AudioRecord read returned $count")
-                        onError("Wake-word microphone read failed (AudioRecord=$count)")
+                        val message = when (count) {
+                            AudioRecord.ERROR_INVALID_OPERATION ->
+                                "Microphone unavailable or already in use by another app (for example Google Assistant)."
+                            AudioRecord.ERROR_DEAD_OBJECT ->
+                                "Microphone capture was disconnected. JARVIS will retry."
+                            AudioRecord.ERROR_BAD_VALUE ->
+                                "Microphone rejected the requested audio format."
+                            else -> "Microphone read failed (AudioRecord=$count)."
+                        }
+                        WakeWordDiagnostics.failed(message)
+                        onError(message)
                     }
                     running = false
                     break
@@ -141,6 +165,15 @@ class SherpaOnnxWakeWordController(
                     value
                 }
                 val rms = if (count > 0) sqrt(energy / count).toFloat() else 0f
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q &&
+                    audio.activeRecordingConfiguration?.isClientSilenced == true
+                ) {
+                    val message = "Microphone is silenced by Android because another app has capture priority (Google Assistant or another recorder)."
+                    WakeWordDiagnostics.failed(message)
+                    onError(message)
+                    running = false
+                    break
+                }
                 WakeWordDiagnostics.audioFrame(rms)
                 inputStream.acceptWaveform(samples, sampleRate = sampleRate)
                 while (running && kws.isReady(inputStream)) {
