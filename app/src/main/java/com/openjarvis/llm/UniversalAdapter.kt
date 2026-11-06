@@ -55,6 +55,20 @@ class UniversalAdapter(private val context: Context) {
         timeoutMs: Long
     ): Result<String> = getActiveProvider().completeSkillWithDeadline(systemPrompt, userMessage, timeoutMs)
 
+    suspend fun completeNativeIntentWithDeadline(
+        systemPrompt: String,
+        userMessage: String,
+        timeoutMs: Long
+    ): Result<String> {
+        if (timeoutMs <= 0L) return Result.failure(IllegalStateException("LLM time budget exceeded (45 seconds)."))
+        val provider = OllamaProvider(
+            OllamaProvider.DEFAULT_BASE_URL,
+            "qwen3:1.7b",
+            context.applicationContext
+        )
+        return provider.completeNativeIntentWithDeadline(systemPrompt, userMessage, timeoutMs)
+    }
+
     suspend fun testConnection(): Result<Long> = getActiveProvider().testConnection()
     
     fun saveSettings(name: String, baseUrl: String, apiKey: String, model: String) {
