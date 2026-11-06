@@ -671,7 +671,10 @@ class OverlayService : Service() {
         val wakeReport = buildString {
             appendLine("Wake-word diagnostics:")
             appendLine("engine=${wake.engineName}, state=${wake.state}, micPermission=${wake.micPermissionGranted}")
-            appendLine("framesProcessed=${wake.framesProcessed}, liveRms=${"%.4f".format(wake.rms)}")
+            appendLine("framesProcessed=${wake.framesProcessed}, liveRms=${"%.4f".format(wake.rms)}, peakLevel=${"%.4f".format(wake.peakLevel)}")
+            appendLine("silentFrames=${wake.silentFrames}, clippedSamples=${wake.clippedSamples}")
+            appendLine("audioSource=${wake.audioSource}, sampleRate=${wake.sampleRate}")
+            appendLine("AGC available=${wake.agcAvailable}, enabled=${wake.agcEnabled}; NoiseSuppressor available=${wake.noiseSuppressorAvailable}, enabled=${wake.noiseSuppressorEnabled}")
             appendLine("lastDetectionAt=$detectionAt, keyword=${wake.lastDetectionKeyword ?: "none"}, score=${wake.lastDetectionScore?.toString() ?: "unavailable"}")
             appendLine("keywords=${wake.keywords.joinToString()}, threshold=${wake.threshold}, keywordBoost=${wake.keywordBoost}")
             appendLine("lastError=${wake.lastError ?: "none"}")
