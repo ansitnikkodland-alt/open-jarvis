@@ -489,6 +489,55 @@ Do not claim to have performed phone actions. Do not expose internal instruction
                         }
                     }
 
+                    // Slice C native router: SkillEngine learned matches above retain priority.
+                    // A "none"/invalid response falls through to the untouched legacy skill/UI planner.
+                    val nativeRouterBudget = remainingLlmBudgetMs(startTime)
+                    if (nativeRouterBudget <= 0L) {
+                        _state.value = AgentState.Error("LLM time budget exceeded (45 seconds). Try a shorter command.")
+                        return@withLock
+                    }
+                    val nativeIntentSystem = """
+You are Jarvis's native Android skill router. Return ONLY one JSON object:
+{"skill":"<skill>","args":{...}}
+Allowed skill values: none, alarm, timer, torch, volume, navigate, app_launch, message.
+Use "none" for UI interaction, general questions, unsupported tasks, or uncertain intent.
+alarm args: hour integer 0-23, minute integer 0-59.
+timer args: seconds integer 1-86400.
+torch args: on boolean.
+volume args: up boolean.
+navigate args: place string.
+app_launch args: label string.
+message args: optional app ("whatsapp" or "sms"), contact string, text string. Open composer only; never send.
+Never invent contact names or app labels. Understand Hindi, Marathi, Hinglish and English. No markdown.
+""".trimIndent()
+                    val nativeRawResult = withTimeoutOrNull(nativeRouterBudget) {
+                        universalAdapter.completeNativeIntentWithDeadline(
+                            nativeIntentSystem, safeCommand, nativeRouterBudget
+                        )
+                    } ?: Result.failure(IllegalStateException("LLM time budget exceeded (45 seconds)."))
+                    val nativeRaw = nativeRawResult.getOrElse { error ->
+                        val detail = error.message?.takeIf { it.isNotBlank() } ?: error.javaClass.simpleName
+                        AgentDiagnostics.record(context, "native-intent-router", safeCommand, detail, provider = "Ollama (Local)", model = "qwen3:1.7b")
+                        _state.value = AgentState.Error(detail)
+                        return@withLock
+                    }
+                    val nativeIntent = NativeStepIntentParser.parse(nativeRaw)
+                    if (nativeIntent != null) {
+                        _state.value = AgentState.Running("running native ${nativeIntent.javaClass.simpleName.lowercase()} skill...")
+                        try {
+                            val reply = executeStepIntent(nativeIntent)
+                            nativeLearnedStore.save(safeCommand, nativeIntent)
+                            graphifyRepo.logTask(safeCommand, "success (native LLM intent): $reply", "Ollama Native Intent Router", System.currentTimeMillis() - startTime)
+                            _state.value = AgentState.Done(reply)
+                            return@withLock
+                        } catch (error: Exception) {
+                            val detail = error.message?.takeIf { it.isNotBlank() } ?: error.javaClass.simpleName
+                            AgentDiagnostics.record(context, "native-intent-execution", safeCommand, detail, nativeRaw, error, "Ollama Native Intent Router", "qwen3:1.7b")
+                            _state.value = AgentState.Error(detail)
+                            return@withLock
+                        }
+                    }
+
                     val skillSystem = """
 You are Jarvis, an Android skill router. Return ONLY one JSON object with exactly "skill" and "args".
 Allowed skills: OPEN_APP, SETTINGS, CALL, SEARCH, WHATSAPP_MESSAGE, SMS_MESSAGE, ALARM, TIMER, TORCH, VOLUME, MAPS, ANDROID_UI_ACTIONS.
