@@ -228,6 +228,13 @@ class OverlayService : Service() {
             mainHandler.post { runSimulatedWakeWordFlow(transcript) }
             return START_STICKY
         }
+        if (intent?.action == ACTION_RESTART_WAKE_WORD) {
+            mainHandler.post {
+                stopWakeWordListening()
+                startWakeWordListening()
+            }
+            return START_STICKY
+        }
         // Re-check the saved AccessKey whenever the app asks the existing service to start.
         // This also refreshes wake-word setup after the user edits the key in Settings.
         if (::voiceManager.isInitialized) startWakeWordListening()
@@ -681,7 +688,17 @@ class OverlayService : Service() {
     companion object {
         private const val CHANNEL_ID = "jarvis_overlay_channel"
         private const val ACTION_SIMULATE_WAKE_WORD = "com.openjarvis.action.SIMULATE_WAKE_WORD"
+        private const val ACTION_RESTART_WAKE_WORD = "com.openjarvis.action.RESTART_WAKE_WORD"
         private const val EXTRA_SIMULATED_TRANSCRIPT = "simulated_transcript"
+
+        fun restartWakeWord(context: Context) {
+            val intent = Intent(context, OverlayService::class.java).setAction(ACTION_RESTART_WAKE_WORD)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                androidx.core.content.ContextCompat.startForegroundService(context, intent)
+            } else {
+                context.startService(intent)
+            }
+        }
 
         fun simulateWakeWordDetection(context: Context, transcript: String) {
             val intent = Intent(context, OverlayService::class.java).apply {

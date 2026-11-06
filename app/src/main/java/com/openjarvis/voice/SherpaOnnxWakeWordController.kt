@@ -39,13 +39,16 @@ class SherpaOnnxWakeWordController(
             val model = getKwsModelConfig(type = 1)
                 ?: throw IllegalStateException("English sherpa KWS model config is unavailable")
             val keywordFile = getKeywordsFile(type = 1)
-            val keywords = runCatching {
-                appContext.assets.open(keywordFile).bufferedReader().useLines { lines ->
-                    lines.map { it.trim() }.filter { it.isNotEmpty() }.toList()
-                }
-            }.getOrDefault(emptyList())
-            val threshold = DEFAULT_KEYWORD_THRESHOLD
-            val keywordBoost = DEFAULT_KEYWORD_BOOST
+            val keywordFileReadable = runCatching {
+                appContext.assets.open(keywordFile).use { true }
+            }.getOrDefault(false)
+            val keywords = if (keywordFileReadable) WakeWordConfig.KEYWORD_PHRASES else emptyList()
+            val sensitivity = WakeWordConfig.Sensitivity.fromPreference(
+                appContext.getSharedPreferences(WakeWordConfig.SENSITIVITY_PREFS, Context.MODE_PRIVATE)
+                    .getString(WakeWordConfig.SENSITIVITY_KEY, WakeWordConfig.Sensitivity.MEDIUM.name)
+            )
+            val threshold = sensitivity.threshold
+            val keywordBoost = sensitivity.keywordBoost
             val config = KeywordSpotterConfig(
                 featConfig = getFeatureConfig(sampleRate = sampleRate, featureDim = 80),
                 modelConfig = model,
@@ -189,7 +192,5 @@ class SherpaOnnxWakeWordController(
     companion object {
         private const val TAG = "JarvisSherpaKws"
         private const val WAKE_WORD_COOLDOWN_MS = 2_000L
-        private const val DEFAULT_KEYWORD_THRESHOLD = 0.25f
-        private const val DEFAULT_KEYWORD_BOOST = 1.5f
     }
 }

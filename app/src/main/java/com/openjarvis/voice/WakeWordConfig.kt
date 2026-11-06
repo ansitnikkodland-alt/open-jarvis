@@ -5,6 +5,20 @@ object WakeWordConfig {
     const val DISPLAY_PHRASE = "Jarvis"
     const val ENGINE_KEYWORD = "JARVIS"
     const val ACCESS_KEY_MIN_LENGTH = 30
+    const val SENSITIVITY_PREFS = "wake_word_settings"
+    const val SENSITIVITY_KEY = "wake_word_sensitivity"
+    val KEYWORD_PHRASES = listOf("JARVIS", "HEY JARVIS", "JARVISS", "JARVEES", "JARVIZ")
+
+    enum class Sensitivity(val title: String, val threshold: Float, val keywordBoost: Float) {
+        LOW("Low", 0.28f, 1.2f),
+        MEDIUM("Medium", 0.20f, 1.7f),
+        HIGH("High", 0.12f, 2.2f);
+
+        companion object {
+            fun fromPreference(value: String?): Sensitivity =
+                values().firstOrNull { it.name.equals(value, ignoreCase = true) } ?: MEDIUM
+        }
+    }
 
     /**
      * Picovoice keys are opaque tokens. Remove accidental formatting pasted from

@@ -95,6 +95,14 @@ fun SettingsScreen(
     var voiceEnabled by remember { mutableStateOf(voicePrefs.getBoolean("voice_enabled", false)) }
     var wakeWordAccessKey by remember { mutableStateOf(voicePrefs.getString(WakeWordConfig.PREFERENCE_KEY, "") ?: "") }
     var showWakeWordKey by remember { mutableStateOf(false) }
+    val wakeWordSettingsPrefs = remember {
+        context.getSharedPreferences(WakeWordConfig.SENSITIVITY_PREFS, android.content.Context.MODE_PRIVATE)
+    }
+    var wakeWordSensitivity by remember {
+        mutableStateOf(WakeWordConfig.Sensitivity.fromPreference(
+            wakeWordSettingsPrefs.getString(WakeWordConfig.SENSITIVITY_KEY, WakeWordConfig.Sensitivity.MEDIUM.name)
+        ))
+    }
     var wakeWordTestCommand by remember { mutableStateOf("open settings") }
     var wakeWordDiagnostics by remember { mutableStateOf(WakeWordDiagnostics.snapshot()) }
 
@@ -344,6 +352,32 @@ fun SettingsScreen(
                         style = TextStyle(fontSize = 11.sp, color = VoidColor.TextDisabled)
                     )
                     Spacer(modifier = Modifier.height(12.dp))
+
+                    SectionLabel("WAKE WORD SENSITIVITY")
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Text(
+                        "Higher sensitivity may detect more accents but can increase false activations.",
+                        color = VoidColor.TextDisabled, fontSize = 10.sp
+                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        WakeWordConfig.Sensitivity.values().forEach { level ->
+                            FilterChip(
+                                selected = wakeWordSensitivity == level,
+                                onClick = {
+                                    wakeWordSensitivity = level
+                                    wakeWordSettingsPrefs.edit()
+                                        .putString(WakeWordConfig.SENSITIVITY_KEY, level.name)
+                                        .apply()
+                                    com.openjarvis.ui.OverlayService.restartWakeWord(context)
+                                },
+                                label = { Text(level.title) }
+                            )
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(8.dp))
 
                     SectionLabel("WAKE WORD TEST")
                     Spacer(modifier = Modifier.height(8.dp))
