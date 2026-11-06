@@ -8,6 +8,16 @@ object WakeWordConfig {
     const val SENSITIVITY_PREFS = "wake_word_settings"
     const val SENSITIVITY_KEY = "wake_word_sensitivity"
     val KEYWORD_PHRASES = listOf("JARVIS", "HEY JARVIS", "JARVISS", "JARVEES", "JARVIZ")
+    const val EXPECTED_KEYWORD_TOKEN_LINES = 5
+
+    /** Validate the generated BPE asset, not the human-readable phrase list. */
+    fun isValidTokenizedKeywordAsset(lines: List<String>): Boolean {
+        val tokens = lines.map { it.trim() }.filter { it.isNotEmpty() }
+        if (tokens.size < EXPECTED_KEYWORD_TOKEN_LINES) return false
+        return tokens.none { tokenLine ->
+            KEYWORD_PHRASES.any { phrase -> tokenLine.equals(phrase, ignoreCase = true) }
+        }
+    }
 
     enum class Sensitivity(val title: String, val threshold: Float, val keywordBoost: Float) {
         LOW("Low", 0.28f, 1.2f),
