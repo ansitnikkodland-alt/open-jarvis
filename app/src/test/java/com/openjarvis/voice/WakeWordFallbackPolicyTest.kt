@@ -35,16 +35,13 @@ class WakeWordFallbackPolicyTest {
     }
 
     @Test fun activeSpeechFallsBackOnlyWhenAccessKeyIsAvailable() {
-        val args = arrayOf(
-            60_000L, 1L, null, 500L, 20L
-        )
         assertEquals(
             WakeWordFallbackPolicy.Decision.FALLBACK_TO_PORCUPINE,
-            WakeWordFallbackPolicy.evaluate(args[0], args[1], null, args[3], args[4], true)
+            WakeWordFallbackPolicy.evaluate(60_000L, 1L, null, 500L, 20L, true)
         )
         assertEquals(
             WakeWordFallbackPolicy.Decision.NO_FALLBACK_KEY,
-            WakeWordFallbackPolicy.evaluate(args[0], args[1], null, args[3], args[4], false)
+            WakeWordFallbackPolicy.evaluate(60_000L, 1L, null, 500L, 20L, false)
         )
     }
 
