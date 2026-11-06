@@ -33,7 +33,8 @@ internal object OllamaResponseParser {
         userMessage: String,
         useJsonSchema: Boolean = false,
         numPredict: Int = 128,
-        useSkillSchema: Boolean = false
+        useSkillSchema: Boolean = false,
+        useNativeIntentSchema: Boolean = false
     ): String =
         JSONObject().apply {
             put("model", model)
@@ -48,7 +49,7 @@ internal object OllamaResponseParser {
                 })
             })
             put("stream", true)
-            if (useSkillSchema) put("format", skillPlanSchema()) else if (useJsonSchema) put("format", actionPlanSchema())
+            if (useNativeIntentSchema) put("format", nativeIntentSchema()) else if (useSkillSchema) put("format", skillPlanSchema()) else if (useJsonSchema) put("format", actionPlanSchema())
             put("think", false)
             put("keep_alive", "30m")
             put("options", JSONObject().apply {
@@ -57,6 +58,34 @@ internal object OllamaResponseParser {
                 put("temperature", 0.1)
             })
         }.toString()
+
+
+    fun nativeIntentSchema(): JSONObject = JSONObject().apply {
+        put("type", "object")
+        put("properties", JSONObject().apply {
+            put("skill", JSONObject().put("type", "string").put("enum", JSONArray(listOf(
+                "none", "alarm", "timer", "torch", "volume", "navigate", "app_launch", "message"
+            ))))
+            put("args", JSONObject().apply {
+                put("type", "object")
+                put("properties", JSONObject().apply {
+                    put("hour", JSONObject().put("type", "integer").put("minimum", 0).put("maximum", 23))
+                    put("minute", JSONObject().put("type", "integer").put("minimum", 0).put("maximum", 59))
+                    put("seconds", JSONObject().put("type", "integer").put("minimum", 1).put("maximum", 86400))
+                    put("on", JSONObject().put("type", "boolean"))
+                    put("up", JSONObject().put("type", "boolean"))
+                    put("place", JSONObject().put("type", "string").put("maxLength", 120))
+                    put("label", JSONObject().put("type", "string").put("maxLength", 60))
+                    put("app", JSONObject().put("type", "string").put("enum", JSONArray(listOf("whatsapp", "sms"))))
+                    put("contact", JSONObject().put("type", "string").put("maxLength", 100))
+                    put("text", JSONObject().put("type", "string").put("maxLength", 1000))
+                })
+                put("additionalProperties", false)
+            })
+        })
+        put("required", JSONArray(listOf("skill", "args")))
+        put("additionalProperties", false)
+    }
 
     fun actionPlanSchema(): JSONObject = JSONObject().apply {
         put("type", "array")
