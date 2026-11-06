@@ -211,23 +211,8 @@ ${rawResponse.take(1000)}
                         _state.value = AgentState.Running("executing ${pipelineSteps.size} steps...")
                         val run = createStepPipeline().run(pipelineSteps)
                         AgentDiagnostics.recordPipeline(context, safeCommand, run.traces, run.skipped)
-                        val failedTrace = run.traces.lastOrNull { !it.ok }
-                        val result = if (run.allOk) {
-                            run.traces.joinToString(". ") { it.reply }
-                        } else {
-                            val failed = failedTrace
-                            if (failed == null) {
-                                "Command pipeline failed."
-                            } else {
-                                val skipped = run.skipped.mapIndexed { index, text ->
-                                    "${failed.index + index + 2}. $text"
-                                }
-                                buildString {
-                                    append("Step ${failed.index + 1}/${pipelineSteps.size} failed: ${failed.reply}")
-                                    if (skipped.isNotEmpty()) append(". Skipped steps: ${skipped.joinToString("; ")}")
-                                }
-                            }
-                        }
+                        val result = run.failureMessage(pipelineSteps.size)
+                            ?: run.traces.joinToString(". ") { it.reply }
                         graphifyRepo.logTask(
                             safeCommand,
                             if (run.allOk) "success (multi-step pipeline): $result" else "failed (multi-step pipeline): $result",

@@ -59,6 +59,34 @@ class StepPipelineTest {
     }
 
     @Test
+    fun failureMessageIncludesStepPositionAndSkippedSteps() = runBlocking {
+        val handler = object : StepHandler {
+            override val name = "fast"
+            override suspend fun handle(step: String, ctx: StepContext): StepOutcome =
+                if (step == "second") StepOutcome(false, "torch unavailable", ctx)
+                else StepOutcome(true, "ok", ctx)
+        }
+
+        val result = StepPipeline(listOf(handler)).run(listOf("first", "second", "third"))
+
+        assertEquals(
+            "Step 2/3 failed: torch unavailable. Skipped steps: 3. third",
+            result.failureMessage(3)
+        )
+    }
+
+    @Test
+    fun successfulRunHasNoFailureMessage() = runBlocking {
+        val handler = object : StepHandler {
+            override val name = "skill"
+            override suspend fun handle(step: String, ctx: StepContext): StepOutcome =
+                StepOutcome(true, "ok", ctx)
+        }
+        val result = StepPipeline(listOf(handler)).run(listOf("one", "two"))
+        assertEquals(null, result.failureMessage(2))
+    }
+
+    @Test
     fun firstMatchingHandlerWinsAndOrderIsRespected() = runBlocking {
         val called = mutableListOf<String>()
         fun handler(id: String, accepts: Boolean) = object : StepHandler {

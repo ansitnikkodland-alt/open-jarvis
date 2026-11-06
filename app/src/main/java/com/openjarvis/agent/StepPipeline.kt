@@ -26,7 +26,21 @@ data class RunResult(
     val traces: List<StepTrace>,
     val allOk: Boolean,
     val skipped: List<String>
-)
+) {
+    fun failureMessage(totalSteps: Int): String? {
+        if (allOk) return null
+        val failed = traces.lastOrNull { !it.ok } ?: return "Command pipeline failed."
+        val skippedSteps = skipped.mapIndexed { index, text ->
+            "${failed.index + index + 2}. $text"
+        }
+        return buildString {
+            append("Step ${failed.index + 1}/$totalSteps failed: ${failed.reply}")
+            if (skippedSteps.isNotEmpty()) {
+                append(". Skipped steps: ${skippedSteps.joinToString("; ")}")
+            }
+        }
+    }
+}
 
 class StepPipeline(private val handlers: List<StepHandler>) {
     suspend fun run(steps: List<String>): RunResult {
