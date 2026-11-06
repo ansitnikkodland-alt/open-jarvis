@@ -1,6 +1,7 @@
 package com.openjarvis.agent
 
 import com.openjarvis.intelligence.FastCommandParser
+import com.openjarvis.skills.SkillRegistry
 
 /**
  * Shared deterministic route classifier used by AgentCore and parser/splitter tests.
@@ -8,26 +9,26 @@ import com.openjarvis.intelligence.FastCommandParser
  */
 internal object CommandRouter {
     enum class Route {
+        SKILL_REGISTRY,
         STEP_INTENT,
-        SEARCH,
         MESSAGE,
+        MESSAGE_CONTINUATION,
+        SEARCH,
         CONTACT,
         FAST,
-        MESSAGE_CONTINUATION,
         NONE
     }
 
     fun classify(step: String): Route {
+        if (SkillRegistry.parse(step) != null) return Route.SKILL_REGISTRY
         if (StepIntentParser.parse(step) != null) return Route.STEP_INTENT
-
+        if (MessageCommandParser.parse(step) != null) return Route.MESSAGE
+        if (messageContinuationContact(step) != null) return Route.MESSAGE_CONTINUATION
         if (SearchCommandParser.parseYouTubeQuery(step) != null ||
             SearchCommandParser.parseWebQuery(step) != null
         ) return Route.SEARCH
-
-        if (MessageCommandParser.parse(step) != null) return Route.MESSAGE
         if (ContactCommandParser.parse(step) != null) return Route.CONTACT
         if (FastCommandParser.parse(step) != null) return Route.FAST
-        if (messageContinuationContact(step) != null) return Route.MESSAGE_CONTINUATION
 
         return Route.NONE
     }

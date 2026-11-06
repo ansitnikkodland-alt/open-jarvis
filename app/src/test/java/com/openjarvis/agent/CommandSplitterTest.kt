@@ -12,8 +12,10 @@ class CommandSplitterTest {
 
     @Test
     fun productionClassifierIsSharedWithSplitter() {
+        assertEquals(CommandRouter.Route.SKILL_REGISTRY, CommandRouter.classify("open youtube"))
         assertEquals(CommandRouter.Route.STEP_INTENT, CommandRouter.classify("torch on karo"))
         assertEquals(CommandRouter.Route.SEARCH, CommandRouter.classify("google par mausam search karo"))
+        assertEquals(CommandRouter.Route.FAST, CommandRouter.classify("back"))
         assertEquals(CommandRouter.Route.NONE, CommandRouter.classify("kal milte hain"))
         assertEquals(CommandRouter.Route.MESSAGE_CONTINUATION, CommandRouter.classify("Amit ko bhi"))
     }

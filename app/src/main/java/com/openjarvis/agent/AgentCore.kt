@@ -1306,9 +1306,55 @@ ${fullSystem.substringAfter("MEMORY:")}
     private fun createStepPipeline(): StepPipeline = StepPipeline(
         listOf<StepHandler>(
             object : StepHandler {
-                override val name: String = "step-intent"
+                override val name: String = "skill"
 
                 override suspend fun handle(step: String, ctx: StepContext): StepOutcome? {
+                    // SkillRegistry is the first parser for every pipeline step.
+                    // StepIntentParser remains the compatibility parser for richer Hindi/Marathi forms.
+                    val skillRequest = SkillRegistry.parse(step)
+                    if (skillRequest != null) {
+                        val result = AndroidSkillExecutor(context).execute(skillRequest)
+                        return result.fold(
+                            onSuccess = {
+                                val reply = when (skillRequest.kind) {
+                                    SkillRegistry.Kind.OPEN_APP -> "Opened ${skillRequest.args["app"]}"
+                                    SkillRegistry.Kind.SETTINGS -> "Opened ${skillRequest.args["screen"]} settings"
+                                    SkillRegistry.Kind.CALL -> "Dialer opened"
+                                    SkillRegistry.Kind.SEARCH -> "Search opened"
+                                    SkillRegistry.Kind.WHATSAPP_MESSAGE -> "WhatsApp composer opened"
+                                    SkillRegistry.Kind.SMS_MESSAGE -> "SMS composer opened"
+                                    SkillRegistry.Kind.ALARM -> "Alarm set"
+                                    SkillRegistry.Kind.TIMER -> "Timer started"
+                                    SkillRegistry.Kind.TORCH -> if (skillRequest.args["enabled"] == "true") "Torch turned on" else "Torch turned off"
+                                    SkillRegistry.Kind.VOLUME -> "Volume adjusted"
+                                    SkillRegistry.Kind.MAPS -> "Opening navigation"
+                                }
+                                val nextContext = when (skillRequest.kind) {
+                                    SkillRegistry.Kind.OPEN_APP -> ctx.copy(app = skillRequest.args["app"])
+                                    SkillRegistry.Kind.WHATSAPP_MESSAGE -> ctx.copy(
+                                        app = "whatsapp",
+                                        contact = null,
+                                        messageText = skillRequest.args["text"]
+                                    )
+                                    SkillRegistry.Kind.SMS_MESSAGE -> ctx.copy(
+                                        app = "sms",
+                                        contact = null,
+                                        messageText = skillRequest.args["text"]
+                                    )
+                                    else -> ctx
+                                }
+                                StepOutcome(true, reply, nextContext)
+                            },
+                            onFailure = { error ->
+                                StepOutcome(
+                                    false,
+                                    error.message?.takeIf { it.isNotBlank() } ?: error.javaClass.simpleName,
+                                    ctx
+                                )
+                            }
+                        )
+                    }
+
                     val intent = StepIntentParser.parse(step)
                     if (intent != null) {
                         return try {
@@ -1367,7 +1413,7 @@ ${fullSystem.substringAfter("MEMORY:")}
                 }
             },
             object : StepHandler {
-                override val name: String = "search"
+                override val name: String = "fast"
 
                 override suspend fun handle(step: String, ctx: StepContext): StepOutcome? {
                     val youtubeQuery = SearchCommandParser.parseYouTubeQuery(step)
@@ -1391,7 +1437,7 @@ ${fullSystem.substringAfter("MEMORY:")}
                 }
             },
             object : StepHandler {
-                override val name: String = "contact"
+                override val name: String = "fast"
 
                 override suspend fun handle(step: String, ctx: StepContext): StepOutcome? {
                     val request = ContactCommandParser.parse(step) ?: return null
@@ -1411,7 +1457,7 @@ ${fullSystem.substringAfter("MEMORY:")}
                 }
             },
             object : StepHandler {
-                override val name: String = "fast-command"
+                override val name: String = "fast"
 
                 override suspend fun handle(step: String, ctx: StepContext): StepOutcome? {
                     val command = FastCommandParser.parse(step) ?: return null
