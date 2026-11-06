@@ -34,6 +34,16 @@ class WakeWordFallbackPolicyTest {
         )
     }
 
+    @Test fun staleDetectionDoesNotBlockFallbackForever() {
+        assertEquals(
+            WakeWordFallbackPolicy.Decision.FALLBACK_TO_PORCUPINE,
+            WakeWordFallbackPolicy.evaluate(
+                nowMs = 100_000L, startedAtMs = 1L, lastDetectionAtMs = 50_000L,
+                framesProcessed = 500, silentFrames = 20, hasValidAccessKey = true
+            )
+        )
+    }
+
     @Test fun activeSpeechFallsBackOnlyWhenAccessKeyIsAvailable() {
         assertEquals(
             WakeWordFallbackPolicy.Decision.FALLBACK_TO_PORCUPINE,
