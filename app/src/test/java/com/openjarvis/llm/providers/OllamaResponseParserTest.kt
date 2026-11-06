@@ -126,6 +126,24 @@ class OllamaResponseParserTest {
         assertFalse(request.getBoolean("think"))
     }
 
+
+    @Test fun nativeIntentRequestUsesItsOwnTypedSchemaAndSmallOutputLimit() {
+        val request = org.json.JSONObject(OllamaResponseParser.buildChatRequestBody(
+            "qwen3:1.7b", "native system", "torch on",
+            useJsonSchema = false, numPredict = 64, useNativeIntentSchema = true
+        ))
+        val schema = request.getJSONObject("format")
+        val properties = schema.getJSONObject("properties")
+        assertTrue(properties.has("skill"))
+        assertTrue(properties.has("args"))
+        assertFalse(properties.has("action"))
+        val skills = properties.getJSONObject("skill").getJSONArray("enum")
+        assertTrue(skills.toString().contains("none"))
+        assertTrue(skills.toString().contains("torch"))
+        assertEquals(64, request.getJSONObject("options").getInt("num_predict"))
+        assertFalse(request.getBoolean("think"))
+    }
+
     @Test fun plainConversationRequestUsesLargerOutputLimitAndNoSchema() {
         val request = org.json.JSONObject(OllamaResponseParser.buildChatRequestBody(
             "qwen3:1.7b", "system", "hello", useJsonSchema = false, numPredict = 256
