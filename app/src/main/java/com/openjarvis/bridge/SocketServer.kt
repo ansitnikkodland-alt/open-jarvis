@@ -16,6 +16,8 @@ import java.net.Socket
 import java.nio.charset.StandardCharsets
 import java.security.MessageDigest
 
+internal class RequestTooLargeException : Exception("request too large")
+
 internal object BridgeRuntimeConfig {
     @Volatile var port: Int = 0
 }
@@ -99,8 +101,6 @@ class SocketServer(
             return output.toString(StandardCharsets.UTF_8.name())
         }
 
-        internal class RequestTooLargeException : Exception("request too large")
-
         internal fun createErrorResponse(requestId: String, error: String): String =
             """{"requestId":"${escapeJson(requestId)}","status":"error","result":"${escapeJson(error)}"}"""
 
@@ -179,7 +179,7 @@ class SocketServer(
                 return@withContext
             }
 
-            val clientKey = clientSocket.inetAddress.hostAddress.hashCode()
+            val clientKey = clientSocket.inetAddress.hostAddress.orEmpty().hashCode()
             if (!rateLimiter.allow(clientKey, SystemClock.elapsedRealtime())) {
                 writer.println(createErrorResponse(requestId, "rate limit exceeded"))
                 return@withContext
