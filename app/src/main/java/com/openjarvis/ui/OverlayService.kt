@@ -184,9 +184,12 @@ class OverlayService : Service() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        // Re-check the saved AccessKey whenever the app asks the existing service to start.
-        // This also refreshes wake-word setup after the user edits the key in Settings.
-        if (::voiceManager.isInitialized) startWakeWordListening()
+        if (intent?.action == ACTION_RESTART_WAKE_WORD) {
+            stopWakeWordListening()
+            if (::voiceManager.isInitialized) startWakeWordListening()
+        } else if (::voiceManager.isInitialized) {
+            startWakeWordListening()
+        }
         return START_STICKY
     }
     override fun onBind(intent: Intent?): IBinder? = null
@@ -581,8 +584,15 @@ class OverlayService : Service() {
     companion object {
         private const val CHANNEL_ID = "jarvis_overlay_channel"
         private const val NOTIFICATION_ID = 1
+        private const val ACTION_RESTART_WAKE_WORD = "com.openjarvis.action.RESTART_WAKE_WORD"
+
         fun start(context: Context) {
             context.startForegroundService(Intent(context, OverlayService::class.java))
+        }
+
+        fun restartWakeWord(context: Context) {
+            val intent = Intent(context, OverlayService::class.java).setAction(ACTION_RESTART_WAKE_WORD)
+            context.startForegroundService(intent)
         }
     }
 }
