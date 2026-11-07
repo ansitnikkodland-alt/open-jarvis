@@ -39,6 +39,20 @@ class SkillRegistryTest {
         assertEquals("pune", SkillRegistry.parse("navigate to pune")?.args?.get("destination"))
         assertNull(SkillRegistry.parse("open maps"))
     }
+    @Test fun currentTimeQuestionsAreNativeAndUnrelatedQuestionsAreNot() {
+        listOf(
+            "Time kya hua hai",
+            "Abhi kitne baje hain",
+            "Aaj ka samay kya hai",
+            "Aaj ka samay kaha hai",
+            "What time is it",
+            "समय क्या हुआ है",
+            "आत्ता किती वाजले"
+        ).forEach { phrase ->
+            assertEquals("TIME for: $phrase", SkillRegistry.Kind.TIME, SkillRegistry.parse(phrase)?.kind)
+        }
+        assertNull(SkillRegistry.parse("time machine kaise kaam karti hai"))
+    }
     @Test fun unknownIsNegative() { assertNull(SkillRegistry.parse("hello jarvis")) }
     @Test fun appLaunchParserRemovesTrailingFillerAndRejectsCompoundSentence() {
         assertEquals("instagram", SkillRegistry.parse("open instagram again")?.args?.get("app"))
