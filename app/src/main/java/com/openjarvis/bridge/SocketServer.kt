@@ -1,9 +1,6 @@
 package com.openjarvis.bridge
 
 import android.content.Context
-import android.net.LocalServerSocket
-import android.net.LocalSocket
-import android.os.Process
 import android.os.SystemClock
 import com.openjarvis.agent.AgentCore
 import com.openjarvis.agent.AgentState
@@ -13,17 +10,25 @@ import kotlinx.coroutines.flow.collectLatest
 import java.io.ByteArrayOutputStream
 import java.io.InputStream
 import java.io.PrintWriter
+import java.net.InetAddress
+import java.net.ServerSocket
+import java.net.Socket
 import java.nio.charset.StandardCharsets
+import java.security.MessageDigest
+
+internal object BridgeRuntimeConfig {
+    @Volatile var port: Int = 0
+}
 
 internal class SlidingWindowRateLimiter(
     private val maxRequests: Int = 10,
     private val windowMs: Long = 1_000L
 ) {
     private val lock = Any()
-    private val requestsByUid = mutableMapOf<Int, ArrayDeque<Long>>()
+    private val requestsByClient = mutableMapOf<Int, ArrayDeque<Long>>()
 
-    fun allow(uid: Int, nowMs: Long): Boolean = synchronized(lock) {
-        val requests = requestsByUid.getOrPut(uid) { ArrayDeque() }
+    fun allow(clientKey: Int, nowMs: Long): Boolean = synchronized(lock) {
+        val requests = requestsByClient.getOrPut(clientKey) { ArrayDeque() }
         while (requests.isNotEmpty() && nowMs - requests.first() >= windowMs) {
             requests.removeFirst()
         }
@@ -39,13 +44,9 @@ class SocketServer(
     private val graphifyRepo: GraphifyRepository
 ) {
     private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
-    private var serverSocket: LocalServerSocket? = null
+    private var serverSocket: ServerSocket? = null
     @Volatile private var isRunning = false
-
-    private val appUid = Process.myUid()
-    private val termuxUid: Int? = runCatching {
-        context.packageManager.getApplicationInfo(TERMUX_PACKAGE, 0).uid
-    }.getOrNull()
+    private val authToken = BridgeTokenStore.getOrCreateToken(context)
     private val rateLimiter = SlidingWindowRateLimiter(
         MAX_REQUESTS_PER_SECOND,
         RATE_WINDOW_MS
@@ -53,32 +54,34 @@ class SocketServer(
 
     companion object {
         const val SOCKET_NAME = "openjarvis_cli_bridge"
-        private const val TERMUX_PACKAGE = "com.termux"
-        private const val SHELL_UID = 2000
+        const val CONFIG_URI = "content://com.openjarvis.bridgeconfig/config"
         private const val MAX_COMMAND_LENGTH = 2_000
+        private const val MAX_REQUEST_ID_LENGTH = 128
         private const val MAX_REQUEST_BYTES = 8_192
         private const val MAX_REQUESTS_PER_SECOND = 10
         private const val RATE_WINDOW_MS = 1_000L
         private const val CLIENT_TIMEOUT_MS = 3_000
 
-        internal fun isAllowedPeerUid(
-            peerUid: Int,
-            appUid: Int,
-            termuxUid: Int?,
-            shellUid: Int = SHELL_UID
-        ): Boolean = peerUid == appUid || peerUid == shellUid ||
-            (termuxUid != null && peerUid == termuxUid)
-
-        internal fun parseRequest(line: String): Pair<String, String>? {
+        internal fun parseRequest(line: String): Triple<String, String, String>? {
             return try {
                 val json = org.json.JSONObject(line)
                 val cmd = json.optString("cmd", "")
                 val requestId = json.optString("requestId", "")
-                if (cmd.isBlank() || cmd.length > MAX_COMMAND_LENGTH) null
-                else Pair(requestId, cmd)
+                val token = json.optString("token", "")
+                if (cmd.isBlank() || cmd.length > MAX_COMMAND_LENGTH ||
+                    requestId.length > MAX_REQUEST_ID_LENGTH || token.isBlank()
+                ) null else Triple(requestId, cmd, token)
             } catch (e: Exception) {
                 null
             }
+        }
+
+        internal fun isValidToken(provided: String, expected: String): Boolean {
+            if (provided.isEmpty() || expected.isEmpty()) return false
+            return MessageDigest.isEqual(
+                provided.toByteArray(StandardCharsets.UTF_8),
+                expected.toByteArray(StandardCharsets.UTF_8)
+            )
         }
 
         internal fun readBoundedLine(input: InputStream, maxBytes: Int): String? {
@@ -92,9 +95,7 @@ class SocketServer(
                 if (next == 10) break
                 if (next != 13) {
                     output.write(next)
-                    if (output.size() > maxBytes) {
-                        throw RequestTooLargeException()
-                    }
+                    if (output.size() > maxBytes) throw RequestTooLargeException()
                 }
             }
             return output.toString(StandardCharsets.UTF_8.name())
@@ -123,18 +124,23 @@ class SocketServer(
         isRunning = false
         runCatching { serverSocket?.close() }
         serverSocket = null
+        BridgeRuntimeConfig.port = 0
         scope.coroutineContext[Job]?.cancelChildren()
     }
 
     private suspend fun acceptConnections() = withContext(Dispatchers.IO) {
         try {
-            // LocalServerSocket binds in Android's abstract UNIX-domain namespace;
-            // it is not exposed as a TCP listener on Wi-Fi or other interfaces.
-            serverSocket = LocalServerSocket(SOCKET_NAME)
+            // Bind explicitly to IPv4 loopback: no LAN/Wi-Fi interface is exposed.
+            serverSocket = ServerSocket(0, 50, InetAddress.getByName("127.0.0.1"))
+            BridgeRuntimeConfig.port = serverSocket?.localPort ?: 0
             while (isRunning) {
                 try {
                     val client = serverSocket?.accept() ?: break
-                    scope.launch { handleClient(client) }
+                    if (!client.inetAddress.isLoopbackAddress) {
+                        client.close()
+                    } else {
+                        scope.launch { handleClient(client) }
+                    }
                 } catch (e: Exception) {
                     if (isRunning) delay(100)
                 }
@@ -144,34 +150,16 @@ class SocketServer(
         } finally {
             runCatching { serverSocket?.close() }
             serverSocket = null
+            BridgeRuntimeConfig.port = 0
         }
     }
 
-    private fun isAuthorized(clientSocket: LocalSocket): Boolean {
-        return runCatching {
-            val peerUid = clientSocket.peerCredentials.uid
-            isAllowedPeerUid(peerUid, appUid, termuxUid)
-        }.getOrDefault(false)
-    }
-
-    private suspend fun handleClient(clientSocket: LocalSocket) = withContext(Dispatchers.IO) {
+    private suspend fun handleClient(clientSocket: Socket) = withContext(Dispatchers.IO) {
         try {
             clientSocket.soTimeout = CLIENT_TIMEOUT_MS
-            val writer = PrintWriter(clientSocket.outputStream, true)
-
-            if (!isAuthorized(clientSocket)) {
-                writer.println(createErrorResponse("", "unauthorized"))
-                return@withContext
-            }
-
-            val peerUid = clientSocket.peerCredentials.uid
-            if (!rateLimiter.allow(peerUid, SystemClock.elapsedRealtime())) {
-                writer.println(createErrorResponse("", "rate limit exceeded"))
-                return@withContext
-            }
-
+            val writer = PrintWriter(clientSocket.getOutputStream(), true)
             val line = try {
-                readBoundedLine(clientSocket.inputStream, MAX_REQUEST_BYTES)
+                readBoundedLine(clientSocket.getInputStream(), MAX_REQUEST_BYTES)
             } catch (_: RequestTooLargeException) {
                 writer.println(createErrorResponse("", "request too large"))
                 return@withContext
@@ -182,11 +170,22 @@ class SocketServer(
 
             val request = parseRequest(line)
             if (request == null) {
-                writer.println(createErrorResponse("", "invalid request or command too long"))
+                writer.println(createErrorResponse("", "invalid request, missing token, or command too long"))
                 return@withContext
             }
 
-            val (requestId, cmd) = request
+            val (requestId, cmd, token) = request
+            if (!isValidToken(token, authToken)) {
+                writer.println(createErrorResponse(requestId, "unauthorized"))
+                return@withContext
+            }
+
+            val clientKey = clientSocket.inetAddress.hostAddress.hashCode()
+            if (!rateLimiter.allow(clientKey, SystemClock.elapsedRealtime())) {
+                writer.println(createErrorResponse(requestId, "rate limit exceeded"))
+                return@withContext
+            }
+
             when (cmd.lowercase()) {
                 "status" -> handleStatus(writer, requestId)
                 "history" -> handleHistory(writer, requestId)
@@ -210,13 +209,13 @@ class SocketServer(
 
         val statusJson = buildString {
             append("{")
-            append("\"requestId\":\"${escapeJson(requestId)}\",")
+            append("\"requestId\":\"\${escapeJson(requestId)}\",")
             append("\"status\":\"done\",")
             append("\"result\":{")
             append("\"service\":\"running\",")
             append("\"accessibility\":$accessibilityEnabled,")
-            append("\"provider\":\"${escapeJson(provider)}\",")
-            append("\"socket\":\"localabstract:$SOCKET_NAME\"")
+            append("\"provider\":\"\${escapeJson(provider)}\",")
+            append("\"port\":${BridgeRuntimeConfig.port}")
             append("}}")
         }
         writer.println(statusJson)
