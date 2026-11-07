@@ -161,7 +161,19 @@ class AndroidSTTEngine(private val context: Context) : STTEngine {
                 putStringArrayListExtra("android.speech.extra.LANGUAGE_DETECTION_ALLOWED_LANGUAGES",
                     ArrayList(SpeechLanguage.recognitionLocales))
             }
-            putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 3)
+            // Bias common JARVIS vocabulary so app names and everyday Hinglish
+            // phrases are less likely to be replaced by phonetically similar words.
+            putStringArrayListExtra(
+                "android.speech.extra.BIASING_STRINGS",
+                arrayListOf(
+                    "Jarvis", "JARVIS", "WhatsApp", "YouTube", "Instagram",
+                    "time kya hua hai", "abhi kitne baje hain", "aaj ka samay kya hai",
+                    "समय क्या हुआ है", "अभी कितने बजे हैं",
+                    "आत्ता किती वाजले", "सध्या किती वाजले",
+                    "खोलो", "बंद करो", "कॉल करो", "टॉर्च चालू करो"
+                )
+            )
+            putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 5)
             putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
             putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS, SILENCE_TIMEOUT_MS)
         }
