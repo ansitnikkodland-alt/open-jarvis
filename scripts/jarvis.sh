@@ -6,7 +6,7 @@
 set -e
 
 SCRIPT_NAME="$(basename "$0")"
-CONFIG_URI="content://com.openjarvis.bridgeconfig/config"
+CONFIG_URIS=("content://com.openjarvis.bridgeconfig/config" "content://com.openjarvis.preview.bridgeconfig/config")
 
 json_escape() {
     local value="$1"
@@ -24,14 +24,18 @@ get_bridge_config() {
         return 1
     fi
 
-    local config
-    config=$(/system/bin/content query --uri "$CONFIG_URI" 2>/dev/null) || {
-        echo "Error: Cannot read Jarvis bridge config. Ensure Termux is installed and start the Overlay Service." >&2
-        return 1
-    }
-
-    BRIDGE_PORT=$(printf '%s\n' "$config" | sed -n 's/.*port=\([0-9][0-9]*\).*/\1/p')
-    BRIDGE_TOKEN=$(printf '%s\n' "$config" | sed -n 's/.*token=\([A-Za-z0-9_-][A-Za-z0-9_-]*\).*/\1/p')
+    local config=""
+    BRIDGE_PORT=""
+    BRIDGE_TOKEN=""
+    local uri
+    for uri in "${CONFIG_URIS[@]}"; do
+        config=$(/system/bin/content query --uri "$uri" 2>/dev/null) || continue
+        BRIDGE_PORT=$(printf '%s\\n' "$config" | sed -n 's/.*port=\\([0-9][0-9]*\\).*/\\1/p')
+        BRIDGE_TOKEN=$(printf '%s\\n' "$config" | sed -n 's/.*token=\\([A-Za-z0-9_-][A-Za-z0-9_-]*\\).*/\\1/p')
+        if [ -n "$BRIDGE_PORT" ] && [ "$BRIDGE_PORT" != "0" ] && [ -n "$BRIDGE_TOKEN" ]; then
+            break
+        fi
+    done
 
     if [ -z "$BRIDGE_PORT" ] || [ "$BRIDGE_PORT" = "0" ] || [ -z "$BRIDGE_TOKEN" ]; then
         echo "Error: Jarvis bridge is not running. Start the Open Jarvis Overlay Service first." >&2
@@ -97,7 +101,7 @@ Security:
 
 ADB forwarding from a computer:
   Read port/token with:
-    adb shell content query --uri $CONFIG_URI
+    adb shell content query --uri content://<installed-app-id>.bridgeconfig/config
   Then forward the reported port:
     adb forward tcp:5000 tcp:<reported-port>
   Send a JSON request containing the returned token to 127.0.0.1:5000.
