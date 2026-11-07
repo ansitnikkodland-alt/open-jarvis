@@ -65,7 +65,7 @@ class JarvisNotificationListener : NotificationListenerService() {
             "com.paypal.android.p2pmobile",
             "com.squareup.cash",
             "com.razorpay"
-        )
+        ).map { it.lowercase() }.toSet()
 
         private val FINANCIAL_PACKAGE_MARKERS = setOf(
             "bank", "banking", ".upi", "paisa", "wallet", "finance",
@@ -87,7 +87,7 @@ class JarvisNotificationListener : NotificationListenerService() {
         fun shouldProcessNotification(packageName: String): Boolean {
             val normalized = packageName.trim().lowercase()
             if (normalized.isEmpty()) return false
-            return normalized !in PRIVACY_PROTECTED_APPS.map { it.lowercase() }.toSet() &&
+            return normalized !in PRIVACY_PROTECTED_APPS &&
                 FINANCIAL_PACKAGE_MARKERS.none { marker -> normalized.contains(marker) }
         }
     }
