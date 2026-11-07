@@ -30,8 +30,8 @@ get_bridge_config() {
     local uri
     for uri in "${CONFIG_URIS[@]}"; do
         config=$(/system/bin/content query --uri "$uri" 2>/dev/null) || continue
-        BRIDGE_PORT=$(printf '%s\n' "$config" | sed -n 's/.*port=\\([0-9][0-9]*\\).*/\\1/p')
-        BRIDGE_TOKEN=$(printf '%s\n' "$config" | sed -n 's/.*token=\\([A-Za-z0-9_-][A-Za-z0-9_-]*\\).*/\\1/p')
+        BRIDGE_PORT=$(printf '%s\n' "$config" | sed -n 's/.*port=\([0-9][0-9]*\).*/\1/p')
+        BRIDGE_TOKEN=$(printf '%s\n' "$config" | sed -n 's/.*token=\([A-Za-z0-9_-][A-Za-z0-9_-]*\).*/\1/p')
         if [ -n "$BRIDGE_PORT" ] && [ "$BRIDGE_PORT" != "0" ] && [ -n "$BRIDGE_TOKEN" ]; then
             break
         fi
