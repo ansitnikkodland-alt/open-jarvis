@@ -531,7 +531,7 @@ class OverlayService : Service() {
         }
         val wasAlreadyRunning = wakeWordController?.isRunning() == true
         var error = wakeWordController?.start()
-        if (error != null && accessKey.isNotBlank() && wakeWordController !is PorcupineWakeWordController) {
+        if (error != null && WakeWordConfig.validateAccessKey(accessKey) == null && wakeWordController !is PorcupineWakeWordController) {
             stopWakeWordListening()
             wakeWordController = PorcupineWakeWordController(
                 this,
