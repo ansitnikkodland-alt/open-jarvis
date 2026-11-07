@@ -76,7 +76,7 @@ class SocketServerTest {
         try {
             SocketServer.readBoundedLine(input, 8)
             fail("Expected RequestTooLargeException")
-        } catch (_: SocketServer.RequestTooLargeException) {
+        } catch (_: RequestTooLargeException) {
             // expected
         }
     }
