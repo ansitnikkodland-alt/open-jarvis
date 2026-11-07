@@ -554,7 +554,7 @@ Never invent contact names or app labels. Understand Hindi, Marathi, Hinglish an
 
                     val skillSystem = """
 You are Jarvis, an Android skill router. Return ONLY one JSON object with exactly "skill" and "args".
-Allowed skills: OPEN_APP, SETTINGS, CALL, SEARCH, WHATSAPP_MESSAGE, SMS_MESSAGE, ALARM, TIMER, TORCH, VOLUME, MAPS, ANDROID_UI_ACTIONS.
+Allowed skills: OPEN_APP, SETTINGS, CALL, SEARCH, WHATSAPP_MESSAGE, SMS_MESSAGE, ALARM, TIMER, TORCH, VOLUME, MAPS, TIME, ANDROID_UI_ACTIONS.
 Native example: {"skill":"TORCH","args":{"enabled":true}}.
 UI example: {"skill":"ANDROID_UI_ACTIONS","args":{"actions":[{"action":"open_app","label":"Chrome"}]}}.
 Use a native skill whenever it fits. Use ANDROID_UI_ACTIONS only for visible-screen tasks. Never invent app labels, contacts or controls.
@@ -1609,7 +1609,7 @@ ${fullSystem.substringAfter("MEMORY:")}
             .replace("{INSTALLED_APPS}", installedAppsPrompt)
         val skillSystem = """
 You are Jarvis, an Android skill router. Return ONLY one JSON object with exactly "skill" and "args".
-Allowed skills: OPEN_APP, SETTINGS, CALL, SEARCH, WHATSAPP_MESSAGE, SMS_MESSAGE, ALARM, TIMER, TORCH, VOLUME, MAPS, ANDROID_UI_ACTIONS.
+Allowed skills: OPEN_APP, SETTINGS, CALL, SEARCH, WHATSAPP_MESSAGE, SMS_MESSAGE, ALARM, TIMER, TORCH, VOLUME, MAPS, TIME, ANDROID_UI_ACTIONS.
 Native example: {"skill":"TORCH","args":{"enabled":true}}.
 UI example: {"skill":"ANDROID_UI_ACTIONS","args":{"actions":[{"action":"open_app","label":"Chrome"}]}}.
 Use a native skill whenever it fits. Use ANDROID_UI_ACTIONS only for visible-screen tasks. Never invent app labels, contacts or controls.
