@@ -46,7 +46,7 @@
 
         <provider
             android:name=".bridge.BridgeTokenProvider"
-            android:authorities="com.openjarvis.bridgeconfig"
+            android:authorities="${applicationId}.bridgeconfig"
             android:exported="true"
             android:grantUriPermissions="false" />
 
