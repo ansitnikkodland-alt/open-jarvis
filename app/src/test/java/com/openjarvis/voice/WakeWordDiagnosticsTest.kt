@@ -3,6 +3,7 @@ package com.openjarvis.voice
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
+import org.junit.Assert.assertNull
 import org.junit.Test
 
 class WakeWordDiagnosticsTest {
@@ -18,6 +19,20 @@ class WakeWordDiagnosticsTest {
         assertEquals(3L, snapshot.clippedSamples)
         assertEquals(0.12f, snapshot.rms, 0.0001f)
         assertEquals(0.99f, snapshot.peakLevel, 0.0001f)
+    }
+
+    @Test fun newEngineSessionClearsStaleDetectionFromPreviousRun() {
+        WakeWordDiagnostics.started(true, listOf("JARVIS"), 0.1f, 2.5f)
+        WakeWordDiagnostics.detected("JARVIS")
+        assertEquals("JARVIS", WakeWordDiagnostics.snapshot().lastDetectionKeyword)
+
+        WakeWordDiagnostics.started(true, listOf("JARVIS"), 0.1f, 2.5f)
+
+        val snapshot = WakeWordDiagnostics.snapshot()
+        assertNull(snapshot.lastDetectionAtMs)
+        assertNull(snapshot.lastDetectionKeyword)
+        assertNull(snapshot.lastDetectionScore)
+        assertEquals(0L, snapshot.framesProcessed)
     }
 
     @Test fun recordsAudioEffectAvailabilityAndEnabledState() {
