@@ -43,6 +43,7 @@ class ScreenshotCapture(private val context: Context) {
     @Synchronized
     fun initialize(projection: MediaProjection): Boolean {
         releaseResources(stopProjection = true)
+        mediaProjection = projection
         return try {
             val windowManager = context.getSystemService(WindowManager::class.java)
             val display = windowManager.defaultDisplay
@@ -53,6 +54,7 @@ class ScreenshotCapture(private val context: Context) {
             captureHeight = metrics.heightPixels
             captureDensityDpi = metrics.densityDpi
             if (captureWidth <= 0 || captureHeight <= 0 || captureDensityDpi <= 0) {
+                releaseResources(stopProjection = true)
                 return false
             }
 
@@ -65,7 +67,6 @@ class ScreenshotCapture(private val context: Context) {
                 2
             )
 
-            mediaProjection = projection
             projectionCallback = object : MediaProjection.Callback() {
                 override fun onStop() {
                     synchronized(this@ScreenshotCapture) {
@@ -110,17 +111,21 @@ class ScreenshotCapture(private val context: Context) {
 
             val rowPadding = rowStride - pixelStride * image.width
             val paddedWidth = image.width + rowPadding / pixelStride
-            paddedBitmap = Bitmap.createBitmap(
+            val sourceBitmap = Bitmap.createBitmap(
                 paddedWidth,
                 image.height,
                 Bitmap.Config.ARGB_8888
             )
-            paddedBitmap.copyPixelsFromBuffer(buffer)
+            paddedBitmap = sourceBitmap
+            sourceBitmap.copyPixelsFromBuffer(buffer)
 
-            if (rowPadding <= 0) return paddedBitmap.also { paddedBitmap = null }
+            if (rowPadding <= 0) {
+                paddedBitmap = null
+                return sourceBitmap
+            }
 
-            val cropped = Bitmap.createBitmap(paddedBitmap, 0, 0, image.width, image.height)
-            paddedBitmap.recycle()
+            val cropped = Bitmap.createBitmap(sourceBitmap, 0, 0, image.width, image.height)
+            sourceBitmap.recycle()
             paddedBitmap = null
             return cropped
         } catch (e: Exception) {
