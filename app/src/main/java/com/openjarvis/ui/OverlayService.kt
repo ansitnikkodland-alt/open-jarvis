@@ -810,5 +810,4 @@ class OverlayService : Service() {
             }
         }
     }
-}    }
 }
