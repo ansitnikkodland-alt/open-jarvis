@@ -42,13 +42,10 @@ class SocketServer(
     private var serverSocket: LocalServerSocket? = null
     @Volatile private var isRunning = false
 
-    private val allowedUids: Set<Int> = buildSet {
-        add(Process.myUid())
-        add(SHELL_UID)
-        runCatching {
-            context.packageManager.getApplicationInfo(TERMUX_PACKAGE, 0).uid
-        }.getOrNull()?.let(::add)
-    }
+    private val appUid = Process.myUid()
+    private val termuxUid: Int? = runCatching {
+        context.packageManager.getApplicationInfo(TERMUX_PACKAGE, 0).uid
+    }.getOrNull()
     private val rateLimiter = SlidingWindowRateLimiter(
         MAX_REQUESTS_PER_SECOND,
         RATE_WINDOW_MS
@@ -153,7 +150,7 @@ class SocketServer(
     private fun isAuthorized(clientSocket: LocalSocket): Boolean {
         return runCatching {
             val peerUid = clientSocket.peerCredentials.uid
-            peerUid in allowedUids
+            isAllowedPeerUid(peerUid, appUid, termuxUid)
         }.getOrDefault(false)
     }
 
