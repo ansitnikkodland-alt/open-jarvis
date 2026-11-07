@@ -42,4 +42,22 @@ class WakeWordConfigTest {
         assertEquals("Jarvis", WakeWordConfig.DISPLAY_PHRASE)
         assertEquals("JARVIS", WakeWordConfig.ENGINE_KEYWORD)
     }
+
+    @Test fun sensitivityPreferencesMapToKnownConservativeThresholds() {
+        assertEquals(0.28f, WakeWordConfig.Sensitivity.fromPreference("LOW").threshold, 0.0001f)
+        assertEquals(0.10f, WakeWordConfig.Sensitivity.fromPreference("medium").threshold, 0.0001f)
+        assertEquals(0.05f, WakeWordConfig.Sensitivity.fromPreference("HIGH").threshold, 0.0001f)
+        assertEquals(WakeWordConfig.Sensitivity.MEDIUM, WakeWordConfig.Sensitivity.fromPreference("unknown"))
+        assertTrue(WakeWordConfig.Sensitivity.HIGH.threshold < WakeWordConfig.Sensitivity.MEDIUM.threshold)
+    }
+
+    @Test fun acceptsFiveTokenizedKeywordLines() {
+        assertTrue(WakeWordConfig.isValidTokenizedKeywordAsset(listOf("1 2 3", "4 5 6", "7 8", "9 10", "11 12")))
+    }
+
+    @Test fun rejectsMissingOrRawUnTokenizedKeywordAsset() {
+        assertTrue(!WakeWordConfig.isValidTokenizedKeywordAsset(listOf("1 2 3", "4 5")))
+        assertTrue(!WakeWordConfig.isValidTokenizedKeywordAsset(listOf("JARVIS", "4 5 6", "7 8", "9 10", "11 12")))
+    }
+
 }
