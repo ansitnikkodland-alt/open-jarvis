@@ -37,8 +37,10 @@ import com.openjarvis.llm.UniversalAdapter
 import com.openjarvis.llm.providers.OllamaProvider
 import com.openjarvis.llm.providers.OllamaResponseParser
 import com.openjarvis.voice.WakeWordConfig
+import com.openjarvis.voice.WakeWordDiagnostics
 import com.openjarvis.ui.theme.VoidColor
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.delay
 
 @Composable
 fun SettingsScreen(
@@ -93,6 +95,22 @@ fun SettingsScreen(
     var voiceEnabled by remember { mutableStateOf(voicePrefs.getBoolean("voice_enabled", false)) }
     var wakeWordAccessKey by remember { mutableStateOf(voicePrefs.getString(WakeWordConfig.PREFERENCE_KEY, "") ?: "") }
     var showWakeWordKey by remember { mutableStateOf(false) }
+    val wakeWordSettingsPrefs = remember {
+        context.getSharedPreferences(WakeWordConfig.SENSITIVITY_PREFS, android.content.Context.MODE_PRIVATE)
+    }
+    var wakeWordSensitivity by remember {
+        mutableStateOf(WakeWordConfig.Sensitivity.fromPreference(
+            wakeWordSettingsPrefs.getString(WakeWordConfig.SENSITIVITY_KEY, WakeWordConfig.Sensitivity.MEDIUM.name)
+        ))
+    }
+    var wakeWordDiagnostics by remember { mutableStateOf(WakeWordDiagnostics.snapshot()) }
+
+    LaunchedEffect(voiceEnabled) {
+        while (voiceEnabled) {
+            wakeWordDiagnostics = WakeWordDiagnostics.snapshot()
+            delay(1_000)
+        }
+    }
     var speakResults by remember { mutableStateOf(voicePrefs.getBoolean("speak_results", true)) }
     var speechRate by remember { mutableStateOf(1.05f) }
     var sttMode by remember { mutableStateOf("Push to Talk") }
@@ -332,6 +350,59 @@ fun SettingsScreen(
                         text = "Primary engine: sherpa-onnx — no key needed. Add a Picovoice key only for optional fallback.",
                         style = TextStyle(fontSize = 11.sp, color = VoidColor.TextDisabled)
                     )
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    SectionLabel("WAKE WORD SENSITIVITY")
+                    Text(
+                        "High sensitivity can detect more accents but may increase false activations.",
+                        color = VoidColor.TextDisabled,
+                        fontSize = 10.sp
+                    )
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        WakeWordConfig.Sensitivity.values().forEach { level ->
+                            FilterChip(
+                                selected = wakeWordSensitivity == level,
+                                onClick = {
+                                    wakeWordSensitivity = level
+                                    wakeWordSettingsPrefs.edit()
+                                        .putString(WakeWordConfig.SENSITIVITY_KEY, level.name)
+                                        .apply()
+                                    com.openjarvis.ui.OverlayService.restartWakeWord(context)
+                                },
+                                label = { Text(level.title) }
+                            )
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(8.dp))
+                    SectionLabel("LIVE WAKE WORD DIAGNOSTICS")
+                    Text(
+                        "Engine: ${wakeWordDiagnostics.engineName} • State: ${wakeWordDiagnostics.state}",
+                        color = VoidColor.TextSecondary,
+                        fontSize = 11.sp
+                    )
+                    Text(
+                        "Mic: ${if (wakeWordDiagnostics.micPermissionGranted) "GRANTED" else "NOT GRANTED"} • Source: ${wakeWordDiagnostics.audioSource} • 16 kHz",
+                        color = VoidColor.TextSecondary,
+                        fontSize = 11.sp
+                    )
+                    Text(
+                        "RMS ${"%.3f".format(wakeWordDiagnostics.rms)} • Peak ${"%.3f".format(wakeWordDiagnostics.peakLevel)} • Frames ${wakeWordDiagnostics.framesProcessed}",
+                        color = VoidColor.TextSecondary,
+                        fontSize = 11.sp
+                    )
+                    Text(
+                        "AGC ${if (wakeWordDiagnostics.agcEnabled) "ON" else "OFF"} • Noise suppression ${if (wakeWordDiagnostics.noiseSuppressorEnabled) "ON" else "OFF"}",
+                        color = VoidColor.TextSecondary,
+                        fontSize = 11.sp
+                    )
+                    Text(
+                        "Last detection: ${wakeWordDiagnostics.lastDetectionKeyword ?: "Never"} • Score: ${wakeWordDiagnostics.lastDetectionScore?.let { "%.3f".format(it) } ?: "Unavailable"}",
+                        color = VoidColor.TextSecondary,
+                        fontSize = 11.sp
+                    )
+                    wakeWordDiagnostics.lastError?.let {
+                        Text("Last error: $it", color = VoidColor.Red, fontSize = 11.sp)
+                    }
                     Spacer(modifier = Modifier.height(12.dp))
 
                     SettingsToggleRow(
