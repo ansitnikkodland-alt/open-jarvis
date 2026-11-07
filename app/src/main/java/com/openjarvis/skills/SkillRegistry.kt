@@ -5,7 +5,7 @@ import java.util.Locale
 
 /** Pure command-to-skill parsing. Android side effects are delegated to SkillExecutor. */
 object SkillRegistry {
-    enum class Kind { OPEN_APP, SETTINGS, CALL, SEARCH, WHATSAPP_MESSAGE, SMS_MESSAGE, ALARM, TIMER, TORCH, VOLUME, MAPS }
+    enum class Kind { OPEN_APP, SETTINGS, CALL, SEARCH, WHATSAPP_MESSAGE, SMS_MESSAGE, ALARM, TIMER, TORCH, VOLUME, MAPS, TIME }
     data class Request(val kind: Kind, val args: Map<String, String>)
 
     interface SkillExecutor { suspend fun execute(request: Request): Result<Unit> }
@@ -16,6 +16,8 @@ object SkillRegistry {
     fun parse(raw: String): Request? {
         val s = norm(raw)
         if (s.isBlank()) return null
+
+        if (isTimeQuestion(s)) return Request(Kind.TIME, emptyMap())
 
         parseAlarm(s)?.let { return Request(Kind.ALARM, mapOf("hour" to it.first.toString(), "minute" to it.second.toString())) }
         Regex("^(?:set )?(?:a )?timer(?: for)? (\\d+)\\s*(seconds?|secs?|minutes?|mins?)$").matchEntire(s)?.let {
@@ -66,6 +68,20 @@ object SkillRegistry {
             }
         }
         return null
+    }
+
+    internal fun isTimeQuestion(s: String): Boolean {
+        val text = norm(s).replace(Regex("[?!.,]"), "").trim()
+        val patterns = listOf(
+            Regex("^(?:what time is it|what is the time|current time|tell me the time)$"),
+            Regex("^(?:time|samay) (?:kya hua hai|kya hai|batao|kitna hua hai)$"),
+            Regex("^(?:abhi )?(?:kitne baje hain|kitna time hua hai)$"),
+            Regex("^(?:aaj ka )?(?:samay|time) (?:kya hai|kaha hai|kitna hua hai)$"),
+            Regex("^(?:अभी )?(?:कितने बजे हैं|समय क्या हुआ है|समय क्या है|आज का समय क्या है)$"),
+            Regex("^(?:वर्तमान समय क्या है|अभी समय क्या हुआ है)$"),
+            Regex("^(?:आत्ता किती वाजले|सध्या किती वाजले|वेळ किती झाली)$")
+        )
+        return patterns.any { it.matches(text) }
     }
 
     private fun parseAlarm(s: String): Pair<Int, Int>? {
