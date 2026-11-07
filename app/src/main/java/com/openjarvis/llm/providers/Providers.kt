@@ -297,7 +297,7 @@ class OllamaProvider(
             runCatching {
                 val deadlineNanos = System.nanoTime() + java.util.concurrent.TimeUnit.MILLISECONDS.toNanos(timeoutMs.coerceAtLeast(1L))
                 val schemaAvailable = (actionPlan || skillPlan || nativeIntentPlan) && supportsJsonSchema(deadlineNanos)
-                val predictionLimit = if (nativeIntentPlan) 64 else if (skillPlan) 96 else if (actionPlan) 128 else 256
+                val predictionLimit = if (nativeIntentPlan) 64 else if (skillPlan) 96 else if (actionPlan) 128 else 64
                 if (schemaAvailable) {
                     runCatching {
                         executeChat(
