@@ -18,15 +18,28 @@ class SocketServerTest {
     }
 
     @Test
+    fun `parseRequest accepts exact command and request id limits`() {
+        val command = "x".repeat(2_000)
+        val requestId = "r".repeat(128)
+        val result = SocketServer.parseRequest(
+            """{"cmd":"$command","requestId":"$requestId","token":"secret"}"""
+        )
+        assertNotNull(result)
+        assertEquals(command, result?.second)
+        assertEquals(requestId, result?.first)
+    }
+
+    @Test
     fun `parseRequest rejects missing command token or malformed JSON`() {
         assertNull(SocketServer.parseRequest("""{"requestId":"abc123","token":"secret"}"""))
         assertNull(SocketServer.parseRequest("""{"cmd":"status","requestId":"abc123"}"""))
+        assertNull(SocketServer.parseRequest("""{"cmd":"status","token":""}"""))
         assertNull(SocketServer.parseRequest("not json"))
     }
 
     @Test
-    fun `parseRequest rejects command and request id over configured limits`() {
-        assertNull(SocketServer.parseRequest("""{"cmd":"${"x".repeat(2001)}","token":"secret"}"""))
+    fun `parseRequest rejects command and request id one over configured limits`() {
+        assertNull(SocketServer.parseRequest("""{"cmd":"${"x".repeat(2_001)}","token":"secret"}"""))
         assertNull(SocketServer.parseRequest("""{"cmd":"status","requestId":"${"x".repeat(129)}","token":"secret"}"""))
     }
 
@@ -35,6 +48,7 @@ class SocketServerTest {
         assertTrue(SocketServer.isValidToken("secret-token", "secret-token"))
         assertFalse(SocketServer.isValidToken("secret-token", "different-token"))
         assertFalse(SocketServer.isValidToken("", "secret-token"))
+        assertFalse(SocketServer.isValidToken("secret-token", ""))
     }
 
     @Test
@@ -44,11 +58,12 @@ class SocketServerTest {
         assertTrue(BridgeTokenProvider.isTrustedUid(2000, appUid = 10123, termuxUid = 10234))
         assertFalse(BridgeTokenProvider.isTrustedUid(10345, appUid = 10123, termuxUid = 10234))
         assertFalse(BridgeTokenProvider.isTrustedUid(10345, appUid = 10123, termuxUid = null))
+        assertFalse(BridgeTokenProvider.isTrustedUid(10234, appUid = 10123, termuxUid = null))
     }
 
     @Test
     fun `escapeJson escapes special characters`() {
-        val escaped = SocketServer.escapeJson("hello\nworld\"test\tvalue")
+        val escaped = SocketServer.escapeJson("hello\nworld\\"test\tvalue")
         assertTrue(escaped.contains("\\n"))
         assertTrue(escaped.contains("\\\""))
         assertTrue(escaped.contains("\\t"))
@@ -71,8 +86,14 @@ class SocketServerTest {
     }
 
     @Test
-    fun `bounded line reader rejects oversized input before newline`() {
-        val input = ByteArrayInputStream("123456789".toByteArray())
+    fun `bounded line reader accepts exactly max bytes before newline`() {
+        val input = ByteArrayInputStream("12345678\n".toByteArray())
+        assertEquals("12345678", SocketServer.readBoundedLine(input, 8))
+    }
+
+    @Test
+    fun `bounded line reader rejects max bytes plus one before newline`() {
+        val input = ByteArrayInputStream("123456789\n".toByteArray())
         try {
             SocketServer.readBoundedLine(input, 8)
             fail("Expected RequestTooLargeException")
@@ -91,6 +112,14 @@ class SocketServerTest {
         val limiter = SlidingWindowRateLimiter(maxRequests = 10, windowMs = 1_000)
         repeat(10) { assertTrue(limiter.allow(clientKey = 10001, nowMs = it.toLong())) }
         assertFalse(limiter.allow(clientKey = 10001, nowMs = 10))
+    }
+
+    @Test
+    fun `rate limiter expires a request at the exact rolling window boundary`() {
+        val limiter = SlidingWindowRateLimiter(maxRequests = 1, windowMs = 1_000)
+        assertTrue(limiter.allow(clientKey = 10001, nowMs = 50))
+        assertFalse(limiter.allow(clientKey = 10001, nowMs = 1_049))
+        assertTrue(limiter.allow(clientKey = 10001, nowMs = 1_050))
     }
 
     @Test
