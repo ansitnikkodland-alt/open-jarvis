@@ -14,6 +14,7 @@ class JarvisNotificationListener : NotificationListenerService() {
 
     private val scope = CoroutineScope(Dispatchers.IO)
     private var graphifyRepo: GraphifyRepository? = null
+    private val notificationsLock = Any()
     private val notifications = mutableListOf<JarvisNotification>()
 
     companion object {
@@ -118,11 +119,15 @@ class JarvisNotificationListener : NotificationListenerService() {
         }
 
         val parsed = parseNotification(sbn)
-        notifications.add(parsed)
+        synchronized(notificationsLock) { notifications.add(parsed) }
     }
 
     override fun onNotificationRemoved(sbn: StatusBarNotification) {
-        notifications.removeAll { it.id == sbn.id }
+        // Notification IDs are only unique within an app; include packageName to avoid
+        // deleting another app's notification when IDs happen to collide.
+        synchronized(notificationsLock) {
+            notifications.removeAll { it.id == sbn.id && it.packageName == sbn.packageName }
+        }
     }
 
     private fun parseNotification(sbn: StatusBarNotification): JarvisNotification {
@@ -158,8 +163,10 @@ class JarvisNotificationListener : NotificationListenerService() {
 
     suspend fun replyToNotification(sender: String, packageName: String, reply: String): Boolean {
         return try {
-            val notification = notifications.find {
-                it.packageName == packageName && it.sender?.contains(sender, ignoreCase = true) == true
+            val notification = synchronized(notificationsLock) {
+                notifications.find {
+                    it.packageName == packageName && it.sender?.contains(sender, ignoreCase = true) == true
+                }
             } ?: return false
 
             val service = JarvisAccessibilityService.instance
@@ -174,16 +181,14 @@ class JarvisNotificationListener : NotificationListenerService() {
         }
     }
 
-    fun getUnread(packageName: String? = null): List<JarvisNotification> {
-        return if (packageName != null) {
-            notifications.filter { it.packageName == packageName }
-        } else {
-            notifications.toList()
-        }
+    fun getUnread(packageName: String? = null): List<JarvisNotification> = synchronized(notificationsLock) {
+        if (packageName != null) notifications.filter { it.packageName == packageName }
+        else notifications.toList()
     }
 
     fun getSummary(): String {
-        val grouped = notifications.groupBy { it.packageName }
+        val snapshot = synchronized(notificationsLock) { notifications.toList() }
+        val grouped = snapshot.groupBy { it.packageName }
 
         return grouped.entries.sortedByDescending { it.value.size }.take(5).joinToString(", ") { (pkg, msgs) ->
             val app = msgs.first().appLabel
@@ -194,12 +199,9 @@ class JarvisNotificationListener : NotificationListenerService() {
         }
     }
 
-    fun clearAll(packageName: String? = null) {
-        if (packageName != null) {
-            notifications.removeAll { it.packageName == packageName }
-        } else {
-            notifications.clear()
-        }
+    fun clearAll(packageName: String? = null) = synchronized(notificationsLock) {
+        if (packageName != null) notifications.removeAll { it.packageName == packageName }
+        else notifications.clear()
     }
 
     data class JarvisNotification(
