@@ -599,6 +599,7 @@ ${fullSystem.substringAfter("MEMORY:")}
                                             SkillRegistry.Kind.VOLUME -> "Volume adjusted"
                                             SkillRegistry.Kind.MAPS -> "Opening navigation"
                                             SkillRegistry.Kind.CALL -> "Dialer opened"
+                                            SkillRegistry.Kind.TIME -> "Abhi " + SimpleDateFormat("h:mm a", Locale.getDefault()).format(Date()) + " baj rahe hain."
                                             SkillRegistry.Kind.SEARCH -> "Search opened"
                                         }
                                         graphifyRepo.logTask(safeCommand, "success (Ollama skill): $reply", "Ollama Skill Router", System.currentTimeMillis() - startTime)
@@ -1370,6 +1371,7 @@ ${fullSystem.substringAfter("MEMORY:")}
                                     SkillRegistry.Kind.OPEN_APP -> "Opened ${skillRequest.args["app"]}"
                                     SkillRegistry.Kind.SETTINGS -> "Opened ${skillRequest.args["screen"]} settings"
                                     SkillRegistry.Kind.CALL -> "Dialer opened"
+                                    SkillRegistry.Kind.TIME -> "Abhi " + SimpleDateFormat("h:mm a", Locale.getDefault()).format(Date()) + " baj rahe hain."
                                     SkillRegistry.Kind.SEARCH -> "Search opened"
                                     SkillRegistry.Kind.WHATSAPP_MESSAGE -> "WhatsApp composer opened"
                                     SkillRegistry.Kind.SMS_MESSAGE -> "SMS composer opened"
@@ -1684,6 +1686,7 @@ ${fullSystem.substringAfter("MEMORY:")}
                         SkillRegistry.Kind.VOLUME -> "Volume adjusted"
                         SkillRegistry.Kind.MAPS -> "Opening navigation"
                         SkillRegistry.Kind.CALL -> "Dialer opened"
+                        SkillRegistry.Kind.TIME -> "Abhi " + SimpleDateFormat("h:mm a", Locale.getDefault()).format(Date()) + " baj rahe hain."
                     }
                     val nextContext = when (kind) {
                         SkillRegistry.Kind.OPEN_APP -> ctx.copy(app = args["app"])
