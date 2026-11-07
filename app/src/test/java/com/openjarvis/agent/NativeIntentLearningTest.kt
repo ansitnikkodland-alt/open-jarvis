@@ -2,7 +2,6 @@ package com.openjarvis.agent
 
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -32,17 +31,15 @@ class NativeIntentLearningTest {
         val intent = StepIntent.Message("whatsapp", "Amit", "Hello")
         var learnCalls = 0
 
-        val error = assertThrows(IllegalStateException::class.java) {
-            runTest {
-                NativeIntentLearning.executeAndLearn(
-                    intent,
-                    execute = { throw IllegalStateException("composer unavailable") },
-                    learn = { learnCalls++ }
-                )
-            }
-        }
+        val error = runCatching {
+            NativeIntentLearning.executeAndLearn(
+                intent,
+                execute = { throw IllegalStateException("composer unavailable") },
+                learn = { learnCalls++ }
+            )
+        }.exceptionOrNull()
 
-        assertEquals("composer unavailable", error.message)
+        assertEquals("composer unavailable", error?.message)
         assertEquals(0, learnCalls)
     }
 
