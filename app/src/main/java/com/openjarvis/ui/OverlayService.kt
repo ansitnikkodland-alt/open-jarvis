@@ -385,8 +385,7 @@ class OverlayService : Service() {
                         if (wakeWordController?.isRunning() == true) stopWakeWordListening()
                         // A manual mic tap is an explicit activation in both STT modes.
                         activationGate.activate(ActivationGate.Source.PUSH_TO_TALK)
-                        wakeWordCommandPending = true
-                        wakeWordSession.markResponsePending()
+                        markWakeWordCommandPending()
                         voiceManager.startListening()
                     }
                 }
@@ -458,8 +457,7 @@ class OverlayService : Service() {
     private fun enterMuteMode() {
         mutedUntilWakeWord = true
         awaitingUnmuteCommand = false
-        wakeWordCommandPending = false
-        wakeWordResponsePending = false
+        clearWakeWordPendingState()
         voiceManager.stopListening()
         voiceManager.stopSpeaking()
         statusText?.text = "MUTED — say Jarvis to wake"
@@ -493,7 +491,7 @@ class OverlayService : Service() {
         }
         if (wakeWordController?.isRunning() == true) {
             stopWakeWordListening()
-            wakeWordResponsePending = true
+            wakeWordSession.markResponsePending()
         }
         statusText?.text = "Jarvis is working…"
         voiceManager.markThinking()
