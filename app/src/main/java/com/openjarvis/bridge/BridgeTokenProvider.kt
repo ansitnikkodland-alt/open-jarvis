@@ -5,6 +5,7 @@ import android.content.ContentValues
 import android.content.Context
 import android.database.Cursor
 import android.database.MatrixCursor
+import android.net.Uri
 import android.os.Binder
 import android.os.Process
 import android.util.Base64
