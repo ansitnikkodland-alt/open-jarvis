@@ -11,11 +11,11 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 
 class JarvisNotificationListener : NotificationListenerService() {
-    
+
     private val scope = CoroutineScope(Dispatchers.IO)
     private var graphifyRepo: GraphifyRepository? = null
     private val notifications = mutableListOf<JarvisNotification>()
-    
+
     companion object {
         private val PRIVACY_PROTECTED_APPS = setOf(
             // India: bank, UPI, wallet and payment apps.
@@ -80,10 +80,13 @@ class JarvisNotificationListener : NotificationListenerService() {
             "com.razorpay"
         ).map { it.lowercase() }.toSet()
 
+        // Package-name heuristics are intentionally conservative: false positives
+        // are preferable to collecting notification text from a financial app.
         private val FINANCIAL_PACKAGE_MARKERS = setOf(
-            "bank", "banking", ".upi", "paisa", "wallet", "finance",
-            "paytm", "phonepe", "payzapp", "mobikwik", "freecharge",
-            "razorpay", "paypal", "cashapp"
+            "bank", "banking", "upi", "paisa", "wallet", "finance", "payment",
+            "paytm", "phonepe", "payzapp", "mobikwik", "freecharge", "razorpay",
+            "paypal", "cashapp", "bhim", "npci", "cred", "credit", "debit",
+            "gpay", "card"
         )
 
         private val messagingApps = listOf(
@@ -104,27 +107,25 @@ class JarvisNotificationListener : NotificationListenerService() {
                 FINANCIAL_PACKAGE_MARKERS.none { marker -> normalized.contains(marker) }
         }
     }
-    
+
     override fun onNotificationPosted(sbn: StatusBarNotification) {
         if (!shouldProcessNotification(sbn.packageName)) {
             return
         }
-        
+
         val parsed = parseNotification(sbn)
         notifications.add(parsed)
-        
-
     }
-    
+
     override fun onNotificationRemoved(sbn: StatusBarNotification) {
         notifications.removeAll { it.id == sbn.id }
     }
-    
+
     private fun parseNotification(sbn: StatusBarNotification): JarvisNotification {
         val extras = sbn.notification.extras
         val title = extras.getCharSequence(Notification.EXTRA_TITLE)?.toString() ?: ""
         val body = extras.getCharSequence(Notification.EXTRA_TEXT)?.toString() ?: ""
-        
+
         val appLabel = try {
             packageManager.getApplicationLabel(
                 packageManager.getApplicationInfo(sbn.packageName, 0)
@@ -132,13 +133,13 @@ class JarvisNotificationListener : NotificationListenerService() {
         } catch (e: Exception) {
             sbn.packageName
         }
-        
+
         val isMessaging = sbn.packageName in messagingApps
-        
+
         val sender = if (isMessaging) {
             extras.getCharSequence(Notification.EXTRA_TITLE)?.toString()
         } else null
-        
+
         return JarvisNotification(
             id = sbn.id,
             packageName = sbn.packageName,
@@ -150,25 +151,25 @@ class JarvisNotificationListener : NotificationListenerService() {
             sender = sender
         )
     }
-    
+
     suspend fun replyToNotification(sender: String, packageName: String, reply: String): Boolean {
         return try {
             val notification = notifications.find {
                 it.packageName == packageName && it.sender?.contains(sender, ignoreCase = true) == true
             } ?: return false
-            
+
             val service = JarvisAccessibilityService.instance
-            
+
             service?.tapByText("Reply")
             service?.typeText(reply)
             service?.tapByText("Send")
-            
+
             true
         } catch (e: Exception) {
             false
         }
     }
-    
+
     fun getUnread(packageName: String? = null): List<JarvisNotification> {
         return if (packageName != null) {
             notifications.filter { it.packageName == packageName }
@@ -176,10 +177,10 @@ class JarvisNotificationListener : NotificationListenerService() {
             notifications.toList()
         }
     }
-    
+
     fun getSummary(): String {
         val grouped = notifications.groupBy { it.packageName }
-        
+
         return grouped.entries.sortedByDescending { it.value.size }.take(5).joinToString(", ") { (pkg, msgs) ->
             val app = msgs.first().appLabel
             val count = msgs.size
@@ -188,7 +189,7 @@ class JarvisNotificationListener : NotificationListenerService() {
             else "$count $app"
         }
     }
-    
+
     fun clearAll(packageName: String? = null) {
         if (packageName != null) {
             notifications.removeAll { it.packageName == packageName }
@@ -196,7 +197,7 @@ class JarvisNotificationListener : NotificationListenerService() {
             notifications.clear()
         }
     }
-    
+
     data class JarvisNotification(
         val id: Int,
         val packageName: String,
@@ -207,6 +208,4 @@ class JarvisNotificationListener : NotificationListenerService() {
         val isMessaging: Boolean,
         val sender: String?
     )
-    
-
 }
