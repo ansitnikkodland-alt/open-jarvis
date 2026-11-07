@@ -532,8 +532,11 @@ Never invent contact names or app labels. Understand Hindi, Marathi, Hinglish an
                     if (nativeIntent != null) {
                         _state.value = AgentState.Running("running native ${nativeIntent.javaClass.simpleName.lowercase()} skill...")
                         try {
-                            val reply = executeStepIntent(nativeIntent)
-                            nativeLearnedStore.save(safeCommand, nativeIntent)
+                            val reply = NativeIntentLearning.executeAndLearn(
+                                nativeIntent,
+                                execute = { executeStepIntent(it) },
+                                learn = { nativeLearnedStore.save(safeCommand, it) }
+                            )
                             graphifyRepo.logTask(safeCommand, "success (native LLM intent): $reply", "Ollama Native Intent Router", System.currentTimeMillis() - startTime)
                             _state.value = AgentState.Done(reply)
                             return@withLock
