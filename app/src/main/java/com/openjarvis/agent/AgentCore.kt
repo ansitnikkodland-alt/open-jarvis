@@ -7,7 +7,7 @@ import android.content.pm.ResolveInfo
 import android.net.Uri
 import android.provider.Settings
 import android.provider.AlarmClock
-import android.provider.ContactsContract
+import android.provider.ContactsContract\nimport java.text.SimpleDateFormat\nimport java.util.Date\nimport java.util.Locale
 import android.app.SearchManager
 import android.content.pm.PackageManager
 import com.openjarvis.accessibility.JarvisAccessibilityService
@@ -258,7 +258,7 @@ ${rawResponse.take(1000)}
                                     SkillRegistry.Kind.TORCH -> if (nativeSkill.args["enabled"] == "true") "Torch turned on" else "Torch turned off"
                                     SkillRegistry.Kind.VOLUME -> "Volume adjusted"
                                     SkillRegistry.Kind.MAPS -> "Opening navigation"
-                                    SkillRegistry.Kind.CALL -> "Dialer opened"
+                                    SkillRegistry.Kind.CALL -> "Dialer opened"\n                                    SkillRegistry.Kind.TIME -> "Abhi " + SimpleDateFormat("h:mm a", Locale.getDefault()).format(Date()) + " baj rahe hain."
                                     SkillRegistry.Kind.SEARCH -> "Search opened"
                                 }
                                 graphifyRepo.logTask(safeCommand, "success (native skill): $reply", "Android SkillRegistry", 0)
