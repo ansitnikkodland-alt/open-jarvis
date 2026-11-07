@@ -51,11 +51,11 @@ send_cmd() {
 
     # Prefer socat, but preserve compatibility with Termux nc and BusyBox nc.
     if command -v socat >/dev/null 2>&1; then
-        printf '%s' "$request" | socat - "TCP:127.0.0.1:$BRIDGE_PORT,connect-timeout=2"
+        printf '%s\n' "$request" | socat - "TCP:127.0.0.1:$BRIDGE_PORT,connect-timeout=2"
     elif command -v nc >/dev/null 2>&1; then
-        printf '%s' "$request" | nc -w 2 127.0.0.1 "$BRIDGE_PORT"
+        printf '%s\n' "$request" | nc -w 2 127.0.0.1 "$BRIDGE_PORT"
     elif command -v busybox >/dev/null 2>&1 && busybox nc --help >/dev/null 2>&1; then
-        printf '%s' "$request" | busybox nc -w 2 127.0.0.1 "$BRIDGE_PORT"
+        printf '%s\n' "$request" | busybox nc -w 2 127.0.0.1 "$BRIDGE_PORT"
     else
         echo "Error: No supported socket client found. Install socat or nc: pkg install socat" >&2
         return 1
