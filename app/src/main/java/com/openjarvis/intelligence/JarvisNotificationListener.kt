@@ -51,6 +51,19 @@ class JarvisNotificationListener : NotificationListenerService() {
             "com.samsung.android.spaymini",
             "in.amazon.mShop.android.shopping",
 
+            // Legacy package aliases retained for backward-compatible privacy protection.
+            "com.chase",
+            "com.usbank",
+            "com.citi",
+            "com.barclays",
+            "com.hsbc",
+            "com.db",
+            "com.americanexpress",
+            "com.discover",
+            "com.paypal",
+            "com.squareup",
+            "com.stripe",
+
             // International banking and payment apps.
             "com.bankofamerica.cashpromobile",
             "com.chase.sig.android",
