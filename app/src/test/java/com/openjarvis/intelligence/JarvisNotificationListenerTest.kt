@@ -59,7 +59,15 @@ class JarvisNotificationListenerTest {
             "com.example.cred",
             "com.example.creditcard",
             "com.example.debitcard",
-            "com.example.gpay"
+            "com.example.gpay",
+            "com.example.kotak.mobile",
+            "com.example.idbi.mobile",
+            "com.example.indusind.mobile",
+            "com.example.canara.mobile",
+            "com.example.unionbank.mobile",
+            "com.example.pnb.mobile",
+            "com.example.sbi.mobile",
+            "com.example.axis.mobile"
         )
         unknownFinancialPackages.forEach {
             assertFalse("$it must be privacy protected", JarvisNotificationListener.shouldProcessNotification(it))
