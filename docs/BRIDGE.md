@@ -1,174 +1,82 @@
 # Open Jarvis CLI Bridge
 
-The Termux CLI bridge allows you to control Open Jarvis from the command line using TCP sockets.
+The Termux CLI bridge controls the Open Jarvis Android agent through an Android
+abstract UNIX-domain socket. The app does not open a TCP listener.
 
 ## Quick Start
 
-### Install jarvis.sh
+1. Start Open Jarvis and enable the floating Overlay Service.
+2. In Termux, install the socket client:
 
 ```bash
-# Copy to your PATH
-cp scripts/jarvis.sh $PREFIX/bin/jarvis
-chmod +x $PREFIX/bin/jarvis
-
-# Install network tool (required)
 pkg install socat
 ```
 
-### Usage
+3. Install the CLI helper:
 
 ```bash
-# Execute a command
+cp scripts/jarvis.sh $PREFIX/bin/jarvis
+chmod +x $PREFIX/bin/jarvis
+```
+
+## Usage
+
+```bash
 jarvis "open whatsapp"
-
-# Check service status
 jarvis status
-
-# View recent task history
 jarvis history
-
-# View provider stats
 jarvis providers
-
-# View memory context
 jarvis memory
-
-# Get help
-jarvis --help
 ```
-
-### Pipe Mode
-
-```bash
-# Pipe commands from file
-cat commands.txt | jarvis
-
-# Echo a single command
-echo "open chrome" | jarvis
-```
-
-## Special Commands
-
-| Command | Description |
-|---------|-------------|
-| `status` | Returns service state, accessibility permission status, active LLM provider |
-| `history` | Returns last 10 tasks as JSON array |
-| `providers` | Returns LLM provider statistics |
-| `memory` | Returns Graphify memory context summary |
 
 ## Protocol
 
-### Request Format
+The CLI connects to the Android abstract socket named
+`openjarvis_cli_bridge`.
+
+Request:
 
 ```json
-{"cmd": "open whatsapp", "requestId": "abc123"}
+{"cmd":"open whatsapp","requestId":"abc123"}
 ```
 
-### Response Format
+Response:
 
 ```json
-{"requestId": "abc123", "status": "done", "result": "success"}
+{"requestId":"abc123","status":"done","result":"success"}
 ```
 
-Status values:
-- `progress` - Task is executing
-- `done` - Task completed successfully
-- `error` - Task failed
+Status values are `progress`, `done`, and `error`.
 
-## Installation
+## ADB forwarding
 
-### Termux
-
-1. Open Termux
-2. Copy `jarvis.sh` to `$PREFIX/bin/`:
+For a host computer connected with ADB:
 
 ```bash
-cp jarvis.sh $PREFIX/bin/jarvis
-chmod +x $PREFIX/bin/jarvis
+adb forward tcp:5000 localabstract:openjarvis_cli_bridge
+echo '{"cmd":"status","requestId":"1"}' | nc 127.0.0.1 5000
 ```
 
-3. Install `socat` (or `nc` as fallback):
+The Android-side socket authenticates the connecting peer UID. The supported
+local peers are the Open Jarvis app UID, the installed Termux app UID, and the
+Android shell UID used by ADB forwarding.
 
-```bash
-pkg install socat
-```
+## Security model
 
-4. Start Open Jarvis Android app (first time setup)
-
-### ADB
-
-To use from a computer via ADB:
-
-```bash
-# Forward a local port to the Android device
-adb forward tcp:5000 tcp:5000
-
-# Then use netcat
-echo '{"cmd":"open chrome","requestId":"1"}' | nc -w 2 127.0.0.1 5000
-```
-
-Note: You'll need to find the correct port. Check the app's filesDir.
-
-## Examples
-
-### Open Apps
-
-```bash
-jarvis "open whatsapp"
-jarvis "open chrome"
-jarvis "open settings"
-```
-
-### Send Messages
-
-```bash
-jarvis "send message to John hey what's up"
-```
-
-### Automation Scripts
-
-```bash
-#!/bin/bash
-# morning-routine.sh
-
-jarvis "open whatsapp"
-sleep 2
-jarvis "send message to Mom good morning"
-```
-
-## Security Model
-
-### Permissions
-
-- **No new Android permissions** — The socket server uses existing permissions
-- **Same access level** — As if using the overlay UI
-- **Local only** — No network exposure, device-local only
-
-### Considerations
-
-- Anyone with device access can control the agent
-- No authentication on the socket (intentional for local use)
-- Do not expose via network port forwarding in untrusted environments
+- The server uses `LocalServerSocket` in Android's abstract UNIX-domain namespace.
+- No TCP server is bound to Wi-Fi, mobile data, or other network interfaces.
+- The server checks the actual peer UID from the accepted local socket; it does
+  not use the server process UID as a substitute for the client UID.
+- Requests are limited to 8 KiB, commands to 2,000 characters, and each allowed
+  peer UID to 10 requests per rolling second.
+- Unauthenticated peer UIDs are rejected.
 
 ## Troubleshooting
 
-### "Open Jarvis service not running"
+- **Bridge unavailable:** Start the Open Jarvis app and its Overlay Service.
+- **socat missing:** Run `pkg install socat` in Termux.
+- **ADB connection fails:** Check that `adb forward` targets the exact
+  `localabstract:openjarvis_cli_bridge` name.
+- **Termux rejected:** Ensure the installed Termux package is the official
+  `com.termux` package and that the app has been restarted after installation.
 
-Start the Open Jarvis app. The socket server starts when the overlay service starts.
-
-### "No network tool (socat/nc) available"
-
-```bash
-pkg install socat
-```
-
-### Connection timeout
-
-The service might be busy. Wait and retry.
-
-## Exit Codes
-
-| Code | Meaning |
-|------|---------|
-| 0 | Success |
-| 1 | Error (service not running, command failed, parse error) |
