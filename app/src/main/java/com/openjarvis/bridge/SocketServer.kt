@@ -44,7 +44,7 @@ class SocketServer(
     private val graphifyRepo: GraphifyRepository
 ) {
     private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
-    private var serverSocket: ServerSocket? = null
+    @Volatile private var serverSocket: ServerSocket? = null
     @Volatile private var isRunning = false
     private val authToken = BridgeTokenStore.getOrCreateToken(context)
     private val rateLimiter = SlidingWindowRateLimiter(
@@ -53,8 +53,6 @@ class SocketServer(
     )
 
     companion object {
-        const val SOCKET_NAME = "openjarvis_cli_bridge"
-        const val CONFIG_URI = "content://com.openjarvis.bridgeconfig/config"
         private const val MAX_COMMAND_LENGTH = 2_000
         private const val MAX_REQUEST_ID_LENGTH = 128
         private const val MAX_REQUEST_BYTES = 8_192
@@ -151,6 +149,7 @@ class SocketServer(
             runCatching { serverSocket?.close() }
             serverSocket = null
             BridgeRuntimeConfig.port = 0
+            isRunning = false
         }
     }
 
