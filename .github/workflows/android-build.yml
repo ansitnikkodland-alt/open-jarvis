@@ -167,6 +167,7 @@ jobs:
   euronics-ui-optional:
     name: euronics-ui-optional (non-blocking)
     needs: apk-build
+    if: github.event_name == 'push' && github.ref == 'refs/heads/feature/euronics-webview-integration'
     continue-on-error: true
     runs-on: ubuntu-latest
     steps:
