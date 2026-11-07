@@ -13,7 +13,6 @@ import android.os.HandlerThread
 import android.util.DisplayMetrics
 import android.view.WindowManager
 import com.openjarvis.ui.ScreenCapturePermissionActivity
-import com.openjarvis.ui.ScreenCaptureService
 
 class ScreenshotCapture(private val context: Context) {
 
