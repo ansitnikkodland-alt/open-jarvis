@@ -209,12 +209,12 @@ class SocketServer(
 
         val statusJson = buildString {
             append("{")
-            append("\"requestId\":\"\${escapeJson(requestId)}\",")
+            append("\"requestId\":\"${escapeJson(requestId)}\",")
             append("\"status\":\"done\",")
             append("\"result\":{")
             append("\"service\":\"running\",")
             append("\"accessibility\":$accessibilityEnabled,")
-            append("\"provider\":\"\${escapeJson(provider)}\",")
+            append("\"provider\":\"${escapeJson(provider)}\",")
             append("\"port\":${BridgeRuntimeConfig.port}")
             append("}}")
         }
