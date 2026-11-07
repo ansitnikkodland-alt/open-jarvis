@@ -129,9 +129,9 @@ jobs:
           api-level: 34
           arch: x86_64
           profile: pixel_2
-          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -memory 4096 -cores 2
+          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -memory 2048 -cores 2 -no-metrics
           disable-animations: true
-          emulator-boot-timeout: 600
+          emulator-boot-timeout: 900
           script: bash scripts/smoke-minimal.sh
 
       - name: Upload minimal smoke logcat
@@ -185,7 +185,7 @@ jobs:
           api-level: 34
           arch: x86_64
           profile: pixel_2
-          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -memory 4096 -cores 2
+          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -memory 2048 -cores 2 -no-metrics
           disable-animations: true
           emulator-boot-timeout: 600
           script: bash scripts/euronics-smoke.sh
