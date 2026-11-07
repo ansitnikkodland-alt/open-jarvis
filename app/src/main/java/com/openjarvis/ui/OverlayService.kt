@@ -465,20 +465,24 @@ class OverlayService : Service() {
     }
 
     private fun submitCommand(voiceCommand: String? = null) {
-        val command = voiceCommand?.trim().takeUnless { it.isNullOrBlank() }
-            ?: commandInput?.text?.toString()?.trim().orEmpty()
-        // Typed commands are explicit UI input and intentionally bypass the voice gate.
-        // Voice transcripts must have a fresh wake-word or manual-mic activation token.
+        // A voice transcript must never fall back to stale text left in the input field.
+        // Typed commands remain explicit UI input and intentionally bypass the voice gate.
+        val command = if (voiceCommand != null) {
+            voiceCommand.trim()
+        } else {
+            commandInput?.text?.toString()?.trim().orEmpty()
+        }
         if (voiceCommand != null) {
             val decision = activationGate.validateTranscript(command, System.currentTimeMillis())
             if (!decision.accepted) {
                 statusText?.text = "Voice ignored: ${decision.reason}"
-                if (wakeWordResponsePending) resumeWakeWordAfterResponse()
+                resumeWakeWordAfterResponse()
                 return
             }
         }
         if (command.isBlank()) {
-            statusText?.text = "Type a command first"
+            statusText?.text = "No speech detected — say Jarvis to try again"
+            if (voiceCommand != null) resumeWakeWordAfterResponse()
             return
         }
         if (command.any { it in '\u0900'..'\u097F' }) {
@@ -487,6 +491,7 @@ class OverlayService : Service() {
         }
         if (com.openjarvis.accessibility.JarvisAccessibilityService.instance == null) {
             statusText?.text = "Accessibility service is OFF. Enable Open Jarvis in Android Accessibility settings."
+            if (voiceCommand != null) resumeWakeWordAfterResponse()
             return
         }
         if (wakeWordController?.isRunning() == true) {
