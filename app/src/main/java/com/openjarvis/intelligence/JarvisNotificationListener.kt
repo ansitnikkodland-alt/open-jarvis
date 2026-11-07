@@ -86,7 +86,11 @@ class JarvisNotificationListener : NotificationListenerService() {
             "bank", "banking", "upi", "paisa", "wallet", "finance", "payment",
             "paytm", "phonepe", "payzapp", "mobikwik", "freecharge", "razorpay",
             "paypal", "cashapp", "bhim", "npci", "cred", "credit", "debit",
-            "gpay", "card"
+            "gpay", "card", "kotak", "idbi", "indusind", "federal", "rbl",
+            "pnb", "sbi", "hdfc", "icici", "axis", "yesbank", "bankofbaroda",
+            "bankofindia", "canara", "unionbank", "indianbank", "bandhan",
+            "dbs", "hsbc", "barclays", "wellsfargo", "chase", "citi",
+            "americanexpress", "discover"
         )
 
         private val messagingApps = listOf(
