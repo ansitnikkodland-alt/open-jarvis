@@ -15,6 +15,7 @@ import java.net.ServerSocket
 import java.net.Socket
 import java.nio.charset.StandardCharsets
 import java.security.MessageDigest
+import java.util.concurrent.Semaphore
 
 internal class RequestTooLargeException : Exception("request too large")
 
@@ -53,12 +54,14 @@ class SocketServer(
         MAX_REQUESTS_PER_SECOND,
         RATE_WINDOW_MS
     )
+    private val clientSlots = Semaphore(MAX_CONCURRENT_CLIENTS)
 
     companion object {
         private const val MAX_COMMAND_LENGTH = 2_000
         private const val MAX_REQUEST_ID_LENGTH = 128
         private const val MAX_REQUEST_BYTES = 8_192
         private const val MAX_REQUESTS_PER_SECOND = 10
+        private const val MAX_CONCURRENT_CLIENTS = 10
         private const val RATE_WINDOW_MS = 1_000L
         private const val CLIENT_TIMEOUT_MS = 3_000
 
@@ -134,10 +137,16 @@ class SocketServer(
             while (isRunning) {
                 try {
                     val client = serverSocket?.accept() ?: break
-                    if (!client.inetAddress.isLoopbackAddress) {
+                    if (!client.inetAddress.isLoopbackAddress || !clientSlots.tryAcquire()) {
                         client.close()
                     } else {
-                        scope.launch { handleClient(client) }
+                        scope.launch {
+                            try {
+                                handleClient(client)
+                            } finally {
+                                clientSlots.release()
+                            }
+                        }
                     }
                 } catch (e: Exception) {
                     if (isRunning) delay(100)
@@ -167,6 +176,14 @@ class SocketServer(
                 return@withContext
             }
 
+            // Rate-limit before parsing/authentication so malformed and unauthenticated
+            // local requests cannot bypass the per-client request budget.
+            val clientKey = clientSocket.inetAddress.hostAddress.orEmpty().hashCode()
+            if (!rateLimiter.allow(clientKey, SystemClock.elapsedRealtime())) {
+                writer.println(createErrorResponse("", "rate limit exceeded"))
+                return@withContext
+            }
+
             val request = parseRequest(line)
             if (request == null) {
                 writer.println(createErrorResponse("", "invalid request, missing token, or command too long"))
@@ -179,11 +196,6 @@ class SocketServer(
                 return@withContext
             }
 
-            val clientKey = clientSocket.inetAddress.hostAddress.orEmpty().hashCode()
-            if (!rateLimiter.allow(clientKey, SystemClock.elapsedRealtime())) {
-                writer.println(createErrorResponse(requestId, "rate limit exceeded"))
-                return@withContext
-            }
 
             when (cmd.lowercase()) {
                 "status" -> handleStatus(writer, requestId)
