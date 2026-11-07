@@ -50,6 +50,11 @@ class BridgeTokenProvider : ContentProvider() {
             shellUid: Int = SHELL_UID
         ): Boolean = callerUid == appUid || callerUid == shellUid ||
             (termuxUid != null && callerUid == termuxUid)
+
+        internal fun isConfigUri(uri: Uri, expectedAuthority: String): Boolean =
+            uri.scheme == "content" &&
+                uri.authority == expectedAuthority &&
+                uri.path == "/config"
     }
 
     override fun onCreate(): Boolean = true
@@ -62,6 +67,10 @@ class BridgeTokenProvider : ContentProvider() {
         sortOrder: String?
     ): Cursor {
         val appContext = context ?: throw IllegalStateException("Provider context unavailable")
+        if (!isConfigUri(uri, "${appContext.packageName}.bridgeconfig")) {
+            throw IllegalArgumentException("Unsupported Jarvis bridge configuration URI")
+        }
+
         val callerUid = Binder.getCallingUid()
         val termuxUid = runCatching {
             appContext.packageManager.getApplicationInfo(TERMUX_PACKAGE, 0).uid
