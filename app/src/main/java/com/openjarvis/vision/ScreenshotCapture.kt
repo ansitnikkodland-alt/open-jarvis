@@ -109,8 +109,8 @@ class ScreenshotCapture(private val context: Context) {
             val rowStride = plane.rowStride
             if (pixelStride <= 0) return null
 
+            val paddedWidth = paddedBitmapWidth(image.width, rowStride, pixelStride) ?: return null
             val rowPadding = rowStride - pixelStride * image.width
-            val paddedWidth = image.width + rowPadding / pixelStride
             val sourceBitmap = Bitmap.createBitmap(
                 paddedWidth,
                 image.height,
@@ -166,6 +166,14 @@ class ScreenshotCapture(private val context: Context) {
     }
 
     companion object {
+        internal fun paddedBitmapWidth(imageWidth: Int, rowStride: Int, pixelStride: Int): Int? {
+            if (imageWidth <= 0 || rowStride <= 0 || pixelStride <= 0) return null
+            val minimumRowBytes = imageWidth.toLong() * pixelStride
+            if (rowStride.toLong() < minimumRowBytes) return null
+            val rowPadding = rowStride.toLong() - minimumRowBytes
+            return (imageWidth.toLong() + rowPadding / pixelStride).takeIf { it <= Int.MAX_VALUE }?.toInt()
+        }
+
         @Volatile
         private var instance: ScreenshotCapture? = null
 
