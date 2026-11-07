@@ -31,8 +31,8 @@ jarvis memory
 ```
 
 The helper reads the dynamic loopback port and token from the protected
-`content://com.openjarvis.bridgeconfig/config` provider. The provider returns
-those values only to the Open Jarvis app UID, the installed Termux app UID, or
+`content://<installed-app-id>.bridgeconfig/config` provider. The provider returns
+the authority is variant-specific (for example, `com.openjarvis.bridgeconfig` or `com.openjarvis.preview.bridgeconfig`) and returns those values only to the Open Jarvis app UID, the installed Termux app UID, or
 Android's ADB shell UID.
 
 ## Protocol
