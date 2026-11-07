@@ -68,7 +68,7 @@ class AndroidSkillExecutor(private val context: Context) : SkillRegistry.SkillEx
                 audio.adjustStreamVolume(AudioManager.STREAM_MUSIC, adjustment, AudioManager.FLAG_SHOW_UI)
                 audio.adjustStreamVolume(AudioManager.STREAM_MUSIC, adjustment, AudioManager.FLAG_SHOW_UI)
             }
-            SkillRegistry.Kind.MAPS -> {
+            SkillRegistry.Kind.TIME -> Unit\n            SkillRegistry.Kind.MAPS -> {
                 val destination = args.getValue("destination")
                 val mapsIntent = Intent(Intent.ACTION_VIEW, Uri.parse("google.navigation:q=" + Uri.encode(destination)))
                     .setPackage("com.google.android.apps.maps")
