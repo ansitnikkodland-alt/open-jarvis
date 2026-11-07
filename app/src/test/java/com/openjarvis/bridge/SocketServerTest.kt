@@ -19,8 +19,8 @@ class SocketServerTest {
 
     @Test
     fun `parseRequest accepts exact command and request id limits`() {
-        val command = "x".repeat(2_000)
-        val requestId = "r".repeat(128)
+        val command = "x".repeat(SocketServer.MAX_COMMAND_LENGTH)
+        val requestId = "r".repeat(SocketServer.MAX_REQUEST_ID_LENGTH)
         val result = SocketServer.parseRequest(
             """{"cmd":"$command","requestId":"$requestId","token":"secret"}"""
         )
@@ -39,8 +39,8 @@ class SocketServerTest {
 
     @Test
     fun `parseRequest rejects command and request id one over configured limits`() {
-        assertNull(SocketServer.parseRequest("""{"cmd":"${"x".repeat(2_001)}","token":"secret"}"""))
-        assertNull(SocketServer.parseRequest("""{"cmd":"status","requestId":"${"x".repeat(129)}","token":"secret"}"""))
+        assertNull(SocketServer.parseRequest("""{"cmd":"${"x".repeat(SocketServer.MAX_COMMAND_LENGTH + 1)}","token":"secret"}"""))
+        assertNull(SocketServer.parseRequest("""{"cmd":"status","requestId":"${"x".repeat(SocketServer.MAX_REQUEST_ID_LENGTH + 1)}","token":"secret"}"""))
     }
 
     @Test
@@ -86,16 +86,18 @@ class SocketServerTest {
     }
 
     @Test
-    fun `bounded line reader accepts exactly max bytes before newline`() {
-        val input = ByteArrayInputStream("12345678\n".toByteArray())
-        assertEquals("12345678", SocketServer.readBoundedLine(input, 8))
+    fun `bounded line reader accepts exactly the configured 8 KiB limit`() {
+        val request = "x".repeat(SocketServer.MAX_REQUEST_BYTES)
+        val input = ByteArrayInputStream((request + "\n").toByteArray())
+        assertEquals(request, SocketServer.readBoundedLine(input, SocketServer.MAX_REQUEST_BYTES))
     }
 
     @Test
-    fun `bounded line reader rejects max bytes plus one before newline`() {
-        val input = ByteArrayInputStream("123456789\n".toByteArray())
+    fun `bounded line reader rejects one byte over the configured 8 KiB limit`() {
+        val request = "x".repeat(SocketServer.MAX_REQUEST_BYTES + 1)
+        val input = ByteArrayInputStream((request + "\n").toByteArray())
         try {
-            SocketServer.readBoundedLine(input, 8)
+            SocketServer.readBoundedLine(input, SocketServer.MAX_REQUEST_BYTES)
             fail("Expected RequestTooLargeException")
         } catch (_: RequestTooLargeException) {
             // expected
@@ -104,9 +106,10 @@ class SocketServerTest {
 
     @Test
     fun `bounded line reader counts stripped carriage returns toward byte limit`() {
-        val input = ByteArrayInputStream("1234\r\r\r\r\r\n".toByteArray())
+        val request = "x".repeat(SocketServer.MAX_REQUEST_BYTES - 1) + "\r\r"
+        val input = ByteArrayInputStream((request + "\n").toByteArray())
         try {
-            SocketServer.readBoundedLine(input, 8)
+            SocketServer.readBoundedLine(input, SocketServer.MAX_REQUEST_BYTES)
             fail("Expected RequestTooLargeException")
         } catch (_: RequestTooLargeException) {
             // expected: CR bytes count even though they are removed from parsed content.
