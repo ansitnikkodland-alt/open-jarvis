@@ -30,9 +30,11 @@ jarvis providers
 jarvis memory
 ```
 
-The helper reads the dynamic loopback port and token from the protected
-`content://<installed-app-id>.bridgeconfig/config` provider. The provider returns
-the authority is variant-specific (for example, `com.openjarvis.bridgeconfig` or `com.openjarvis.preview.bridgeconfig`) and returns those values only to the Open Jarvis app UID, the installed Termux app UID, or
+The helper checks both provider authorities:
+`content://com.openjarvis.bridgeconfig/config` (release) and
+`content://com.openjarvis.preview.bridgeconfig/config` (preview). It reads the
+dynamic loopback port and token from the running variant. The provider returns
+those values only to the Open Jarvis app UID, the installed Termux app UID, or
 Android's ADB shell UID.
 
 ## Protocol
@@ -56,7 +58,10 @@ Status values are `progress`, `done`, and `error`.
 From a host computer connected with ADB:
 
 ```bash
+# Use the provider authority matching the installed app variant:
 adb shell content query --uri content://com.openjarvis.bridgeconfig/config
+# For the preview APK, use:
+adb shell content query --uri content://com.openjarvis.preview.bridgeconfig/config
 ```
 
 Read the returned `port` and `token`, then forward the reported port:
