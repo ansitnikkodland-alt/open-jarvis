@@ -63,7 +63,7 @@ class SocketServerTest {
 
     @Test
     fun `bounded line reader reads UTF8 request and strips carriage return`() {
-        val bytes = """{"cmd":"नमस्ते"}\r\n""".toByteArray(Charsets.UTF_8)
+        val bytes = ("""{"cmd":"नमस्ते"}""" + "\r\n").toByteArray(Charsets.UTF_8)
         assertEquals("""{"cmd":"नमस्ते"}""", SocketServer.readBoundedLine(ByteArrayInputStream(bytes), 100))
     }
 
