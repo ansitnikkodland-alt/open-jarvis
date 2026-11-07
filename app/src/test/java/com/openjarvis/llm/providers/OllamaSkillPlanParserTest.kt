@@ -10,6 +10,12 @@ class OllamaSkillPlanParserTest {
         assertTrue(plan.args.getBoolean("enabled"))
     }
 
+    @Test fun parsesTimeSkillWithoutArguments() {
+        val plan = OllamaSkillPlanParser.parse("""{"skill":"TIME","args":{}}""")
+        assertEquals("TIME", plan.skill)
+        assertEquals(0, plan.args.length())
+    }
+
     @Test fun parsesOnlyUiActionEnvelope() {
         val plan = OllamaSkillPlanParser.parse(
             """{"skill":"ANDROID_UI_ACTIONS","args":{"actions":[{"action":"open_app","label":"Chrome"}]}}"""
