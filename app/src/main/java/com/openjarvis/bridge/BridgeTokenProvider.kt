@@ -5,7 +5,6 @@ import android.content.ContentValues
 import android.content.Context
 import android.database.Cursor
 import android.database.MatrixCursor
-import android.net.Uri
 import android.os.Binder
 import android.os.Process
 import android.util.Base64
@@ -51,10 +50,14 @@ class BridgeTokenProvider : ContentProvider() {
         ): Boolean = callerUid == appUid || callerUid == shellUid ||
             (termuxUid != null && callerUid == termuxUid)
 
-        internal fun isConfigUri(uri: Uri, expectedAuthority: String): Boolean =
-            uri.scheme == "content" &&
-                uri.authority == expectedAuthority &&
-                uri.path == "/config"
+        internal fun isConfigUri(uriString: String, expectedAuthority: String): Boolean {
+            val parsed = runCatching { java.net.URI(uriString) }.getOrNull() ?: return false
+            return parsed.scheme == "content" &&
+                parsed.rawAuthority == expectedAuthority &&
+                parsed.rawPath == "/config" &&
+                parsed.rawQuery == null &&
+                parsed.rawFragment == null
+        }
     }
 
     override fun onCreate(): Boolean = true
@@ -67,7 +70,7 @@ class BridgeTokenProvider : ContentProvider() {
         sortOrder: String?
     ): Cursor {
         val appContext = context ?: throw IllegalStateException("Provider context unavailable")
-        if (!isConfigUri(uri, "${appContext.packageName}.bridgeconfig")) {
+        if (!isConfigUri(uri.toString(), "${appContext.packageName}.bridgeconfig")) {
             throw IllegalArgumentException("Unsupported Jarvis bridge configuration URI")
         }
 
