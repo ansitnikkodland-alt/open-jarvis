@@ -108,29 +108,40 @@ Exit codes:
 EOF
 }
 
+run_one_command() {
+    local cmd="$1"
+    local response
+    if ! response="$(send_cmd "$cmd")"; then
+        echo "Error: Could not connect to Jarvis on loopback port $BRIDGE_PORT" >&2
+        return 1
+    fi
+    parse_response "$response" "$(is_tty)"
+}
+
 main() {
     if [ "$1" = "--help" ]; then
         show_help
         exit 0
     fi
-    if [ -z "$1" ]; then
-        echo "Error: No command provided" >&2
-        show_help
-        exit 1
-    fi
 
     get_bridge_config
-    local response
-    if ! response="$(send_cmd "$1")"; then
-        echo "Error: Could not connect to Jarvis on loopback port $BRIDGE_PORT" >&2
-        exit 1
+
+    if [ -n "$1" ]; then
+        run_one_command "$1"
+        exit $?
     fi
 
-    if parse_response "$response" "$(is_tty)"; then
+    if [ ! -t 0 ]; then
+        local line
+        while IFS= read -r line || [ -n "$line" ]; do
+            [ -z "$line" ] && continue
+            run_one_command "$line" || exit $?
+        done
         exit 0
-    else
-        exit 1
     fi
-}
 
+    echo "Error: No command provided" >&2
+    show_help
+    exit 1
+}
 main "$@"
