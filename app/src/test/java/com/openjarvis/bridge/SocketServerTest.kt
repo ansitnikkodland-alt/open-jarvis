@@ -7,34 +7,43 @@ import java.io.ByteArrayInputStream
 class SocketServerTest {
 
     @Test
-    fun `parseRequest with valid JSON returns command and requestId`() {
-        val result = SocketServer.parseRequest("""{"cmd":"open chrome","requestId":"abc123"}""")
+    fun `parseRequest with valid JSON returns command requestId and token`() {
+        val result = SocketServer.parseRequest(
+            """{"cmd":"open chrome","requestId":"abc123","token":"secret"}"""
+        )
         assertNotNull(result)
         assertEquals("abc123", result?.first)
         assertEquals("open chrome", result?.second)
+        assertEquals("secret", result?.third)
     }
 
     @Test
-    fun `parseRequest with missing cmd returns null`() {
-        assertNull(SocketServer.parseRequest("""{"requestId":"abc123"}"""))
-    }
-
-    @Test
-    fun `parseRequest with invalid JSON returns null`() {
+    fun `parseRequest rejects missing command token or malformed JSON`() {
+        assertNull(SocketServer.parseRequest("""{"requestId":"abc123","token":"secret"}"""))
+        assertNull(SocketServer.parseRequest("""{"cmd":"status","requestId":"abc123"}"""))
         assertNull(SocketServer.parseRequest("not json"))
     }
 
     @Test
-    fun `parseRequest rejects command longer than configured limit`() {
-        assertNull(SocketServer.parseRequest("""{"cmd":"${"x".repeat(2001)}"}"""))
+    fun `parseRequest rejects command and request id over configured limits`() {
+        assertNull(SocketServer.parseRequest("""{"cmd":"${"x".repeat(2001)}","token":"secret"}"""))
+        assertNull(SocketServer.parseRequest("""{"cmd":"status","requestId":"${"x".repeat(129)}","token":"secret"}"""))
     }
 
     @Test
-    fun `parseRequest with empty requestId uses empty string`() {
-        val result = SocketServer.parseRequest("""{"cmd":"status"}""")
-        assertNotNull(result)
-        assertEquals("", result?.first)
-        assertEquals("status", result?.second)
+    fun `token comparison accepts exact token and rejects mismatch`() {
+        assertTrue(SocketServer.isValidToken("secret-token", "secret-token"))
+        assertFalse(SocketServer.isValidToken("secret-token", "different-token"))
+        assertFalse(SocketServer.isValidToken("", "secret-token"))
+    }
+
+    @Test
+    fun `token provider allows only app Termux and ADB shell UIDs`() {
+        assertTrue(BridgeTokenProvider.isTrustedUid(10123, appUid = 10123, termuxUid = 10234))
+        assertTrue(BridgeTokenProvider.isTrustedUid(10234, appUid = 10123, termuxUid = 10234))
+        assertTrue(BridgeTokenProvider.isTrustedUid(2000, appUid = 10123, termuxUid = 10234))
+        assertFalse(BridgeTokenProvider.isTrustedUid(10345, appUid = 10123, termuxUid = 10234))
+        assertFalse(BridgeTokenProvider.isTrustedUid(10345, appUid = 10123, termuxUid = null))
     }
 
     @Test
@@ -53,18 +62,12 @@ class SocketServerTest {
     }
 
     @Test
-    fun `peer authorization accepts only app Termux and adb shell UIDs`() {
-        assertTrue(SocketServer.isAllowedPeerUid(10123, appUid = 10123, termuxUid = 10234))
-        assertTrue(SocketServer.isAllowedPeerUid(10234, appUid = 10123, termuxUid = 10234))
-        assertTrue(SocketServer.isAllowedPeerUid(2000, appUid = 10123, termuxUid = 10234))
-        assertFalse(SocketServer.isAllowedPeerUid(10345, appUid = 10123, termuxUid = 10234))
-        assertFalse(SocketServer.isAllowedPeerUid(10345, appUid = 10123, termuxUid = null))
-    }
-
-    @Test
     fun `bounded line reader reads UTF8 request and strips carriage return`() {
         val bytes = ("""{"cmd":"नमस्ते"}""" + "\r\n").toByteArray(Charsets.UTF_8)
-        assertEquals("""{"cmd":"नमस्ते"}""", SocketServer.readBoundedLine(ByteArrayInputStream(bytes), 100))
+        assertEquals(
+            """{"cmd":"नमस्ते"}""",
+            SocketServer.readBoundedLine(ByteArrayInputStream(bytes), 100)
+        )
     }
 
     @Test
@@ -86,17 +89,17 @@ class SocketServerTest {
     @Test
     fun `rate limiter allows ten requests and rejects eleventh in same window`() {
         val limiter = SlidingWindowRateLimiter(maxRequests = 10, windowMs = 1_000)
-        repeat(10) { assertTrue(limiter.allow(uid = 10001, nowMs = it.toLong())) }
-        assertFalse(limiter.allow(uid = 10001, nowMs = 10))
+        repeat(10) { assertTrue(limiter.allow(clientKey = 10001, nowMs = it.toLong())) }
+        assertFalse(limiter.allow(clientKey = 10001, nowMs = 10))
     }
 
     @Test
-    fun `rate limiter isolates UIDs and resets after window`() {
+    fun `rate limiter isolates client keys and resets after window`() {
         val limiter = SlidingWindowRateLimiter(maxRequests = 1, windowMs = 1_000)
-        assertTrue(limiter.allow(uid = 10001, nowMs = 0))
-        assertFalse(limiter.allow(uid = 10001, nowMs = 10))
-        assertTrue(limiter.allow(uid = 10002, nowMs = 10))
-        assertTrue(limiter.allow(uid = 10001, nowMs = 1_000))
+        assertTrue(limiter.allow(clientKey = 10001, nowMs = 0))
+        assertFalse(limiter.allow(clientKey = 10001, nowMs = 10))
+        assertTrue(limiter.allow(clientKey = 10002, nowMs = 10))
+        assertTrue(limiter.allow(clientKey = 10001, nowMs = 1_000))
     }
 
     @Test
@@ -104,11 +107,12 @@ class SocketServerTest {
         val commands = listOf("status", "history", "memory", "providers")
         commands.forEachIndexed { index, command ->
             val result = SocketServer.parseRequest(
-                """{"cmd":"$command","requestId":"request-$index"}"""
+                """{"cmd":"$command","requestId":"request-$index","token":"secret"}"""
             )
             assertNotNull(result)
             assertEquals("request-$index", result?.first)
             assertEquals(command, result?.second)
+            assertEquals("secret", result?.third)
         }
     }
 
