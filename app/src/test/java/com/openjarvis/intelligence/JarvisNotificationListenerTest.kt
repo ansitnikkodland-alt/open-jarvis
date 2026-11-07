@@ -18,7 +18,10 @@ class JarvisNotificationListenerTest {
             "com.phonepe.app",
             "net.one97.paytm",
             "com.google.android.apps.nbu.paisa.user",
-            "in.org.npci.upiapp"
+            "in.org.npci.upiapp",
+            "com.wf.wellsfargomobile",
+            "com.usbank.mobilebanking",
+            "com.citi.citimobile"
         )
         protectedPackages.forEach {
             assertFalse("$it must be privacy protected", JarvisNotificationListener.shouldProcessNotification(it))
