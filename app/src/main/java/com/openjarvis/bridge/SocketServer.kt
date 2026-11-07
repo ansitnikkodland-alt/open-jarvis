@@ -88,18 +88,20 @@ class SocketServer(
         }
 
         internal fun readBoundedLine(input: InputStream, maxBytes: Int): String? {
+            require(maxBytes >= 0) { "maxBytes must not be negative" }
             val output = ByteArrayOutputStream()
+            var bytesRead = 0
             while (true) {
                 val next = input.read()
                 if (next == -1) {
-                    if (output.size() == 0) return null
+                    if (bytesRead == 0) return null
                     break
                 }
                 if (next == 10) break
-                if (next != 13) {
-                    output.write(next)
-                    if (output.size() > maxBytes) throw RequestTooLargeException()
-                }
+                bytesRead++
+                if (bytesRead > maxBytes) throw RequestTooLargeException()
+                // Accept CRLF while counting CR toward the raw request byte budget.
+                if (next != 13) output.write(next)
             }
             return output.toString(StandardCharsets.UTF_8.name())
         }
