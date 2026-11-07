@@ -80,7 +80,7 @@ printf '{"cmd":"status","requestId":"1","token":"<bridge-token>"}\n' | nc 127.0.
   returning the token; only the app UID, installed `com.termux` UID, and
   Android shell UID (ADB) are trusted.
 - Requests are limited to 8 KiB, commands to 2,000 characters, request IDs to
-  128 characters, and each loopback client to 10 requests per rolling second.
+  128 characters, and the loopback bridge to 10 requests per rolling second.
 - Token comparison uses a constant-time byte comparison.
 
 ## Troubleshooting
