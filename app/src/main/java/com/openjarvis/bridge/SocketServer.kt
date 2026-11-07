@@ -10,13 +10,10 @@ import com.openjarvis.agent.AgentState
 import com.openjarvis.graphify.GraphifyRepository
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.collectLatest
-import java.io.BufferedReader
 import java.io.ByteArrayOutputStream
 import java.io.InputStream
-import java.io.InputStreamReader
 import java.io.PrintWriter
 import java.nio.charset.StandardCharsets
-import java.util.concurrent.ConcurrentHashMap
 
 internal class SlidingWindowRateLimiter(
     private val maxRequests: Int = 10,
@@ -62,7 +59,7 @@ class SocketServer(
         private const val TERMUX_PACKAGE = "com.termux"
         private const val SHELL_UID = 2000
         private const val MAX_COMMAND_LENGTH = 2_000
-        private const val MAX_REQUEST_BYTES = 4_096
+        private const val MAX_REQUEST_BYTES = 8_192
         private const val MAX_REQUESTS_PER_SECOND = 10
         private const val RATE_WINDOW_MS = 1_000L
         private const val CLIENT_TIMEOUT_MS = 3_000
