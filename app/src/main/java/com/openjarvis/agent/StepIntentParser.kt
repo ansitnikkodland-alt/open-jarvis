@@ -11,7 +11,7 @@ sealed class StepIntent {
     data class Navigate(val place: String) : StepIntent()
     data class Message(val app: String?, val contact: String?, val text: String?) : StepIntent()
     data class AppLaunch(val label: String) : StepIntent()
-    data object ScreenRead : StepIntent()
+    object ScreenRead : StepIntent()
 }
 
 /**
