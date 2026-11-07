@@ -21,8 +21,14 @@ internal object BridgeTokenStore {
         prefs.getString(TOKEN_KEY, null)?.takeIf { it.isNotBlank() } ?: run {
             val bytes = ByteArray(32)
             SecureRandom().nextBytes(bytes)
-            Base64.encodeToString(bytes, Base64.URL_SAFE or Base64.NO_WRAP or Base64.NO_PADDING)
-                .also { prefs.edit().putString(TOKEN_KEY, it).commit() }
+            val token = Base64.encodeToString(
+                bytes,
+                Base64.URL_SAFE or Base64.NO_WRAP or Base64.NO_PADDING
+            )
+            check(prefs.edit().putString(TOKEN_KEY, token).commit()) {
+                "Could not persist the Jarvis bridge authentication token"
+            }
+            token
         }
     }
 }
