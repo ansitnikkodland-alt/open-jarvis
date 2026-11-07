@@ -103,6 +103,17 @@ class SocketServerTest {
     }
 
     @Test
+    fun `bounded line reader counts stripped carriage returns toward byte limit`() {
+        val input = ByteArrayInputStream("1234\\r\\r\\r\\r\\r\\n".toByteArray())
+        try {
+            SocketServer.readBoundedLine(input, 8)
+            fail("Expected RequestTooLargeException")
+        } catch (_: RequestTooLargeException) {
+            // expected: CR bytes count even though they are removed from parsed content.
+        }
+    }
+
+    @Test
     fun `bounded line reader returns null for empty stream`() {
         assertNull(SocketServer.readBoundedLine(ByteArrayInputStream(byteArrayOf()), 8))
     }
