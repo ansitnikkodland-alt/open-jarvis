@@ -57,9 +57,9 @@ class SocketServer(
     private val clientSlots = Semaphore(MAX_CONCURRENT_CLIENTS)
 
     companion object {
-        private const val MAX_COMMAND_LENGTH = 2_000
-        private const val MAX_REQUEST_ID_LENGTH = 128
-        private const val MAX_REQUEST_BYTES = 8_192
+        internal const val MAX_COMMAND_LENGTH = 2_000
+        internal const val MAX_REQUEST_ID_LENGTH = 128
+        internal const val MAX_REQUEST_BYTES = 8_192
         private const val MAX_REQUESTS_PER_SECOND = 10
         private const val MAX_CONCURRENT_CLIENTS = 10
         private const val RATE_WINDOW_MS = 1_000L
