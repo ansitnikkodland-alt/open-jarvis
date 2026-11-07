@@ -29,6 +29,26 @@ class JarvisNotificationListenerTest {
     }
 
     @Test
+    fun `legacy financial package aliases remain privacy protected`() {
+        val legacyAliases = listOf(
+            "com.chase",
+            "com.usbank",
+            "com.citi",
+            "com.barclays",
+            "com.hsbc",
+            "com.db",
+            "com.americanexpress",
+            "com.discover",
+            "com.paypal",
+            "com.squareup",
+            "com.stripe"
+        )
+        legacyAliases.forEach {
+            assertFalse("$it must remain privacy protected", JarvisNotificationListener.shouldProcessNotification(it))
+        }
+    }
+
+    @Test
     fun `bank package heuristic blocks previously unknown banking package`() {
         assertFalse(JarvisNotificationListener.shouldProcessNotification("com.example.newbank.mobile"))
         assertFalse(JarvisNotificationListener.shouldProcessNotification("com.example.upi.wallet"))
