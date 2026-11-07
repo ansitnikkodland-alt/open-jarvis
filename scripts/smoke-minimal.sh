@@ -64,10 +64,23 @@ for ((attempt=1; attempt<=3; attempt++)); do
   echo "APK install attempt $attempt failed; reconnecting emulator ADB and rechecking system providers." >&2
   if ! adb reconnect device; then echo "ADB reconnect command failed; retrying device wait anyway." >&2; fi
   adb wait-for-device
-  sleep $((attempt * 5))
-  if ! adb shell cmd package list packages >/dev/null 2>&1 ||
-     ! adb shell settings get global device_provisioned >/dev/null 2>&1; then
-    echo "Android system providers are still unavailable after reconnect." >&2
+  # system_server may restart under emulator memory pressure. Give Package
+  # Manager time to come back instead of burning the next install attempt.
+  RECOVERED=0
+  for ((recovery=1; recovery<=60; recovery++)); do
+    PACKAGE_SERVICE="$(adb shell service check package 2>/dev/null | tr -d '\r' || true)"
+    ACTIVITY_SERVICE="$(adb shell service check activity 2>/dev/null | tr -d '\r' || true)"
+    if [[ "$PACKAGE_SERVICE" == *"found"* && "$ACTIVITY_SERVICE" == *"found"* ]] &&
+       adb shell cmd package list packages >/dev/null 2>&1 &&
+       adb shell settings get global device_provisioned >/dev/null 2>&1; then
+      RECOVERED=1
+      echo "Android Package Manager recovered after ${recovery}s."
+      break
+    fi
+    sleep 1
+  done
+  if [[ "$RECOVERED" -ne 1 ]]; then
+    echo "Android system providers are still unavailable after 60s recovery wait." >&2
   fi
 done
 if [[ "$INSTALL_OK" -ne 1 ]]; then
