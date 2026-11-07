@@ -1,7 +1,6 @@
 package com.openjarvis.bridge
 
 import org.junit.Assert.*
-import android.net.Uri
 import org.junit.Test
 import java.io.ByteArrayInputStream
 
@@ -56,25 +55,25 @@ class SocketServerTest {
     fun `token provider accepts only the exact content config URI`() {
         assertTrue(
             BridgeTokenProvider.isConfigUri(
-                Uri.parse("content://com.openjarvis.preview.bridgeconfig/config"),
+                "content://com.openjarvis.preview.bridgeconfig/config",
                 "com.openjarvis.preview.bridgeconfig"
             )
         )
         assertFalse(
             BridgeTokenProvider.isConfigUri(
-                Uri.parse("content://com.openjarvis.preview.bridgeconfig/other"),
+                "content://com.openjarvis.preview.bridgeconfig/other",
                 "com.openjarvis.preview.bridgeconfig"
             )
         )
         assertFalse(
             BridgeTokenProvider.isConfigUri(
-                Uri.parse("content://attacker.example/config"),
+                "content://attacker.example/config",
                 "com.openjarvis.preview.bridgeconfig"
             )
         )
         assertFalse(
             BridgeTokenProvider.isConfigUri(
-                Uri.parse("https://com.openjarvis.preview.bridgeconfig/config"),
+                "https://com.openjarvis.preview.bridgeconfig/config",
                 "com.openjarvis.preview.bridgeconfig"
             )
         )
