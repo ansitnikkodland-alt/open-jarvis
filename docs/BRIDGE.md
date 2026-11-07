@@ -86,6 +86,9 @@ printf '{"cmd":"status","requestId":"1","token":"<bridge-token>"}\n' | nc 127.0.
   Android shell UID (ADB) are trusted.
 - Requests are limited to 8 KiB, commands to 2,000 characters, request IDs to
   128 characters, and the loopback bridge to 10 requests per rolling second.
+- At most 10 client sockets are processed concurrently. The rate limit is
+  applied before JSON parsing and token validation, so malformed or unauthenticated
+  requests cannot bypass the per-client request budget.
 - Token comparison uses a constant-time byte comparison.
 
 ## Troubleshooting
