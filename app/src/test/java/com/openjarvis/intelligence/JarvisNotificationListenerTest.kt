@@ -49,10 +49,21 @@ class JarvisNotificationListenerTest {
     }
 
     @Test
-    fun `bank package heuristic blocks previously unknown banking package`() {
-        assertFalse(JarvisNotificationListener.shouldProcessNotification("com.example.newbank.mobile"))
-        assertFalse(JarvisNotificationListener.shouldProcessNotification("com.example.upi.wallet"))
-        assertFalse(JarvisNotificationListener.shouldProcessNotification("com.example.financeapp"))
+    fun `financial package markers block unfamiliar bank payment and card apps`() {
+        val unknownFinancialPackages = listOf(
+            "com.example.newbank.mobile",
+            "com.example.upi.wallet",
+            "com.example.financeapp",
+            "com.example.payment.client",
+            "com.example.bhim",
+            "com.example.cred",
+            "com.example.creditcard",
+            "com.example.debitcard",
+            "com.example.gpay"
+        )
+        unknownFinancialPackages.forEach {
+            assertFalse("$it must be privacy protected", JarvisNotificationListener.shouldProcessNotification(it))
+        }
     }
 
     @Test
@@ -60,6 +71,12 @@ class JarvisNotificationListenerTest {
         assertTrue(JarvisNotificationListener.shouldProcessNotification("com.whatsapp"))
         assertTrue(JarvisNotificationListener.shouldProcessNotification("org.telegram.messenger"))
         assertTrue(JarvisNotificationListener.shouldProcessNotification("com.google.android.calendar"))
+    }
+
+    @Test
+    fun `package matching is case insensitive and trims whitespace`() {
+        assertFalse(JarvisNotificationListener.shouldProcessNotification("  COM.EXAMPLE.BANK.APP  "))
+        assertFalse(JarvisNotificationListener.shouldProcessNotification("COM.PHONEPE.APP"))
     }
 
     @Test
