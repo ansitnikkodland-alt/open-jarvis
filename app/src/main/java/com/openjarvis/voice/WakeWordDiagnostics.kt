@@ -139,10 +139,11 @@ object WakeWordDiagnostics {
 
     /** One metadata-only JSONL record for every Voicute model inference. No PCM/audio is stored. */
     @Synchronized
-    fun inferenceRecord(scoresSummary: String?, threshold: Float, rms: Float, peak: Float, accepted: Boolean) {
+    fun inferenceRecord(scoresSummary: String?, threshold: Float, rms: Float, peak: Float, acceptedPhrase: String?) {
         val s = current
         val now = System.currentTimeMillis()
         val scores = JSONObject()
+        current.keywords.forEach { scores.put(it, JSONObject.NULL) }
         scoresSummary.orEmpty().split(",").forEach { item ->
             val pair = item.trim().split("=", limit = 2)
             if (pair.size == 2) pair[1].toFloatOrNull()?.let { scores.put(pair[0], it.toDouble()) }
@@ -160,8 +161,8 @@ object WakeWordDiagnostics {
             put("agcEnabled", s.agcEnabled)
             put("noiseSuppressorAvailable", s.noiseSuppressorAvailable)
             put("noiseSuppressorEnabled", s.noiseSuppressorEnabled)
-            put("accepted", accepted)
-            put("matchedPhrase", if (accepted) s.lastDetectionKeyword ?: JSONObject.NULL else JSONObject.NULL)
+            put("accepted", !acceptedPhrase.isNullOrBlank())
+            put("matchedPhrase", acceptedPhrase ?: JSONObject.NULL)
         }.toString()
         inferenceRecords.add(record)
         while (inferenceRecords.size > MAX_INFERENCE_RECORDS) inferenceRecords.removeAt(0)
