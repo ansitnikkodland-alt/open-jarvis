@@ -137,23 +137,27 @@ private fun WakeLabScreen(onBack: () -> Unit) {
         busy = true
         status = "Replaying clips in Mode A and Mode B…"
         scope.launch {
-            val replayed = withContext(Dispatchers.IO) {
-                val model = WakeWordEngine(context)
-                try {
-                    check(model.isLoaded) { model.errorMessage ?: "Voicute model failed to load" }
-                    val tone = ShortArray(model.audioSamplesNeeded)
-                    for (i in 0 until minOf(16000, tone.size)) tone[i] = (9000.0 * kotlin.math.sin(2.0 * Math.PI * 440.0 * i / 16000.0)).toInt().toShort()
-                    val testStats = pcmStats(tone)
-                    val testResult = model.processForWakeLab(tone, false)
-                    selfTest = WakeSelfTest(tone.size, testStats.rms, testStats.peak, testStats.allZero,
-                        testResult?.rawOutputSummary ?: "NO_DETECTION_RESULT", testResult?.rawBestScore,
-                        if (testResult == null) "NO_RESULT_OR_INFERENCE_ERROR" else if (testResult.rawBestScore != 0f || testResult.rawOutputSummary.split(",").any { it.substringAfter("=", "").toFloatOrNull()?.let { v -> v != 0f } == true }) "NON_ZERO_RAW_OUTPUT" else "RAW_OUTPUT_ZERO")
-                    clips.map { clip -> replayClip(model, clip, threshold) }
-                } finally { model.close() }
-            }
-            results = replayed
-            busy = false
-            status = "Replay complete • threshold=${"%.3f".format(Locale.US, threshold)}"
+            try {
+                val replayData = withContext(Dispatchers.IO) {
+                    val model = WakeWordEngine(context)
+                    try {
+                        check(model.isLoaded) { model.errorMessage ?: "Voicute model failed to load" }
+                        val tone = ShortArray(model.audioSamplesNeeded)
+                        for (i in 0 until minOf(16000, tone.size)) tone[i] = (9000.0 * kotlin.math.sin(2.0 * Math.PI * 440.0 * i / 16000.0)).toInt().toShort()
+                        val testStats = pcmStats(tone)
+                        val testResult = model.processForWakeLab(tone, false)
+                        val test = WakeSelfTest(tone.size, testStats.rms, testStats.peak, testStats.allZero,
+                            testResult?.rawOutputSummary ?: "NO_DETECTION_RESULT", testResult?.rawBestScore,
+                            if (testResult == null) "NO_RESULT_OR_INFERENCE_ERROR" else if (testResult.rawBestScore != 0f || testResult.rawOutputSummary.split(",").any { it.substringAfter("=", "").toFloatOrNull()?.let { v -> v != 0f } == true }) "NON_ZERO_RAW_OUTPUT" else "RAW_OUTPUT_ZERO")
+                        Pair(clips.map { clip -> replayClip(model, clip, threshold) }, test)
+                    } finally { model.close() }
+                }
+                results = replayData.first
+                selfTest = replayData.second
+                status = "Replay complete • threshold=${"%.3f".format(Locale.US, threshold)}"
+            } catch (error: Exception) {
+                status = "Replay failed: ${error.message ?: error.javaClass.simpleName}"
+            } finally { busy = false }
         }
     }
 
