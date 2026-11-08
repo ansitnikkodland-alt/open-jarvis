@@ -108,7 +108,7 @@ class VoiceManager(private val context: Context) {
 
     fun speak(text: String, onComplete: (() -> Unit)? = null) {
         if (!isSpeakResultsEnabled()) {
-            stateMachine.onSpeakingFinished(false)
+            stateMachine.onSpeakingFinished()
             _state.value = VoiceState.Idle
             onComplete?.invoke()
             return
