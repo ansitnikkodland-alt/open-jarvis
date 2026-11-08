@@ -94,8 +94,6 @@ fun SettingsScreen(
     var lastSaved by remember { mutableStateOf(0L) }
     var savedVisible by remember { mutableStateOf(false) }
     var voiceEnabled by remember { mutableStateOf(voicePrefs.getBoolean("voice_enabled", false)) }
-    var wakeWordAccessKey by remember { mutableStateOf(voicePrefs.getString(WakeWordConfig.PREFERENCE_KEY, "") ?: "") }
-    var showWakeWordKey by remember { mutableStateOf(false) }
     val wakeWordSettingsPrefs = remember {
         context.getSharedPreferences(WakeWordConfig.SENSITIVITY_PREFS, android.content.Context.MODE_PRIVATE)
     }
@@ -309,7 +307,7 @@ fun SettingsScreen(
                 
                 SettingsToggleRow(
                     title = "Voice Assistant",
-                    subtitle = "Say Jarvis, Hey Mitra or Hey Dost — offline wake word",
+                    subtitle = "Say Jarvis, Hey Jarvis or Hi Jarvis — Voicute offline",
                     enabled = voiceEnabled,
                     onToggle = {
                         voiceEnabled = !voiceEnabled
@@ -329,33 +327,16 @@ fun SettingsScreen(
                 if (voiceEnabled) {
                     Spacer(modifier = Modifier.height(8.dp))
 
-                    SectionLabel("KEY-FREE OFFLINE WAKE WORDS")
-                    Spacer(modifier = Modifier.height(8.dp))
-                    FloatingLabelTextField(
-                        value = wakeWordAccessKey,
-                        onValueChange = {
-                            wakeWordAccessKey = it
-                            voicePrefs.edit().putString(
-                                WakeWordConfig.PREFERENCE_KEY,
-                                WakeWordConfig.normalizeAccessKey(it)
-                            ).apply()
-                        },
-                        label = "Optional Picovoice fallback AccessKey",
-                        isFocused = false,
-                        isPassword = true,
-                        showPassword = showWakeWordKey,
-                        onTogglePassword = { showWakeWordKey = !showWakeWordKey }
-                    )
-                    Spacer(modifier = Modifier.height(6.dp))
+                    SectionLabel("VOICUTE OFFLINE WAKE WORD")
                     Text(
-                        text = "Primary engine: sherpa-onnx — no key needed. Add a Picovoice key only for optional fallback.",
+                        "Only Voicute ONNX is enabled. Wake phrases: Jarvis, Hey Jarvis and Hi Jarvis. No cloud, API key or fallback engine.",
                         style = TextStyle(fontSize = 11.sp, color = VoidColor.TextDisabled)
                     )
                     Spacer(modifier = Modifier.height(12.dp))
 
                     SectionLabel("WAKE WORD SENSITIVITY")
                     Text(
-                        "High sensitivity can detect more accents but may increase false activations.",
+                        "Higher sensitivity may detect softer speech, but can increase false activations.",
                         color = VoidColor.TextDisabled,
                         fontSize = 10.sp
                     )
