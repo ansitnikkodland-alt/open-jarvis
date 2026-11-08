@@ -15,7 +15,7 @@ This file stores reusable engineering facts only. Re-check source and CI before 
 ## Headroom boundary
 - Headroom's upstream value is content-aware compression, local execution, exact-original retrieval (CCR), and measurable token savings.
 - Jarvis uses a Kotlin-native subset because its official library/proxy/MCP surfaces are Python/TypeScript-oriented and a Termux/server dependency would add runtime complexity.
-- Never compress the user command, executable action JSON, code, diffs, or safety policy. Any transformed payload must retain an exact original and report measured character/token estimates.
+- Never compress the user command, executable action JSON, code, diffs, UI target labels, or safety policy. UI labels and policy text only lose redundant blank lines; other text/log compression retains an exact original in the compression result and reports character/token estimates.
 - Compression savings are workload-dependent; do not claim a fixed percentage without measurements from representative Jarvis prompts.
 
 ## Evidence discipline
