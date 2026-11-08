@@ -133,6 +133,11 @@ object WakeWordDiagnostics {
     }
 
     @Synchronized
+    fun record(level: String, message: String) {
+        addEvent(level, message)
+    }
+
+    @Synchronized
     fun failed(message: String) {
         current = current.copy(state = "ERROR", lastError = message)
         addEvent("ERROR", message)
