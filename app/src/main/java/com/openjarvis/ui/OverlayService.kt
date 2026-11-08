@@ -152,7 +152,7 @@ class OverlayService : Service() {
                                 statusText?.text = "JARVIS active"
                                 voiceManager.speak("Jarvis is active. I am listening.") { resumeWakeWordAfterResponse() }
                             } else {
-                                statusText?.text = "Still muted — say Jarvis, Hey Mitra or Hey Dost, then say unmute ho ja"
+                                statusText?.text = "Still muted — say Jarvis, Hey Jarvis or Hi Jarvis, then say unmute ho ja"
                                 wakeWordSession.clearPending()
                                 startWakeWordListening()
                             }
@@ -211,11 +211,11 @@ class OverlayService : Service() {
                     is com.openjarvis.agent.AgentState.Idle -> statusText?.text = "Ready — type a command or use mic"
                     is com.openjarvis.agent.AgentState.Running -> setVisualState("THINKING", state.step)
                     is com.openjarvis.agent.AgentState.Done -> {
-                        setVisualState(if (mutedUntilWakeWord) "IDLE" else "SPEAKING", if (mutedUntilWakeWord) "MUTED — say Jarvis, Hey Mitra or Hey Dost to wake" else state.result)
+                        setVisualState(if (mutedUntilWakeWord) "IDLE" else "SPEAKING", if (mutedUntilWakeWord) "MUTED — say Jarvis, Hey Jarvis or Hi Jarvis to wake" else state.result)
                         if (!mutedUntilWakeWord) voiceManager.speak(com.openjarvis.agent.AgentResultSpeech.textForDone(state.result)) { resumeWakeWordAfterResponse() }
                     }
                     is com.openjarvis.agent.AgentState.Error -> {
-                        setVisualState(if (mutedUntilWakeWord) "IDLE" else "SPEAKING", if (mutedUntilWakeWord) "MUTED — say Jarvis, Hey Mitra or Hey Dost to wake" else "Jarvis error: ${state.message} • tap to copy debug log")
+                        setVisualState(if (mutedUntilWakeWord) "IDLE" else "SPEAKING", if (mutedUntilWakeWord) "MUTED — say Jarvis, Hey Jarvis or Hi Jarvis to wake" else "Jarvis error: ${state.message} • tap to copy debug log")
                         if (!mutedUntilWakeWord) voiceManager.speak(if (responseLanguage == "mr") "कमांड पूर्ण झाली नाही. ${state.message}" else "कमांड पूरी नहीं हुई। ${state.message}") { resumeWakeWordAfterResponse() }
                     }
                 }
@@ -466,7 +466,7 @@ class OverlayService : Service() {
         clearWakeWordPendingState()
         voiceManager.stopListening()
         voiceManager.stopSpeaking()
-        statusText?.text = "MUTED — say Jarvis, Hey Mitra or Hey Dost to wake"
+        statusText?.text = "MUTED — say Jarvis, Hey Jarvis or Hi Jarvis to wake"
         startWakeWordListening()
     }
 
@@ -487,7 +487,7 @@ class OverlayService : Service() {
             }
         }
         if (command.isBlank()) {
-            statusText?.text = "No speech detected — say Jarvis, Hey Mitra or Hey Dost to try again"
+            statusText?.text = "No speech detected — say Jarvis, Hey Jarvis or Hi Jarvis to try again"
             if (voiceCommand != null) resumeWakeWordAfterResponse()
             return
         }
@@ -525,7 +525,7 @@ class OverlayService : Service() {
             ServiceCompat.startForeground(this, NOTIFICATION_ID, createNotification(), types)
         }
 
-        // Voicute is the only wake-word engine. No Sherpa/Picovoice fallback is allowed.
+        // Voicute is the only wake-word engine. No fallback engine is allowed.
         if (wakeWordController == null) {
             wakeWordController = VoicuteOnnxWakeWordController(
                 this,
@@ -533,6 +533,8 @@ class OverlayService : Service() {
                 onError = { message -> mainHandler.post { scheduleWakeWordRestart(message) } }
             )
         }
+        // Release stale AudioRecord/ONNX handles before restarting a listener that died unexpectedly.
+        if (wakeWordController?.isRunning() != true) wakeWordController?.stop()
         val error = wakeWordController?.start()
         if (error == null) {
             wakeWordRestartAttempt = 0
