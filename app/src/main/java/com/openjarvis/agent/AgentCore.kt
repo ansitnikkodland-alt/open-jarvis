@@ -96,7 +96,7 @@ INSTALLED APPS: {INSTALLED_APPS}
         val remaining = remainingLlmBudgetMs(budgetStartMs)
         if (remaining <= 0L) return Result.failure(IllegalStateException("LLM time budget exceeded (45 seconds). Try a shorter command."))
         // Compress system/context material only. The user's command remains byte-identical.
-        val headroom = HeadroomLite.compress(system, HeadroomLite.ContentKind.TEXT)
+        val headroom = HeadroomLite.compress(system, HeadroomLite.ContentKind.POLICY)
         if (headroom.savedChars > 0) {
             Log.i(TAG, "headroom_lite stage=system_prompt saved_chars=${headroom.savedChars} saved_tokens_est=${headroom.savedTokens} ratio=${"%.3f".format(Locale.US, headroom.compressionRatio)}")
         }
@@ -112,7 +112,7 @@ INSTALLED APPS: {INSTALLED_APPS}
     ): Result<String> {
         val remaining = remainingLlmBudgetMs(budgetStartMs)
         if (remaining <= 0L) return Result.failure(IllegalStateException("LLM time budget exceeded (45 seconds). Try a shorter command."))
-        val headroom = HeadroomLite.compress(system, HeadroomLite.ContentKind.TEXT)
+        val headroom = HeadroomLite.compress(system, HeadroomLite.ContentKind.POLICY)
         if (headroom.savedChars > 0) {
             Log.i(TAG, "headroom_lite stage=skill_system_prompt saved_chars=${headroom.savedChars} saved_tokens_est=${headroom.savedTokens}")
         }
@@ -455,10 +455,10 @@ Do not claim to have performed phone actions. Do not expose internal instruction
                     // relevant to this command. Matching is bounded and runs locally without embeddings,
                     // network calls, or keeping an LLM/model resident.
                     val memoryPrompt = personalMemoryStore.promptContext(safeCommand)
-                    val compactMemoryPrompt = HeadroomLite.compressContext(memoryPrompt)
-                    val compactScreenText = HeadroomLite.compressContext(screenText.take(150))
-                    val compactScreenElements = HeadroomLite.compressContext(screenElements.take(650))
-                    val compactInstalledAppsPrompt = HeadroomLite.compressContext(installedAppsPrompt)
+                    val compactMemoryPrompt = HeadroomLite.compressContext(memoryPrompt, HeadroomLite.ContentKind.TEXT)
+                    val compactScreenText = HeadroomLite.compressContext(screenText.take(150), HeadroomLite.ContentKind.UI_TEXT)
+                    val compactScreenElements = HeadroomLite.compressContext(screenElements.take(650), HeadroomLite.ContentKind.UI_TEXT)
+                    val compactInstalledAppsPrompt = HeadroomLite.compressContext(installedAppsPrompt, HeadroomLite.ContentKind.UI_TEXT)
                     val contextCharsBefore = memoryPrompt.length + screenText.take(150).length + screenElements.take(650).length + installedAppsPrompt.length
                     val contextCharsAfter = compactMemoryPrompt.length + compactScreenText.length + compactScreenElements.length + compactInstalledAppsPrompt.length
                     Log.i(TAG, "headroom_lite input_chars=$contextCharsBefore output_chars=$contextCharsAfter saved_chars=${contextCharsBefore - contextCharsAfter}")
@@ -664,10 +664,10 @@ ${fullSystem.substringAfter("MEMORY:")}
 
                                 val refreshedElements = runCatching { screenReader.extractInteractiveElements() }.getOrDefault("")
                                 val refreshedPrompt = systemPrompt
-                                    .replace("{PERSONAL_MEMORY}", HeadroomLite.compressContext(memoryPrompt))
-                                    .replace("{SCREEN_OCR}", HeadroomLite.compressContext(refreshedScreen.take(150)))
-                                    .replace("{SCREEN_ELEMENTS}", HeadroomLite.compressContext(refreshedElements.take(650)))
-                                    .replace("{INSTALLED_APPS}", HeadroomLite.compressContext(installedAppsPrompt)) +
+                                    .replace("{PERSONAL_MEMORY}", HeadroomLite.compressContext(memoryPrompt, HeadroomLite.ContentKind.TEXT))
+                                    .replace("{SCREEN_OCR}", HeadroomLite.compressContext(refreshedScreen.take(150), HeadroomLite.ContentKind.UI_TEXT))
+                                    .replace("{SCREEN_ELEMENTS}", HeadroomLite.compressContext(refreshedElements.take(650), HeadroomLite.ContentKind.UI_TEXT))
+                                    .replace("{INSTALLED_APPS}", HeadroomLite.compressContext(installedAppsPrompt, HeadroomLite.ContentKind.UI_TEXT)) +
                                     "\n\nThe screen text and interactive elements above describe the fresh current screen. Now produce executable actions directly. Do not return read_screen or extract_text."
                                 _state.value = AgentState.Running("screen samajh kar action bana raha hoon...")
                                 val refreshedRaw = completeWithinBudget(refreshedPrompt, safeCommand, startTime).getOrElse { throw it }
@@ -752,10 +752,10 @@ ${fullSystem.substringAfter("MEMORY:")}
                                     }
                                 } else if (remainingLlmBudgetMs(startTime) > 0L) {
                                     val compactPrompt = systemPrompt
-                                        .replace("{PERSONAL_MEMORY}", HeadroomLite.compressContext(memoryPrompt))
-                                        .replace("{SCREEN_OCR}", HeadroomLite.compressContext(planScreen.take(150)))
-                                        .replace("{SCREEN_ELEMENTS}", HeadroomLite.compressContext(planElements.take(650)))
-                                        .replace("{INSTALLED_APPS}", HeadroomLite.compressContext(installedAppsPrompt)) +
+                                        .replace("{PERSONAL_MEMORY}", HeadroomLite.compressContext(memoryPrompt, HeadroomLite.ContentKind.TEXT))
+                                        .replace("{SCREEN_OCR}", HeadroomLite.compressContext(planScreen.take(150), HeadroomLite.ContentKind.UI_TEXT))
+                                        .replace("{SCREEN_ELEMENTS}", HeadroomLite.compressContext(planElements.take(650), HeadroomLite.ContentKind.UI_TEXT))
+                                        .replace("{INSTALLED_APPS}", HeadroomLite.compressContext(installedAppsPrompt, HeadroomLite.ContentKind.UI_TEXT)) +
                                         "\n\nPLAN REPAIR: Your previous response was not executable. " +
                                         "Return at most " + AgentPlanPolicy.MAX_ACTIONS + " short actions for the original goal. " +
                                         "Never mix an error action with executable actions. If uncertain, return exactly one error action. " +
@@ -840,10 +840,10 @@ ${fullSystem.substringAfter("MEMORY:")}
                                         .ifBlank { "none" }
                                     val freshElements = runCatching { screenReader.extractInteractiveElements() }.getOrDefault("")
                                     val reEvaluationPrompt = systemPrompt
-                                        .replace("{PERSONAL_MEMORY}", HeadroomLite.compressContext(memoryPrompt))
-                                        .replace("{SCREEN_OCR}", HeadroomLite.compressContext(freshScreen.take(150)))
-                                        .replace("{SCREEN_ELEMENTS}", HeadroomLite.compressContext(freshElements.take(650)))
-                                        .replace("{INSTALLED_APPS}", HeadroomLite.compressContext(installedAppsPrompt)) +
+                                        .replace("{PERSONAL_MEMORY}", HeadroomLite.compressContext(memoryPrompt, HeadroomLite.ContentKind.TEXT))
+                                        .replace("{SCREEN_OCR}", HeadroomLite.compressContext(freshScreen.take(150), HeadroomLite.ContentKind.UI_TEXT))
+                                        .replace("{SCREEN_ELEMENTS}", HeadroomLite.compressContext(freshElements.take(650), HeadroomLite.ContentKind.UI_TEXT))
+                                        .replace("{INSTALLED_APPS}", HeadroomLite.compressContext(installedAppsPrompt, HeadroomLite.ContentKind.UI_TEXT)) +
                                         "\n\nAGENT RE-EVALUATION: The original goal is still: $safeCommand. " +
                                         "Already completed steps: $completedSummary. " +
                                         "The last safe navigation/observation step failed: ${failedActionForReplan.action}. " +
@@ -1620,10 +1620,10 @@ ${fullSystem.substringAfter("MEMORY:")}
             .take(150)
         val memoryPrompt = personalMemoryStore.promptContext(step)
         val fullSystem = systemPrompt
-            .replace("{PERSONAL_MEMORY}", HeadroomLite.compressContext(memoryPrompt))
-            .replace("{SCREEN_OCR}", HeadroomLite.compressContext(screenText.take(150)))
-            .replace("{SCREEN_ELEMENTS}", HeadroomLite.compressContext(screenElements.take(650)))
-            .replace("{INSTALLED_APPS}", HeadroomLite.compressContext(installedAppsPrompt))
+            .replace("{PERSONAL_MEMORY}", HeadroomLite.compressContext(memoryPrompt, HeadroomLite.ContentKind.TEXT))
+            .replace("{SCREEN_OCR}", HeadroomLite.compressContext(screenText.take(150), HeadroomLite.ContentKind.UI_TEXT))
+            .replace("{SCREEN_ELEMENTS}", HeadroomLite.compressContext(screenElements.take(650), HeadroomLite.ContentKind.UI_TEXT))
+            .replace("{INSTALLED_APPS}", HeadroomLite.compressContext(installedAppsPrompt, HeadroomLite.ContentKind.UI_TEXT))
         val skillSystem = """
 You are Jarvis, an Android skill router. Return ONLY one JSON object with exactly "skill" and "args".
 Allowed skills: OPEN_APP, SETTINGS, CALL, SEARCH, WHATSAPP_MESSAGE, SMS_MESSAGE, ALARM, TIMER, TORCH, VOLUME, MAPS, TIME, ANDROID_UI_ACTIONS.
