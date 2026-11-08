@@ -52,6 +52,7 @@ import com.openjarvis.graphify.nodes.TaskNode
 import com.openjarvis.ui.theme.VoidColor
 import kotlinx.coroutines.delay
 import com.openjarvis.proactive.ProactiveAssistant
+import com.openjarvis.proactive.ProactiveNotificationPolicy
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
