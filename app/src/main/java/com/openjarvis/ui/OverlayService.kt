@@ -106,16 +106,16 @@ class OverlayService : Service() {
                     is VoiceManager.VoiceState.Result -> when (CommandListeningPolicy.classify(state.text, isMuted)) {
                         CommandListeningPolicy.Action.MUTE -> {
                             isMuted = true
-                            setVisualState("IDLE", "MUTED — say only “Ab bolo”")
+                            setVisualState("IDLE", "MUTED — tap Mic, then say “Ab bolo”")
                             voiceManager.speak("ठीक है, Jarvis mute हो गया।")
                         }
                         CommandListeningPolicy.Action.UNMUTE -> {
                             isMuted = false
-                            setVisualState("IDLE", "JARVIS active — listening…")
-                            voiceManager.speak("Jarvis is active. I am listening.")
+                            setVisualState("IDLE", "JARVIS active — tap Mic to speak")
+                            voiceManager.speak("Jarvis is active. Tap Mic when you want to speak.")
                         }
                         CommandListeningPolicy.Action.IGNORE -> {
-                            statusText?.text = if (isMuted) "Muted — tap Mic and say “Ab bolo”" else "No command detected — tap Mic to try again"
+                            statusText?.text = if (isMuted) "Muted — tap Mic, then say “Ab bolo”" else "No command detected — tap Mic to try again"
                         }
                         CommandListeningPolicy.Action.EXECUTE_COMMAND -> submitCommand(state.text)
                     }
@@ -123,7 +123,7 @@ class OverlayService : Service() {
                     is VoiceManager.VoiceState.Recording -> setVisualState("LISTENING", "Listening… speak now")
                     is VoiceManager.VoiceState.Transcribing -> setVisualState("THINKING", "Thinking…")
                     is VoiceManager.VoiceState.Speaking -> setVisualState("SPEAKING", "Speaking…")
-                    is VoiceManager.VoiceState.Idle -> setVisualState("IDLE", if (isMuted) "MUTED — say only “Ab bolo”" else "Ready — type a command or use mic")
+                    is VoiceManager.VoiceState.Idle -> setVisualState("IDLE", if (isMuted) "MUTED — tap Mic, then say “Ab bolo”" else "Ready — type a command or use mic")
                 }
             }
         }
@@ -366,7 +366,7 @@ class OverlayService : Service() {
 
     private fun enterMuteMode() {
         isMuted = true
-        statusText?.text = "Muted — tap Mic and say “Ab bolo”"
+        statusText?.text = "Muted — tap Mic, then say “Ab bolo”"
         voiceManager.speak("ठीक है, Jarvis mute हो गया।")
     }
 
