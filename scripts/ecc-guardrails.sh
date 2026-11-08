@@ -30,7 +30,7 @@ if grep -R -nE '@Ignore|@Disabled' app/src/test; then
   fail "ignored or disabled tests are not allowed"
 fi
 
-if grep -R -nF '|| true' scripts; then
+if grep -R -nF '|| true' scripts --exclude='ecc-guardrails.sh'; then
   fail "scripts must not hide failures with || true"
 fi
 
