@@ -1118,7 +1118,7 @@ ${fullSystem.substringAfter("MEMORY:")}
                 Action.WAIT, Action.WAIT_FOR -> {
                     val expected = action.text
                     if (expected.isNullOrBlank()) return "Wait action is missing the text to verify"
-                    val timeout = action.timeoutMs.coerceIn(500L, 15000L)
+                    val timeout = SelfHealingSafetyPolicy.boundedWaitMs(action).coerceIn(500L, SelfHealingSafetyPolicy.MAX_WAIT_MS)
                     val started = System.currentTimeMillis()
                     while (System.currentTimeMillis() - started < timeout) {
                         if (activeService?.containsVisibleText(expected) == true ||
