@@ -106,6 +106,9 @@ fun SettingsScreen(
             wakeWordSettingsPrefs.getString(WakeWordConfig.SENSITIVITY_KEY, WakeWordConfig.Sensitivity.HIGH.name)
         ))
     }
+    var allowBareJarvis by remember {
+        mutableStateOf(wakeWordSettingsPrefs.getBoolean(WakeWordConfig.ALLOW_BARE_JARVIS_KEY, false))
+    }
     var wakeWordDiagnostics by remember { mutableStateOf(WakeWordDiagnostics.snapshot()) }
     val diagnosticReport = remember(wakeWordDiagnostics) { WakeWordDiagnostics.buildReport(context) }
     val saveDiagnosticLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("text/plain")) { uri ->
@@ -329,7 +332,7 @@ fun SettingsScreen(
                 
                 SettingsToggleRow(
                     title = "Voice Assistant",
-                    subtitle = "Say Jarvis, Hey Jarvis or Hi Jarvis — Voicute offline",
+                    subtitle = "Say Hey Jarvis or Hi Jarvis — Voicute offline",
                     enabled = voiceEnabled,
                     onToggle = {
                         voiceEnabled = !voiceEnabled
@@ -351,8 +354,22 @@ fun SettingsScreen(
 
                     SectionLabel("VOICUTE OFFLINE WAKE WORD")
                     Text(
-                        "Only Voicute ONNX is enabled. Wake phrases: Jarvis, Hey Jarvis and Hi Jarvis. No cloud, API key or fallback engine.",
+                        "Only Voicute ONNX is enabled. Default wake phrases: Hey Jarvis and Hi Jarvis. No cloud, API key or fallback engine.",
                         style = TextStyle(fontSize = 11.sp, color = VoidColor.TextDisabled)
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    SettingsToggleRow(
+                        title = "Allow bare Jarvis (experimental)",
+                        subtitle = "OFF: only Hey Jarvis / Hi Jarvis can wake Jarvis",
+                        enabled = allowBareJarvis,
+                        onToggle = {
+                            allowBareJarvis = !allowBareJarvis
+                            wakeWordSettingsPrefs.edit()
+                                .putBoolean(WakeWordConfig.ALLOW_BARE_JARVIS_KEY, allowBareJarvis)
+                                .apply()
+                            com.openjarvis.ui.OverlayService.restartWakeWord(context)
+                        }
                     )
                     Spacer(modifier = Modifier.height(12.dp))
 
