@@ -309,7 +309,7 @@ fun SettingsScreen(
                 
                 SettingsToggleRow(
                     title = "Voice Assistant",
-                    subtitle = "Say “Jarvis” to activate — offline wake word",
+                    subtitle = "Say Jarvis, Hey Mitra or Hey Dost — offline wake word",
                     enabled = voiceEnabled,
                     onToggle = {
                         voiceEnabled = !voiceEnabled
@@ -329,7 +329,7 @@ fun SettingsScreen(
                 if (voiceEnabled) {
                     Spacer(modifier = Modifier.height(8.dp))
 
-                    SectionLabel("KEY-FREE OFFLINE WAKE WORD")
+                    SectionLabel("KEY-FREE OFFLINE WAKE WORDS")
                     Spacer(modifier = Modifier.height(8.dp))
                     FloatingLabelTextField(
                         value = wakeWordAccessKey,
