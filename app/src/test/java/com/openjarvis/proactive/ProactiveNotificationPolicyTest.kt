@@ -6,8 +6,8 @@ import org.junit.Test
 
 class ProactiveNotificationPolicyTest {
     @Test fun preAndroid13DoesNotRequireRuntimeNotificationPermission() {
-        assertTrue(ProactiveNotificationPolicy.requiresRuntimePermission(32))
-        assertFalse(ProactiveNotificationPolicy.mayPost(32, permissionGranted = false))
+        assertFalse(ProactiveNotificationPolicy.requiresRuntimePermission(32))
+        assertTrue(ProactiveNotificationPolicy.mayPost(32, permissionGranted = false))
     }
 
     @Test fun android13AndNewerRequireGrantedPermission() {
