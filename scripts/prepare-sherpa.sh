@@ -26,16 +26,16 @@ if [[ "$MODE" == "all" ]]; then
   python3 -m venv /tmp/jarvis-sherpa-tokenizer
   /tmp/jarvis-sherpa-tokenizer/bin/pip install --disable-pip-version-check sherpa-onnx click sentencepiece pypinyin
   # Keep this list in sync with WakeWordConfig.KEYWORD_PHRASES.
-  # The runtime validator requires at least five model-tokenized lines.
-  printf '%s\n' 'JARVIS' 'HEY JARVIS' 'JARVISS' 'JARVEES' 'JARVIZ' > /tmp/jarvis-wake-keywords.raw
+  # The runtime validator requires three model-tokenized lines.
+  printf '%s\n' 'JARVIS' 'HEY MITRA' 'HEY DOST' > /tmp/jarvis-wake-keywords.raw
   /tmp/jarvis-sherpa-tokenizer/bin/sherpa-onnx-cli text2token --tokens "$MODEL_DIR/tokens.txt" --tokens-type bpe --bpe-model "$MODEL_DIR/bpe.model" /tmp/jarvis-wake-keywords.raw "$MODEL_DIR/keywords.txt"
   test -s "$MODEL_DIR/keywords.txt"
   keyword_line_count="$(grep -cve '^[[:space:]]*$' "$MODEL_DIR/keywords.txt")"
-  if [[ "$keyword_line_count" -lt 5 ]]; then
-    echo "Expected at least 5 BPE-tokenized wake keyword lines, found $keyword_line_count" >&2
+  if [[ "$keyword_line_count" -lt 3 ]]; then
+    echo "Expected at least 3 BPE-tokenized wake keyword lines, found $keyword_line_count" >&2
     exit 1
   fi
-  for phrase in 'JARVIS' 'HEY JARVIS' 'JARVISS' 'JARVEES' 'JARVIZ'; do
+  for phrase in 'JARVIS' 'HEY MITRA' 'HEY DOST'; do
     if grep -Fqx "$phrase" "$MODEL_DIR/keywords.txt"; then
       echo "Wake keyword file contains raw text instead of BPE tokens: $phrase" >&2
       exit 1
