@@ -33,8 +33,10 @@ Upstream Headroom provides content-aware compressors for JSON/code/logs/text, lo
 
 Jarvis uses a native Kotlin adaptation:
 - JSON: minify only valid JSON; preserve quoted strings, values, and array order.
-- Text/logs: compact only safe repeated runs; preserve unique lines and ordering.
-- Code, diffs, executable action JSON, and safety-critical payloads: preserve unchanged unless a dedicated safe transformation is proven.
+- Text/logs: compact only safe adjacent repeated runs; preserve unique lines and ordering, and retain the exact original for restoration.
+- UI OCR/accessibility labels: collapse redundant blank lines only; never rewrite repeated visible labels or element order.
+- System/policy prompts: collapse redundant blank lines only; never rewrite nonblank instructions.
+- Code, diffs, executable action JSON, and malformed JSON-like payloads: preserve unchanged unless a dedicated safe transformation is proven.
 - Any transformed result retains the exact original for byte-for-byte restoration.
 - Record input/output characters and estimated tokens; do not upload metrics or content.
 - Keep the user command byte-identical; compress system/context material only.
