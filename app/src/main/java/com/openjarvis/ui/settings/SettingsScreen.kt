@@ -99,7 +99,7 @@ fun SettingsScreen(
     }
     var wakeWordSensitivity by remember {
         mutableStateOf(WakeWordConfig.Sensitivity.fromPreference(
-            wakeWordSettingsPrefs.getString(WakeWordConfig.SENSITIVITY_KEY, WakeWordConfig.Sensitivity.MEDIUM.name)
+            wakeWordSettingsPrefs.getString(WakeWordConfig.SENSITIVITY_KEY, WakeWordConfig.Sensitivity.HIGH.name)
         ))
     }
     var wakeWordDiagnostics by remember { mutableStateOf(WakeWordDiagnostics.snapshot()) }
