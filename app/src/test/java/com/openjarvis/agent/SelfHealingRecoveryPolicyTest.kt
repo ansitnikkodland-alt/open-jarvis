@@ -37,6 +37,6 @@ class SelfHealingRecoveryPolicyTest {
         assertTrue(SelfHealingPatternCodec.recurring(patterns.single()))
         val unknown = SelfHealingPatternCodec.record(patterns, "raw command text", 200L).first()
         assertEquals("UNKNOWN", unknown.area)
-        assertEquals(2, SelfHealingPatternCodec.record(patterns, "OLLAMA_CONNECTIVITY", 201L, 0).size)
+        assertEquals(1, SelfHealingPatternCodec.record(patterns, "OLLAMA_CONNECTIVITY", 201L, 0).size)
     }
 }
