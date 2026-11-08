@@ -538,9 +538,13 @@ app_launch args: label string.
 message args: optional app ("whatsapp" or "sms"), contact string, text string. Open composer only; never send.
 Never invent contact names or app labels. Understand Hindi, Marathi, Hinglish and English. No markdown.
 """.trimIndent()
+                    val nativeIntentCompression = HeadroomLite.compress(nativeIntentSystem, HeadroomLite.ContentKind.POLICY)
+                    if (nativeIntentCompression.savedChars > 0) {
+                        Log.i(TAG, "headroom_lite stage=native_intent_policy saved_chars=${nativeIntentCompression.savedChars} saved_tokens_est=${nativeIntentCompression.savedTokens}")
+                    }
                     val nativeRawResult = withTimeoutOrNull(nativeRouterBudget) {
                         universalAdapter.completeNativeIntentWithDeadline(
-                            nativeIntentSystem, safeCommand, nativeRouterBudget
+                            nativeIntentCompression.content, safeCommand, nativeRouterBudget
                         )
                     } ?: Result.failure(IllegalStateException("LLM time budget exceeded (45 seconds)."))
                     val nativeRaw = nativeRawResult.getOrElse { error ->
