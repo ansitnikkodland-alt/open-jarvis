@@ -47,6 +47,7 @@ import com.openjarvis.voice.VoiceManager
 import com.openjarvis.voice.ActivationGate
 import com.openjarvis.voice.WakeWordEngine
 import com.openjarvis.voice.VoicuteOnnxWakeWordController
+import com.openjarvis.voice.VoicuteModelLoader
 import com.openjarvis.voice.WakeWordConfig
 import com.openjarvis.voice.WakeWordSessionStateMachine
 import kotlinx.coroutines.CoroutineScope
