@@ -93,7 +93,7 @@ class HeadroomLiteTest {
     @Test
     fun malformedJsonWithRepeatedLinesIsPreservedInsteadOfRunLengthEncoded() {
         val repeated = "  invalid-field: do not rewrite this malformed JSON line"
-        val input = "[\\n$repeated\\n$repeated\\n]"
+        val input = "[\n$repeated\n$repeated\n]"
         val result = HeadroomLite.compress(input)
         assertEquals(HeadroomLite.ContentKind.PRESERVE, result.kind)
         assertEquals(input, result.content)
