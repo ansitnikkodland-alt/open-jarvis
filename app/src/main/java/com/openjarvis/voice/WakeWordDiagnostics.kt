@@ -173,7 +173,7 @@ object WakeWordDiagnostics {
                 file.writeText(inferenceRecords.joinToString("\n", postfix = if (inferenceRecords.isEmpty()) "" else "\n"))
             }
         }
-        current = current.copy(lastCandidateScores = scoresSummary, candidateFrames = current.candidateFrames + 1L)
+        current = current.copy(lastCandidateScores = scoresSummary)
     }
 
     @Synchronized
