@@ -80,7 +80,6 @@ jobs:
           node-version: "20"
 
       - name: Scan agent instructions, skills, and project configuration
-        continue-on-error: true
         run: |
           mkdir -p artifacts
           npx --yes ecc-agentshield@1.6.0 scan --path . --format json --output artifacts/agentshield-report.json
