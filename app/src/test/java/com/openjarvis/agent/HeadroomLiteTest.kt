@@ -91,6 +91,21 @@ class HeadroomLiteTest {
     }
 
     @Test
+    fun malformedJsonWithRepeatedLinesIsPreservedInsteadOfRunLengthEncoded() {
+        val repeated = "  invalid-field: do not rewrite this malformed JSON line"
+        val input = "[\\n$repeated\\n$repeated\\n]"
+        val result = HeadroomLite.compress(input)
+        assertEquals(HeadroomLite.ContentKind.PRESERVE, result.kind)
+        assertEquals(input, result.content)
+    }
+
+    @Test
+    fun explicitPreserveKeepsHinglishCommandByteForByte() {
+        val command = "  WhatsApp kholo aur Rahul ko hello bhejo  "
+        assertEquals(command, HeadroomLite.compress(command, HeadroomLite.ContentKind.PRESERVE).content)
+    }
+
+    @Test
     fun codeDiffAndPreserveKindsAreNeverModified() {
         val input = "fun main() {\n\n\nprintln(\"safe\")\n}"
         for (kind in listOf(HeadroomLite.ContentKind.CODE, HeadroomLite.ContentKind.DIFF, HeadroomLite.ContentKind.PRESERVE)) {
