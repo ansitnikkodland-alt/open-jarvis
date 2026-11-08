@@ -32,8 +32,12 @@ if grep -nE 'scheduleRetry|retryRunnable|retryAttempt|RETRYING:' "$STT_FILE"; th
   fail "automatic STT retry/rearm logic found in $STT_FILE"
 fi
 
-if grep -R -nE 'VoiceCute|Voicute|WakeWord|Porcupine|Sherpa|sherpa-onnx|prepare-voicute|prepare-sherpa' app/src/main .github/workflows scripts; then
+if grep -R -nE 'VoiceCute|Voicute|WakeWord|Porcupine|Sherpa|sherpa-onnx|prepare-voicute|prepare-sherpa' app/src/main .github/workflows; then
   fail "wake-word/ONNX runtime or model preparation references remain"
+fi
+
+if grep -R -nE 'VoiceCute|Voicute|WakeWord|Porcupine|Sherpa|sherpa-onnx|prepare-voicute|prepare-sherpa' scripts --exclude='ecc-guardrails.sh'; then
+  fail "obsolete wake-word/ONNX preparation script remains"
 fi
 
 if grep -R -nE 'SpeechRecognizer\.createSpeechRecognizer\(' app/src/main/java/com/openjarvis/voice; then
