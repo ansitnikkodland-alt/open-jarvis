@@ -20,6 +20,10 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import android.content.Intent
+import android.widget.Toast
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
@@ -103,6 +107,19 @@ fun SettingsScreen(
         ))
     }
     var wakeWordDiagnostics by remember { mutableStateOf(WakeWordDiagnostics.snapshot()) }
+    val diagnosticReport = remember(wakeWordDiagnostics) { WakeWordDiagnostics.buildReport(context) }
+    val saveDiagnosticLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("text/plain")) { uri ->
+        if (uri != null) {
+            runCatching {
+                context.contentResolver.openOutputStream(uri)?.bufferedWriter()?.use { it.write(diagnosticReport) }
+                    ?: error("Could not open the selected file")
+            }.onSuccess {
+                Toast.makeText(context, "Jarvis diagnostic report saved", Toast.LENGTH_SHORT).show()
+            }.onFailure {
+                Toast.makeText(context, "Could not save report: " + it.message, Toast.LENGTH_LONG).show()
+            }
+        }
+    }
 
     LaunchedEffect(voiceEnabled) {
         while (voiceEnabled) {
@@ -385,6 +402,41 @@ fun SettingsScreen(
                     wakeWordDiagnostics.lastError?.let {
                         Text("Last error: $it", color = VoidColor.Red, fontSize = 11.sp)
                     }
+                    Text(
+                        "Latest phrase scores: " + (wakeWordDiagnostics.lastCandidateScores ?: "Waiting for inference…"),
+                        color = VoidColor.Cyan,
+                        fontSize = 10.sp
+                    )
+                    Text(
+                        "Candidate frames: " + wakeWordDiagnostics.candidateFrames + " • Report includes recent scores and errors, not microphone audio.",
+                        color = VoidColor.TextDisabled,
+                        fontSize = 10.sp
+                    )
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                        OutlinedButton(
+                            onClick = {
+                                val clipboard = context.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+                                clipboard.setPrimaryClip(android.content.ClipData.newPlainText("Jarvis diagnostics", diagnosticReport))
+                                Toast.makeText(context, "Report copied. Paste it into ChatGPT.", Toast.LENGTH_LONG).show()
+                            },
+                            modifier = Modifier.weight(1f)
+                        ) { Text("Copy Report") }
+                        OutlinedButton(
+                            onClick = { saveDiagnosticLauncher.launch("Jarvis_Diagnostics_" + System.currentTimeMillis() + ".txt") },
+                            modifier = Modifier.weight(1f)
+                        ) { Text("Save TXT") }
+                    }
+                    OutlinedButton(
+                        onClick = {
+                            val send = Intent(Intent.ACTION_SEND).apply {
+                                type = "text/plain"
+                                putExtra(Intent.EXTRA_SUBJECT, "Jarvis diagnostic report")
+                                putExtra(Intent.EXTRA_TEXT, diagnosticReport)
+                            }
+                            context.startActivity(Intent.createChooser(send, "Share Jarvis diagnostics"))
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    ) { Text("Share Report") }
                     Spacer(modifier = Modifier.height(12.dp))
 
                     SettingsToggleRow(
