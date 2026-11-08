@@ -52,7 +52,7 @@ object WakeWordDiagnostics {
         runCatching {
             if (file.exists()) {
                 file.readLines().takeLast(MAX_EVENTS).forEach { line ->
-                    val parts = line.split("\\t", limit = 3)
+                    val parts = line.split("\t", limit = 3)
                     if (parts.size == 3) {
                         val at = parts[0].toLongOrNull() ?: System.currentTimeMillis()
                         events.add(JarvisDiagnosticEvent(at, parts[1], parts[2]))
@@ -63,7 +63,7 @@ object WakeWordDiagnostics {
         if (crashHandlerInstalled.compareAndSet(false, true)) {
             val previous = Thread.getDefaultUncaughtExceptionHandler()
             Thread.setDefaultUncaughtExceptionHandler { thread, error ->
-                val trace = error.stackTraceToString().take(10000).replace("\\n", " ")
+                val trace = error.stackTraceToString().take(10000).replace("\n", " ")
                 failed("UNCAUGHT CRASH on " + thread.name + ": " + error.javaClass.simpleName + ": " + trace)
                 previous?.uncaughtException(thread, error)
             }
@@ -75,15 +75,15 @@ object WakeWordDiagnostics {
 
     @Synchronized private fun addEvent(level: String, message: String) {
         val now = System.currentTimeMillis()
-        val safeMessage = message.replace("\\n", " ").replace("\\r", " ").take(12000)
+        val safeMessage = message.replace("\n", " ").replace("\r", " ").take(12000)
         events.add(JarvisDiagnosticEvent(now, level, safeMessage.take(500)))
         if (events.size > MAX_EVENTS) events.removeAt(0)
         runCatching {
-            logFile?.appendText(now.toString() + "\\t" + level + "\\t" + safeMessage + "\\n")
+            logFile?.appendText(now.toString() + "\t" + level + "\t" + safeMessage + "\n")
             logFile?.let { file ->
                 if (file.length() > 256 * 1024) {
                     val retained = file.readLines().takeLast(MAX_EVENTS)
-                    file.writeText(retained.joinToString("\\n", postfix = if (retained.isEmpty()) "" else "\\n"))
+                    file.writeText(retained.joinToString("\n", postfix = if (retained.isEmpty()) "" else "\n"))
                 }
             }
         }
