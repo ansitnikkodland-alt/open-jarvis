@@ -51,13 +51,15 @@ public class WakeWordEngine {
         public final float backgroundMean;
         /** Per-model recommended consecutive frames (from model_info.json). */
         public final int recommendedConsFrames;
+        public final String scoreSummary;
 
         public DetectionResult(String wakeWord, float probability, float backgroundMean,
-                               int recommendedConsFrames) {
+                               int recommendedConsFrames, String scoreSummary) {
             this.wakeWord = wakeWord;
             this.probability = probability;
             this.backgroundMean = backgroundMean;
             this.recommendedConsFrames = recommendedConsFrames;
+            this.scoreSummary = scoreSummary;
         }
     }
 
@@ -311,6 +313,7 @@ public class WakeWordEngine {
             float bestSigmoid = 0;
             String bestWord = null;
             int bestConsFrames = 2;
+            StringBuilder scoreSummary = new StringBuilder();
 
             if (isMultiKeyword) {
                 // ── New: single multi-keyword model → [1, N] output ──
@@ -324,6 +327,9 @@ public class WakeWordEngine {
                 kwOut.close();
 
                 for (int i = 0; i < keywords.length; i++) {
+                    if (scoreSummary.length() > 0) scoreSummary.append(", ");
+                    scoreSummary.append(keywords[i]).append("=")
+                            .append(String.format(Locale.US, "%.4f", scored[0][i]));
                     if (scored[0][i] > bestSigmoid) {
                         bestSigmoid = scored[0][i];
                         bestWord = keywords[i];
@@ -379,6 +385,9 @@ public class WakeWordEngine {
                         Log.e(TAG, "DS-CNN unexpected output type: " + rawOut.getClass().getName());
                         sigmoid = 0f;
                     }
+                    if (scoreSummary.length() > 0) scoreSummary.append(", ");
+                    scoreSummary.append(model.wakeWord).append("=")
+                            .append(String.format(Locale.US, "%.4f", sigmoid));
                     if (sigmoid > bestSigmoid) {
                         bestSigmoid = sigmoid;
                         bestWord = model.wakeWord;
@@ -415,7 +424,7 @@ public class WakeWordEngine {
             // MEDIUM=0.35 ineffective, so ordinary-volume speech was discarded
             // before the configurable detector ever saw its score.
             String detected = bestWord;
-            return new DetectionResult(detected, bestSigmoid, bgProb, bestConsFrames);
+            return new DetectionResult(detected, bestSigmoid, bgProb, bestConsFrames, scoreSummary.toString());
 
         } catch (OrtException e) {
             Log.e(TAG, "Inference error", e);
