@@ -364,5 +364,5 @@ private fun replayClip(model: WakeWordEngine, clip: WakeClip, threshold: Float):
 private fun parseScores(summary: String?): Map<String, Float> = summary.orEmpty().split(",")
     .mapNotNull { token ->
         val parts = token.trim().split("=", limit = 2)
-        if (parts.size != 2) null else parts[1].toFloatOrNull()?.let { parts[0] to it }
+        if (parts.size != 2) null else parts[1].toFloatOrNull()?.let { parts[0].trim().lowercase(Locale.US) to it }
     }.toMap()
