@@ -8,6 +8,7 @@ import org.junit.Test
 class SelfHealingSafetyPolicyTest {
     @Test fun onlyWaitCanBeRetried() {
         assertEquals(2, SelfHealingSafetyPolicy.maxAttempts(Action(Action.WAIT)))
+        assertEquals(2, SelfHealingSafetyPolicy.maxAttempts(Action(Action.WAIT_FOR, text = "Ready")))
         listOf(
             Action(Action.TAP, text = "Send"),
             Action(Action.TYPE, value = "hello"),
