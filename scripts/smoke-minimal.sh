@@ -68,8 +68,16 @@ for ((attempt=1; attempt<=3; attempt++)); do
   # Manager time to come back instead of burning the next install attempt.
   RECOVERED=0
   for ((recovery=1; recovery<=60; recovery++)); do
-    PACKAGE_SERVICE="$(adb shell service check package 2>/dev/null | tr -d '\r' || true)"
-    ACTIVITY_SERVICE="$(adb shell service check activity 2>/dev/null | tr -d '\r' || true)"
+    if ! PACKAGE_SERVICE="$(adb shell service check package 2>/dev/null | tr -d '\r')"; then
+      echo "Package Manager query failed during recovery attempt $recovery." >&2
+      sleep 1
+      continue
+    fi
+    if ! ACTIVITY_SERVICE="$(adb shell service check activity 2>/dev/null | tr -d '\r')"; then
+      echo "Activity Manager query failed during recovery attempt $recovery." >&2
+      sleep 1
+      continue
+    fi
     if [[ "$PACKAGE_SERVICE" == *"found"* && "$ACTIVITY_SERVICE" == *"found"* ]] &&
        adb shell cmd package list packages >/dev/null 2>&1 &&
        adb shell settings get global device_provisioned >/dev/null 2>&1; then
