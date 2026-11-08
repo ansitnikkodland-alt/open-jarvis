@@ -10,7 +10,7 @@ internal object SelfHealingSafetyPolicy {
     const val MAX_WAIT_MS = 5_000L
 
     fun maxAttempts(action: Action): Int =
-        if (action.action == Action.WAIT) MAX_WAIT_ATTEMPTS else 1
+        if (action.action == Action.WAIT || action.action == Action.WAIT_FOR) MAX_WAIT_ATTEMPTS else 1
 
     fun boundedWaitMs(action: Action): Long =
         action.timeoutMs.coerceIn(0L, MAX_WAIT_MS)
