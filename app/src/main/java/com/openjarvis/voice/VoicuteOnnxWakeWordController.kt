@@ -16,7 +16,7 @@ import kotlin.math.sqrt
 /**
  * Voicute ONNX wake-word adapter. It owns the only AudioRecord while active,
  * keeps a rolling 1.01s PCM window, and runs one multi-keyword inference per
- * 100ms hop. Sherpa is started only after this controller has fully stopped.
+ * 100ms hop. No other wake-word engine is used.
  */
 class VoicuteOnnxWakeWordController(
     context: Context,
