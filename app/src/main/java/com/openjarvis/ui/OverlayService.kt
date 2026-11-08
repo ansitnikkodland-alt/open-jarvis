@@ -365,7 +365,7 @@ class OverlayService : Service() {
     private fun submitCommand(voiceCommand: String? = null) {
         val command = if (voiceCommand != null) voiceCommand.trim() else commandInput?.text?.toString()?.trim().orEmpty()
         if (command.isBlank()) { statusText?.text = "No speech detected — try again"; return }
-        if (command.any { it in '\\u0900'..'\\u097F' }) {
+        if (command.any { it in '\u0900'..'\u097F' }) {
             val marathiMarkers = listOf("आहे", "आणि", "मला", "काय", "झाले", "झालं", "नाही", "दाखवा", "उघडा", "करायचे", "माझे", "तुम्ही", "सांगा", "नको")
             responseLanguage = if (marathiMarkers.any { command.contains(it) }) "mr" else "hi"
         }
