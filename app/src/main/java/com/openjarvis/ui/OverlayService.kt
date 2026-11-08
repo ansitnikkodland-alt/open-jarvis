@@ -45,13 +45,10 @@ import com.openjarvis.bridge.SocketServer
 import com.openjarvis.graphify.nodes.TaskNode
 import com.openjarvis.voice.VoiceManager
 import com.openjarvis.voice.ActivationGate
-import com.openjarvis.voice.PorcupineWakeWordController
 import com.openjarvis.voice.WakeWordEngine
-import com.openjarvis.voice.SherpaOnnxWakeWordController
 import com.openjarvis.voice.VoicuteOnnxWakeWordController
 import com.openjarvis.voice.WakeWordConfig
 import com.openjarvis.voice.WakeWordSessionStateMachine
-import com.openjarvis.voice.WakeWordFallbackPolicy
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -85,14 +82,10 @@ class OverlayService : Service() {
     private lateinit var graphifyRepo: GraphifyRepository
     private var socketServer: SocketServer? = null
     private var wakeWordController: WakeWordEngine? = null
-    private var wakeWordControllerKey: String? = null
     private var wakeWordCpuLock: PowerManager.WakeLock? = null
     private var wakeWordRestartAttempt = 0
     private var wakeWordRestartRunnable: Runnable? = null
     private var wakeWordFeedbackActive = false
-    private var wakeWordListeningStartedAtMs = 0L
-    private var wakeWordFallbackWarningShown = false
-    private var wakeWordUseSherpaFallback = false
     private val mainHandler = Handler(Looper.getMainLooper())
     private val activationGate = ActivationGate(windowMs = 10_000L, duplicateCooldownMs = 2_500L)
     private val wakeWordSession = WakeWordSessionStateMachine(WAKE_WORD_STT_WATCHDOG_MS)
@@ -111,7 +104,12 @@ class OverlayService : Service() {
                     startWakeWordListening()
                 }
             }
-            checkWakeWordRecognitionTimeout(now)
+            // Reattach the floating UI if Android detached its window while the service survived.
+            if (overlayView?.isAttachedToWindow != true) attachAssistant()
+            // Recover a stopped listener without requiring the user to restart the service.
+            if (voiceManager.isVoiceEnabled() && !wakeWordCommandPending && !wakeWordResponsePending &&
+                wakeWordController?.isRunning() != true && wakeWordRestartRunnable == null
+            ) startWakeWordListening()
             mainHandler.postDelayed(this, WAKE_WORD_WATCHDOG_TICK_MS)
         }
     }
@@ -240,9 +238,11 @@ class OverlayService : Service() {
             }
             return START_STICKY
         }
-        // Re-check the saved AccessKey whenever the app asks the existing service to start.
-        // This also refreshes wake-word setup after the user edits the key in Settings.
-        if (::voiceManager.isInitialized) startWakeWordListening()
+        // Reattach a detached overlay and ensure the single Voicute listener is armed.
+        if (::voiceManager.isInitialized) {
+            if (overlayView?.isAttachedToWindow != true) attachAssistant()
+            startWakeWordListening()
+        }
         return START_STICKY
     }
     override fun onBind(intent: Intent?): IBinder? = null
@@ -266,7 +266,10 @@ class OverlayService : Service() {
     }
 
     private fun attachAssistant() {
-        if (!Settings.canDrawOverlays(this) || overlayView != null) return
+        if (!Settings.canDrawOverlays(this)) return
+        if (overlayView?.isAttachedToWindow == true) return
+        // A stale detached View must not block recreation of the floating overlay.
+        overlayView = null
         try {
             windowManager = getSystemService(WINDOW_SERVICE) as WindowManager
             val root = LinearLayout(this).apply {
@@ -516,70 +519,22 @@ class OverlayService : Service() {
             statusText?.text = "Microphone permission is required for Jarvis"
             return
         }
-        val accessKey = voiceManager.getPicovoiceAccessKey()
         if (Build.VERSION.SDK_INT >= 34) {
             val types = ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE or ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE
             ServiceCompat.startForeground(this, NOTIFICATION_ID, createNotification(), types)
         }
 
-        // Voicute's MIT-licensed multi-keyword ONNX model is the key-free primary.
-        // Sherpa remains a key-free fallback; Porcupine is only used when the user
-        // has explicitly configured a valid Picovoice key.
-        if (wakeWordController is PorcupineWakeWordController && wakeWordControllerKey != accessKey) {
-            stopWakeWordListening()
-            wakeWordController = null
-            wakeWordControllerKey = null
-        }
+        // Voicute is the only wake-word engine. No Sherpa/Picovoice fallback is allowed.
         if (wakeWordController == null) {
-            wakeWordController = if (wakeWordUseSherpaFallback) {
-                SherpaOnnxWakeWordController(
-                    this,
-                    onWakeWord = { mainHandler.post { handleWakeWordDetected() } },
-                    onError = { message -> mainHandler.post { scheduleWakeWordRestart(message) } }
-                )
-            } else {
-                VoicuteOnnxWakeWordController(
-                    this,
-                    onWakeWord = { mainHandler.post { handleWakeWordDetected() } },
-                    onError = { message -> mainHandler.post { scheduleWakeWordRestart(message) } }
-                )
-            }
-        }
-        val wasAlreadyRunning = wakeWordController?.isRunning() == true
-        var error = wakeWordController?.start()
-        if (error != null && wakeWordController is VoicuteOnnxWakeWordController) {
-            android.util.Log.w("OpenJarvisWakeWord", "Voicute startup failed; switching to Sherpa: $error")
-            stopWakeWordListening()
-            wakeWordUseSherpaFallback = true
-            wakeWordController = SherpaOnnxWakeWordController(
+            wakeWordController = VoicuteOnnxWakeWordController(
                 this,
                 onWakeWord = { mainHandler.post { handleWakeWordDetected() } },
                 onError = { message -> mainHandler.post { scheduleWakeWordRestart(message) } }
             )
-            error = wakeWordController?.start()
         }
-        if (error != null && WakeWordConfig.validateAccessKey(accessKey) == null && wakeWordController !is PorcupineWakeWordController) {
-            stopWakeWordListening()
-            wakeWordController = PorcupineWakeWordController(
-                this,
-                accessKey,
-                onWakeWord = { mainHandler.post { handleWakeWordDetected() } },
-                onError = { message -> mainHandler.post { scheduleWakeWordRestart(message) } }
-            )
-            wakeWordControllerKey = accessKey
-            error = wakeWordController?.start()
-        }
+        val error = wakeWordController?.start()
         if (error == null) {
             wakeWordRestartAttempt = 0
-            if (wakeWordController is VoicuteOnnxWakeWordController || wakeWordController is SherpaOnnxWakeWordController) {
-                if (!wasAlreadyRunning || wakeWordListeningStartedAtMs <= 0L) {
-                    wakeWordListeningStartedAtMs = System.currentTimeMillis()
-                    wakeWordFallbackWarningShown = false
-                }
-                if (wakeWordController is VoicuteOnnxWakeWordController) wakeWordUseSherpaFallback = false
-            } else {
-                wakeWordListeningStartedAtMs = 0L
-            }
             wakeWordRestartRunnable?.let { mainHandler.removeCallbacks(it) }
             wakeWordRestartRunnable = null
             acquireWakeWordCpuLock()
@@ -587,94 +542,11 @@ class OverlayService : Service() {
             releaseWakeWordCpuLock()
             scheduleWakeWordRestart(error)
         }
-        val activeWakePhrases = if (wakeWordController is VoicuteOnnxWakeWordController) {
-            "Jarvis / Hey Jarvis / Hi Jarvis"
-        } else {
-            WakeWordConfig.DISPLAY_PHRASE
-        }
+        val activeWakePhrases = VoicuteModelLoader.DEMO_DISPLAY_PHRASES
         statusText?.text = error ?: if (mutedUntilWakeWord) {
             "MUTED — say $activeWakePhrases to wake"
-        } else if (wakeWordController is VoicuteOnnxWakeWordController) {
+        } else {
             "Standby — say $activeWakePhrases (Voicute ONNX, offline)"
-        } else if (wakeWordController is SherpaOnnxWakeWordController) {
-            "Standby — say $activeWakePhrases (Sherpa fallback, offline)"
-        } else {
-            "Standby — say $activeWakePhrases (Porcupine fallback)"
-        }
-    }
-
-    /** Switch only after sustained non-silent speech has gone unrecognized. */
-    private fun checkWakeWordRecognitionTimeout(nowMs: Long) {
-        if ((wakeWordController !is SherpaOnnxWakeWordController && wakeWordController !is VoicuteOnnxWakeWordController) || wakeWordController?.isRunning() != true) return
-        val accessKey = voiceManager.getPicovoiceAccessKey()
-        val diagnostics = com.openjarvis.voice.WakeWordDiagnostics.snapshot()
-        val decision = WakeWordFallbackPolicy.evaluate(
-            nowMs = nowMs,
-            startedAtMs = wakeWordListeningStartedAtMs,
-            lastDetectionAtMs = diagnostics.lastDetectionAtMs,
-            framesProcessed = diagnostics.framesProcessed,
-            silentFrames = diagnostics.silentFrames,
-            hasValidAccessKey = WakeWordConfig.validateAccessKey(accessKey) == null
-        )
-        when (decision) {
-            WakeWordFallbackPolicy.Decision.WAIT -> Unit
-            WakeWordFallbackPolicy.Decision.FALLBACK_TO_PORCUPINE -> {
-                if (wakeWordController is VoicuteOnnxWakeWordController) {
-                    switchVoicuteToSherpaFallback()
-                    return
-                }
-                android.util.Log.w("OpenJarvisWakeWord", "Sherpa recognition timeout; switching to Porcupine fallback")
-                stopWakeWordListening()
-                wakeWordController = PorcupineWakeWordController(
-                    this,
-                    accessKey,
-                    onWakeWord = { mainHandler.post { handleWakeWordDetected() } },
-                    onError = { message -> mainHandler.post { scheduleWakeWordRestart(message) } }
-                )
-                wakeWordControllerKey = accessKey
-                val error = wakeWordController?.start()
-                if (error == null) {
-                    wakeWordListeningStartedAtMs = 0L
-                    wakeWordRestartAttempt = 0
-                    acquireWakeWordCpuLock()
-                    statusText?.text = "Standby — say Jarvis, Hey Mitra or Hey Dost (Porcupine fallback)"
-                } else {
-                    scheduleWakeWordRestart("Sherpa recognition timeout; Porcupine fallback failed: $error")
-                }
-            }
-            WakeWordFallbackPolicy.Decision.NO_FALLBACK_KEY -> {
-                if (wakeWordController is VoicuteOnnxWakeWordController) {
-                    switchVoicuteToSherpaFallback()
-                    return
-                }
-                if (!wakeWordFallbackWarningShown) {
-                    wakeWordFallbackWarningShown = true
-                    android.util.Log.w("OpenJarvisWakeWord", "Sherpa has active audio but no keyword detection; no Picovoice AccessKey for fallback")
-                    statusText?.text = "Sherpa is hearing audio but not detecting Jarvis. Add a Picovoice AccessKey for automatic fallback."
-                }
-            }
-        }
-    }
-
-    private fun switchVoicuteToSherpaFallback() {
-        if (wakeWordController !is VoicuteOnnxWakeWordController) return
-        android.util.Log.w("OpenJarvisWakeWord", "Voicute had active audio but no accepted wake word; switching to Sherpa fallback")
-        stopWakeWordListening()
-        wakeWordUseSherpaFallback = true
-        wakeWordController = SherpaOnnxWakeWordController(
-            this,
-            onWakeWord = { mainHandler.post { handleWakeWordDetected() } },
-            onError = { message -> mainHandler.post { scheduleWakeWordRestart(message) } }
-        )
-        val error = wakeWordController?.start()
-        if (error == null) {
-            wakeWordListeningStartedAtMs = System.currentTimeMillis()
-            wakeWordFallbackWarningShown = false
-            wakeWordRestartAttempt = 0
-            acquireWakeWordCpuLock()
-            statusText?.text = "Standby — say ${WakeWordConfig.DISPLAY_PHRASE} (Sherpa fallback, offline)"
-        } else {
-            scheduleWakeWordRestart("Voicute recognition timeout; Sherpa fallback failed: $error")
         }
     }
 
