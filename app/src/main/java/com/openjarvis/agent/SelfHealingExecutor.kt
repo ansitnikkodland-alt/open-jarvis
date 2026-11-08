@@ -4,18 +4,19 @@ import android.content.Context
 import android.util.Log
 
 /**
- * Live fail-closed recovery gate used by AgentCore after an action failure.
- * It never replays UI side effects. AgentCore may retry only WAIT/WAIT_FOR
- * through SelfHealingSafetyPolicy because observing a condition is idempotent.
+ * Deterministic recovery planner. It classifies failures, records privacy-safe recurrence
+ * counters, and returns a bounded next step. It never replays UI actions.
  */
-class SelfHealingExecutor(private val context: Context) {
+class SelfHealingExecutor(context: Context) {
+    private val patternStore = SelfHealingPatternStore(context.applicationContext)
+
     fun failureDisposition(action: Action, reason: String): String {
-        val disposition = if (action.action == Action.WAIT || action.action == Action.WAIT_FOR) {
-            "A bounded condition-check retry is permitted by policy."
-        } else {
-            "No automatic replay: the action may already have taken effect."
-        }
-        Log.w("JarvisSelfHealing", "action=${action.action} disposition=$disposition reason=${reason.take(180)}")
-        return disposition
+        val decision = SelfHealingRecoveryPolicy.classify(action, reason)
+        val pattern = patternStore.record(decision.area.name)
+        val recurrence = if (SelfHealingPatternCodec.recurring(pattern)) {
+            " This is a recurring ${decision.area.name.lowercase().replace('_', ' ')} failure (${pattern.count} occurrences); escalate for review."
+        } else ""
+        Log.w("JarvisSelfHealing", "area=${decision.area} recovery=${decision.recovery} autoRetry=${decision.mayRetryAutomatically} recurring=${pattern.count}")
+        return "${decision.explanation}${recurrence}"
     }
 }
