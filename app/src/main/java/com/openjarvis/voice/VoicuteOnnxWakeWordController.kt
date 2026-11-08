@@ -36,6 +36,7 @@ class VoicuteOnnxWakeWordController(
     @Synchronized
     override fun start(): String? {
         if (running) return null
+        WakeWordDiagnostics.initialize(appContext)
         return try {
             val permission = ContextCompat.checkSelfPermission(
                 appContext, android.Manifest.permission.RECORD_AUDIO
