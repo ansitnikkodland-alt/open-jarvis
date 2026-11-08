@@ -36,9 +36,9 @@ object WakeWordDiagnostics {
     fun snapshot(): WakeWordDiagnosticSnapshot = current
 
     @Synchronized
-    fun started(permissionGranted: Boolean, keywords: List<String>, threshold: Float, boost: Float) {
+    fun started(permissionGranted: Boolean, keywords: List<String>, threshold: Float, boost: Float, engineName: String = "Sherpa-ONNX KWS") {
         current = current.copy(
-            engineName = "Sherpa-ONNX KWS",
+            engineName = engineName,
             state = "LISTENING",
             micPermissionGranted = permissionGranted,
             rms = 0f,

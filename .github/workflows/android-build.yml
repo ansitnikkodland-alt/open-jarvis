@@ -37,6 +37,7 @@ jobs:
       - name: Prepare sherpa-onnx runtime and required offline JARVIS KWS model
         run: |
           bash scripts/prepare-sherpa.sh all
+          bash scripts/prepare-voicute.sh
           test -s app/src/main/assets/sherpa-onnx-kws-zipformer-gigaspeech-3.3M-2024-01-01/encoder-epoch-12-avg-2-chunk-16-left-64.onnx
 
       - name: Set up JDK 17
@@ -72,6 +73,7 @@ jobs:
       - name: Prepare sherpa-onnx runtime and required offline JARVIS KWS model
         run: |
           bash scripts/prepare-sherpa.sh all
+          bash scripts/prepare-voicute.sh
           test -s app/src/main/assets/sherpa-onnx-kws-zipformer-gigaspeech-3.3M-2024-01-01/encoder-epoch-12-avg-2-chunk-16-left-64.onnx
 
       - name: Set up JDK 17
