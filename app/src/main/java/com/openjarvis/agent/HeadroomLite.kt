@@ -33,7 +33,11 @@ object HeadroomLite {
 
     fun compress(input: String, requestedKind: ContentKind = ContentKind.AUTO): CompressionResult {
         val kind = if (requestedKind == ContentKind.AUTO) {
-            if (isJsonDocument(input)) ContentKind.JSON else ContentKind.TEXT
+            when {
+                isJsonDocument(input) -> ContentKind.JSON
+                looksLikeJsonDocument(input) -> ContentKind.PRESERVE
+                else -> ContentKind.TEXT
+            }
         } else requestedKind
 
         val compacted = when (kind) {
@@ -65,6 +69,11 @@ object HeadroomLite {
 
     private fun isJsonDocument(input: String): Boolean =
         StrictJsonValidator(input.trim()).isValid()
+
+    private fun looksLikeJsonDocument(input: String): Boolean {
+        val value = input.trimStart()
+        return value.startsWith("{") || value.startsWith("[")
+    }
 
     /** Remove only JSON insignificant whitespace; quoted strings and escapes stay byte-identical. */
     private fun compactJson(input: String): String? {
@@ -251,7 +260,12 @@ object HeadroomLite {
         }
 
         private fun skipWhitespace() {
-            while (index < source.length && source[index] in charArrayOf(' ', '\t', '\r', '\n')) index++
+            while (index < source.length) {
+                when (source[index]) {
+                    ' ', '\t', '\r', '\n' -> index++
+                    else -> return
+                }
+            }
         }
     }
 }
