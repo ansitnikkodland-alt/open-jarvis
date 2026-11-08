@@ -60,6 +60,37 @@ class HeadroomLiteTest {
     }
 
     @Test
+    fun uiTextPreservesRepeatedLabelsAndElementOrder() {
+        val input = "Button: Search\nButton: Search\nButton: Send"
+        val result = HeadroomLite.compress(input, HeadroomLite.ContentKind.UI_TEXT)
+        assertEquals(input, result.content)
+        assertEquals(input, result.restore())
+    }
+
+    @Test
+    fun policyPromptsNeverRewriteRepeatedNonblankRules() {
+        val input = "Never tap Send.\nNever tap Send.\nReturn ONLY JSON."
+        val result = HeadroomLite.compress(input, HeadroomLite.ContentKind.POLICY)
+        assertEquals(input, result.content)
+        assertEquals(input, result.restore())
+    }
+
+    @Test
+    fun rejectsLenientButInvalidJsonAndKeepsItVerbatim() {
+        val inputs = listOf(
+            """{ unquoted: "value" }""",
+            """{"value": "bad\\q"}""",
+            """[1, 2,]""",
+            """{"value": 01}"""
+        )
+        inputs.forEach { input ->
+            val result = HeadroomLite.compress(input)
+            assertEquals(HeadroomLite.ContentKind.TEXT, result.kind)
+            assertEquals(input, result.content)
+        }
+    }
+
+    @Test
     fun codeDiffAndPreserveKindsAreNeverModified() {
         val input = "fun main() {\n\n\nprintln(\"safe\")\n}"
         for (kind in listOf(HeadroomLite.ContentKind.CODE, HeadroomLite.ContentKind.DIFF, HeadroomLite.ContentKind.PRESERVE)) {
