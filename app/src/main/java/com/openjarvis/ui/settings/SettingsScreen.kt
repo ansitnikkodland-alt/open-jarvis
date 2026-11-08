@@ -349,6 +349,20 @@ fun SettingsScreen(
                     }
                 )
                 
+                SettingsToggleRow(
+                    title = "Allow bare Jarvis (experimental)",
+                    subtitle = "OFF: only Hey Jarvis / Hi Jarvis can wake Jarvis",
+                    enabled = allowBareJarvis,
+                    onToggle = {
+                        allowBareJarvis = !allowBareJarvis
+                        wakeWordSettingsPrefs.edit()
+                            .putBoolean(WakeWordConfig.ALLOW_BARE_JARVIS_KEY, allowBareJarvis)
+                            .apply()
+                        if (voiceEnabled) com.openjarvis.ui.OverlayService.restartWakeWord(context)
+                    }
+                )
+                Spacer(modifier = Modifier.height(12.dp))
+
                 if (voiceEnabled) {
                     Spacer(modifier = Modifier.height(8.dp))
 
@@ -356,20 +370,6 @@ fun SettingsScreen(
                     Text(
                         "Only Voicute ONNX is enabled. Default wake phrases: Hey Jarvis and Hi Jarvis. No cloud, API key or fallback engine.",
                         style = TextStyle(fontSize = 11.sp, color = VoidColor.TextDisabled)
-                    )
-                    Spacer(modifier = Modifier.height(12.dp))
-
-                    SettingsToggleRow(
-                        title = "Allow bare Jarvis (experimental)",
-                        subtitle = "OFF: only Hey Jarvis / Hi Jarvis can wake Jarvis",
-                        enabled = allowBareJarvis,
-                        onToggle = {
-                            allowBareJarvis = !allowBareJarvis
-                            wakeWordSettingsPrefs.edit()
-                                .putBoolean(WakeWordConfig.ALLOW_BARE_JARVIS_KEY, allowBareJarvis)
-                                .apply()
-                            com.openjarvis.ui.OverlayService.restartWakeWord(context)
-                        }
                     )
                     Spacer(modifier = Modifier.height(12.dp))
 
