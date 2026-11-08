@@ -192,18 +192,34 @@ class VoicuteOnnxWakeWordController(
                     val keyword = result?.wakeWord
                     val now = System.currentTimeMillis()
                     detector.record(probability, keyword, rawRms, now)
+                    val threshold = sensitivityThreshold()
                     val accepted = detector.evaluate(
                         keyword,
                         probability,
                         rawRms,
-                        sensitivityThreshold(),
+                        threshold,
                         result?.recommendedConsFrames ?: 2,
                         EXTRA_CONSECUTIVE_FRAMES,
                         now
                     )
+                    var inferenceEnergy = 0.0
+                    var inferencePeak = 0f
+                    for (sample in window) {
+                        val normalized = sample / 32768f
+                        inferenceEnergy += normalized * normalized
+                        inferencePeak = maxOf(inferencePeak, kotlin.math.abs(normalized))
+                    }
+                    val inferenceRms = sqrt(inferenceEnergy / window.size).toFloat()
+                    WakeWordDiagnostics.inferenceRecord(
+                        result?.scoreSummary,
+                        threshold,
+                        inferenceRms,
+                        inferencePeak,
+                        !accepted.isNullOrBlank()
+                    )
                     WakeWordDiagnostics.candidate(
                         result?.scoreSummary ?: ((keyword ?: "unknown") + "=" + String.format(java.util.Locale.US, "%.4f", probability)),
-                        sensitivityThreshold(),
+                        threshold,
                         rawRms,
                         !accepted.isNullOrBlank()
                     )
