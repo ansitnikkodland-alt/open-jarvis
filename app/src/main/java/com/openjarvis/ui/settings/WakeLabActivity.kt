@@ -54,7 +54,7 @@ private data class WakeReplay(
     val rms: Double,
     val peak: Int,
     val allZeroSamples: Boolean,
-    val liveListenerPaused: Boolean,
+    val liveListenerPaused: Boolean?,
     val modeARawOutput: String,
     val modeBRawOutput: String
 )
@@ -188,7 +188,7 @@ private fun WakeLabScreen(onBack: () -> Unit) {
             appendLine()
             appendLine("Clip: ${r.clipName} label=${r.label}")
             appendLine("durationMs=${r.durationMs}; sampleCount=${r.sampleCount}; RMS(raw int16 scale)=${r.rms}; peak=${r.peak}; all-zero samples? ${if (r.allZeroSamples) "haan" else "nahi"}")
-            appendLine("live listener paused during recording: ${if (r.liveListenerPaused) "haan" else "nahi"}")
+            appendLine("live listener paused during recording: ${when (r.liveListenerPaused) { true -> "haan"; false -> "nahi"; null -> "unknown (clip predates pause tracking)" }}")
             appendLine("Mode A raw ONNX output: ${r.modeARawOutput}")
             appendLine("Mode B raw ONNX output: ${r.modeBRawOutput}")
             appendLine("A: ${r.modeAScores} result=${if (r.label == "negative") if (r.modeAHit) "FALSE TRIGGER" else "NO TRIGGER" else if (r.modeAHit) "HIT" else "MISS"}")
@@ -332,7 +332,7 @@ private fun readWav(file: File): ShortArray {
 private fun replayClip(model: WakeWordEngine, clip: WakeClip, threshold: Float): WakeReplay {
     val pcm = readWav(clip.file)
     val stats = pcmStats(pcm)
-    val paused = File(clip.file.parentFile, clip.file.nameWithoutExtension + ".listener_paused").takeIf { it.exists() }?.readText()?.trim()?.toBooleanStrictOrNull() ?: false
+    val paused = File(clip.file.parentFile, clip.file.nameWithoutExtension + ".listener_paused").takeIf { it.exists() }?.readText()?.trim()?.toBooleanStrictOrNull()
     val windowSize = model.audioSamplesNeeded
     require(windowSize > 0) { "Voicute window size unavailable" }
     val keys = listOf("jarvis", "hey jarvis", "hi jarvis")
