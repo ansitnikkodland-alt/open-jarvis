@@ -6,6 +6,10 @@ on:
     paths:
       - "app/**"
       - "scripts/**"
+      - ".agents/**"
+      - ".codex/**"
+      - "AGENTS.md"
+      - "docs/development/**"
       - "*.gradle"
       - "settings.gradle"
       - ".github/workflows/android-build.yml"
@@ -14,6 +18,10 @@ on:
     paths:
       - "app/**"
       - "scripts/**"
+      - ".agents/**"
+      - ".codex/**"
+      - "AGENTS.md"
+      - "docs/development/**"
       - "*.gradle"
       - "settings.gradle"
       - ".github/workflows/android-build.yml"
@@ -53,8 +61,37 @@ jobs:
         with:
           gradle-version: "8.2"
 
+      - name: ECC project guardrails
+        run: bash scripts/ecc-guardrails.sh
+
       - name: Run unit tests
         run: gradle --no-daemon :app:testDebugUnitTest
+
+  agent-security-scan:
+    name: ecc-agentshield-security-scan
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Scan agent instructions, skills, and project configuration
+        continue-on-error: true
+        run: |
+          mkdir -p artifacts
+          npx --yes ecc-agentshield@1.6.0 scan --path . --format json --output artifacts/agentshield-report.json
+
+      - name: Upload AgentShield report for review
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ecc-agentshield-report
+          path: artifacts/agentshield-report.json
+          if-no-files-found: warn
 
   apk-build:
     name: apk-build
