@@ -287,6 +287,8 @@ class OverlayService : Service() {
                         status.text = "Allow microphone permission in Android app settings"
                     } else if (!voiceManager.isVoiceEnabled()) {
                         status.text = "Enable Voice Assistant in Jarvis Settings first"
+                    } else if (voiceManager.isSessionActive()) {
+                        status.text = if (isMuted) "Muted — waiting only for “Ab bolo”" else "Already listening for your command"
                     } else {
                         voiceManager.startListening()
                     }
