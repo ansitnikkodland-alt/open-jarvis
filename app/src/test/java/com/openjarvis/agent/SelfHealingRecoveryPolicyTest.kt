@@ -1,0 +1,42 @@
+package com.openjarvis.agent
+
+import org.junit.Assert.*
+import org.junit.Test
+
+class SelfHealingRecoveryPolicyTest {
+    @Test fun ollamaFailurePlansLocalVerificationWithoutProviderSwitch() {
+        val result = SelfHealingRecoveryPolicy.classify(Action(Action.ERROR), "Ollama connection refused at 127.0.0.1:11434")
+        assertEquals(SelfHealingRecoveryPolicy.FailureArea.OLLAMA_CONNECTIVITY, result.area)
+        assertEquals(SelfHealingRecoveryPolicy.RecoveryKind.VERIFY_LOCAL_SERVICE, result.recovery)
+        assertTrue(result.mayRetryAutomatically)
+        assertTrue(result.verifyAfterRecovery)
+        assertFalse(result.requiresUserConfirmation)
+    }
+
+    @Test fun modelChangeIsNeverAutomatic() {
+        val result = SelfHealingRecoveryPolicy.classify(Action(Action.ERROR), "qwen3:1.7b model not found")
+        assertEquals(SelfHealingRecoveryPolicy.FailureArea.MODEL_UNAVAILABLE, result.area)
+        assertFalse(result.mayRetryAutomatically)
+        assertTrue(result.requiresUserConfirmation)
+    }
+
+    @Test fun sideEffectingActionsAreNeverAutomaticallyReplayed() {
+        listOf(Action.TAP, Action.TYPE, Action.OPEN_APP, Action.CLICK, Action.BACK, Action.HOME).forEach { kind ->
+            val result = SelfHealingRecoveryPolicy.classify(Action(kind), "action failed")
+            assertFalse("action=$kind", result.mayRetryAutomatically)
+            assertTrue(result.requiresUserConfirmation)
+        }
+    }
+
+    @Test fun recurringPatternsStoreOnlyBoundedCategories() {
+        var patterns = emptyList<SelfHealingPatternCodec.Pattern>()
+        repeat(3) { index ->
+            patterns = SelfHealingPatternCodec.record(patterns, "OLLAMA_CONNECTIVITY", 100L + index)
+        }
+        assertEquals(3, patterns.single().count)
+        assertTrue(SelfHealingPatternCodec.recurring(patterns.single()))
+        val unknown = SelfHealingPatternCodec.record(patterns, "raw command text", 200L).first()
+        assertEquals("UNKNOWN", unknown.area)
+        assertEquals(2, SelfHealingPatternCodec.record(patterns, "OLLAMA_CONNECTIVITY", 201L, 0).size)
+    }
+}
