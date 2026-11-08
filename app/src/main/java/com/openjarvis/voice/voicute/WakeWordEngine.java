@@ -52,6 +52,8 @@ public class WakeWordEngine {
         /** Per-model recommended consecutive frames (from model_info.json). */
         public final int recommendedConsFrames;
         public final String scoreSummary;
+        public final String rawOutputSummary;
+        public final float rawBestScore;
 
         public DetectionResult(String wakeWord, float probability, float backgroundMean,
                                int recommendedConsFrames, String scoreSummary) {
@@ -60,6 +62,8 @@ public class WakeWordEngine {
             this.backgroundMean = backgroundMean;
             this.recommendedConsFrames = recommendedConsFrames;
             this.scoreSummary = scoreSummary;
+            this.rawOutputSummary = scoreSummary;
+            this.rawBestScore = probability;
         }
     }
 
@@ -338,7 +342,7 @@ public class WakeWordEngine {
                 for (int i = 0; i < keywords.length; i++) {
                     if (scoreSummary.length() > 0) scoreSummary.append(", ");
                     scoreSummary.append(keywords[i]).append("=")
-                            .append(String.format(Locale.US, "%.4f", scored[0][i]));
+                            .append(Float.toString(scored[0][i]));
                     if (scored[0][i] > bestSigmoid) {
                         bestSigmoid = scored[0][i];
                         bestWord = keywords[i];
@@ -396,7 +400,7 @@ public class WakeWordEngine {
                     }
                     if (scoreSummary.length() > 0) scoreSummary.append(", ");
                     scoreSummary.append(model.wakeWord).append("=")
-                            .append(String.format(Locale.US, "%.4f", sigmoid));
+                            .append(Float.toString(sigmoid));
                     if (sigmoid > bestSigmoid) {
                         bestSigmoid = sigmoid;
                         bestWord = model.wakeWord;
