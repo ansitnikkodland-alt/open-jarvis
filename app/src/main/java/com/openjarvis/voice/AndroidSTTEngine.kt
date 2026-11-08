@@ -50,12 +50,16 @@ class AndroidSTTEngine(private val context: Context) : STTEngine {
     }
 
     private fun createRecognizer() {
-        if (!SpeechRecognizer.isRecognitionAvailable(context)) {
-            currentErrorCallback?.invoke("Speech recognition is unavailable")
+        // Strictly on-device recognition: never create the system/default recognizer,
+        // because that service may route audio to a network-backed provider.
+        if (android.os.Build.VERSION.SDK_INT < android.os.Build.VERSION_CODES.S ||
+            !SpeechRecognizer.isOnDeviceRecognitionAvailable(context)
+        ) {
+            recognizer = null
             return
         }
         recognizer?.destroy()
-        recognizer = SpeechRecognizer.createSpeechRecognizer(context).also { speechRecognizer ->
+        recognizer = SpeechRecognizer.createOnDeviceSpeechRecognizer(context).also { speechRecognizer ->
             speechRecognizer.setRecognitionListener(object : RecognitionListener {
                 override fun onReadyForSpeech(params: Bundle?) {
                     retryAttempt = 0
@@ -143,6 +147,14 @@ class AndroidSTTEngine(private val context: Context) : STTEngine {
             retryRunnable?.let(mainHandler::removeCallbacks)
             retryRunnable = null
             if (recognizer == null) createRecognizer()
+            if (recognizer == null) {
+                sessionActive = false
+                _isListening.value = false
+                currentErrorCallback?.invoke(
+                    "On-device speech recognition is unavailable on this device. Enable an offline speech service; no cloud fallback is used."
+                )
+                return@post
+            }
             startListeningInternal()
         }
     }
