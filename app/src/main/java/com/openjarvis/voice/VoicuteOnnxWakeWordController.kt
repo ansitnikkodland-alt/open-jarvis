@@ -215,7 +215,7 @@ class VoicuteOnnxWakeWordController(
                         threshold,
                         inferenceRms,
                         inferencePeak,
-                        !accepted.isNullOrBlank()
+                        accepted
                     )
                     WakeWordDiagnostics.candidate(
                         result?.scoreSummary ?: ((keyword ?: "unknown") + "=" + String.format(java.util.Locale.US, "%.4f", probability)),
