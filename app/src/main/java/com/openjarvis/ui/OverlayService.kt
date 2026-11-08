@@ -160,8 +160,11 @@ class OverlayService : Service() {
 
     override fun onDestroy() {
         mainHandler.removeCallbacks(overlayWatchdog)
-        try { overlayView?.let { windowManager?.removeViewImmediate(it) } } catch (_: Exception) { }
-        if (attachedOverlayView === overlayView) attachedOverlayView = null
+        val viewToRemove = overlayView ?: if (activeInstance === this) attachedOverlayView else null
+        try {
+            viewToRemove?.let { (getSystemService(WINDOW_SERVICE) as WindowManager).removeViewImmediate(it) }
+        } catch (_: Exception) { }
+        if (attachedOverlayView === viewToRemove) attachedOverlayView = null
         overlayView = null
         visualState = "IDLE"
         mainHandler.removeCallbacks(waveformRunnable)
