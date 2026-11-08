@@ -38,7 +38,7 @@ class HeadroomLiteTest {
     fun invalidJsonIsNeverRewritten() {
         val input = """{ "action": "click", broken }"""
         val result = HeadroomLite.compress(input)
-        assertEquals(HeadroomLite.ContentKind.TEXT, result.kind)
+        assertEquals(HeadroomLite.ContentKind.PRESERVE, result.kind)
         assertEquals(input, result.content)
     }
 
@@ -85,7 +85,7 @@ class HeadroomLiteTest {
         )
         inputs.forEach { input ->
             val result = HeadroomLite.compress(input)
-            assertEquals(HeadroomLite.ContentKind.TEXT, result.kind)
+            assertEquals(HeadroomLite.ContentKind.PRESERVE, result.kind)
             assertEquals(input, result.content)
         }
     }
