@@ -52,6 +52,7 @@ class VoiceManager(private val context: Context) {
     init { ttsEngine.setSpeechRate(getSpeechRate()) }
 
     fun isVoiceEnabled(): Boolean = prefs.getBoolean(KEY_VOICE_ENABLED, false)
+    fun isSessionActive(): Boolean = continuousSession
     fun setVoiceEnabled(enabled: Boolean) { prefs.edit().putBoolean(KEY_VOICE_ENABLED, enabled).apply() }
     fun getSTTMode(): STTMode {
         val mode = prefs.getString(KEY_STT_MODE, STTMode.PUSH_TO_TALK.name)
@@ -97,6 +98,7 @@ class VoiceManager(private val context: Context) {
                     stateMachine.onRecoverableError()
                     _state.value = VoiceState.Recording
                 } else {
+                    continuousSession = false
                     _state.value = VoiceState.Error(error)
                 }
             }
