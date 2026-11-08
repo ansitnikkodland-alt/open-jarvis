@@ -6,6 +6,7 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 import java.io.File
+import org.json.JSONObject
 import java.util.concurrent.atomic.AtomicBoolean
 
 data class WakeWordDiagnosticSnapshot(
@@ -39,8 +40,11 @@ data class JarvisDiagnosticEvent(val atMs: Long, val level: String, val message:
 object WakeWordDiagnostics {
     private const val SILENCE_RMS_THRESHOLD = 0.003f
     private const val MAX_EVENTS = 300
+    private const val MAX_INFERENCE_RECORDS = 2000
     @Volatile private var current = WakeWordDiagnosticSnapshot()
     private val events = ArrayList<JarvisDiagnosticEvent>(MAX_EVENTS)
+    private val inferenceRecords = ArrayList<String>(MAX_INFERENCE_RECORDS)
+    @Volatile private var inferenceFile: File? = null
     @Volatile private var logFile: File? = null
     private val crashHandlerInstalled = AtomicBoolean(false)
 
@@ -49,6 +53,14 @@ object WakeWordDiagnostics {
         if (logFile != null) return
         val file = File(context.noBackupFilesDir, "jarvis_diagnostics.log")
         logFile = file
+        inferenceFile = File(context.noBackupFilesDir, "wake_inference_records.jsonl")
+        runCatching {
+            inferenceFile?.let { records ->
+                if (records.exists()) records.readLines().takeLast(MAX_INFERENCE_RECORDS).forEach { line ->
+                    if (line.isNotBlank()) inferenceRecords.add(line)
+                }
+            }
+        }
         runCatching {
             if (file.exists()) {
                 file.readLines().takeLast(MAX_EVENTS).forEach { line ->
@@ -125,6 +137,47 @@ object WakeWordDiagnostics {
         addEvent(if (accepted) "MATCH" else "SCORE", "scores={" + scores + "}; threshold=" + threshold + "; rms=" + String.format(Locale.US, "%.4f", rms) + "; accepted=" + accepted)
     }
 
+    /** One metadata-only JSONL record for every Voicute model inference. No PCM/audio is stored. */
+    @Synchronized
+    fun inferenceRecord(scoresSummary: String?, threshold: Float, rms: Float, peak: Float, accepted: Boolean) {
+        val s = current
+        val now = System.currentTimeMillis()
+        val scores = JSONObject()
+        scoresSummary.orEmpty().split(",").forEach { item ->
+            val pair = item.trim().split("=", limit = 2)
+            if (pair.size == 2) pair[1].toFloatOrNull()?.let { scores.put(pair[0], it.toDouble()) }
+        }
+        val record = JSONObject().apply {
+            put("timestampMs", now)
+            put("engine", s.engineName)
+            put("scores", scores)
+            put("threshold", threshold.toDouble())
+            put("rms", rms.toDouble())
+            put("peak", peak.toDouble())
+            put("audioSource", s.audioSource)
+            put("sampleRate", s.sampleRate)
+            put("agcAvailable", s.agcAvailable)
+            put("agcEnabled", s.agcEnabled)
+            put("noiseSuppressorAvailable", s.noiseSuppressorAvailable)
+            put("noiseSuppressorEnabled", s.noiseSuppressorEnabled)
+            put("accepted", accepted)
+            put("matchedPhrase", if (accepted) s.lastDetectionKeyword ?: JSONObject.NULL else JSONObject.NULL)
+        }.toString()
+        inferenceRecords.add(record)
+        while (inferenceRecords.size > MAX_INFERENCE_RECORDS) inferenceRecords.removeAt(0)
+        runCatching {
+            val file = inferenceFile ?: return@runCatching
+            file.appendText(record + "\n")
+            if (file.length() > 1024 * 1024) {
+                file.writeText(inferenceRecords.joinToString("\n", postfix = if (inferenceRecords.isEmpty()) "" else "\n"))
+            }
+        }
+        current = current.copy(lastCandidateScores = scoresSummary, candidateFrames = current.candidateFrames + 1L)
+    }
+
+    @Synchronized
+    fun inferenceRecordLines(): List<String> = inferenceRecords.toList()
+
     @Synchronized
     fun detected(keyword: String, score: Float? = null) {
         current = current.copy(state = "DETECTED", lastDetectionAtMs = System.currentTimeMillis(),
@@ -175,6 +228,9 @@ object WakeWordDiagnostics {
         out.appendLine("Candidate frames recorded: " + s.candidateFrames)
         out.appendLine("Last accepted detection: " + (s.lastDetectionKeyword ?: "never") + "; score=" + (s.lastDetectionScore?.toString() ?: "unavailable") + "; at=" + (s.lastDetectionAtMs?.toString() ?: "n/a"))
         out.appendLine("Last error: " + (s.lastError ?: "none"))
+        out.appendLine()
+        out.appendLine("STRUCTURED WAKE INFERENCE RECORDS (newest at bottom; max " + MAX_INFERENCE_RECORDS + ")")
+        inferenceRecordLines().forEach { out.appendLine(it) }
         out.appendLine()
         out.appendLine("RECENT EVENTS (newest at bottom; max " + MAX_EVENTS + ")")
         recentEvents().forEach { event ->
