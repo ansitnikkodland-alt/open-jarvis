@@ -319,6 +319,11 @@ fun SettingsScreen(
                 }
 
                 SectionLabel("VOICE")
+                Spacer(modifier = Modifier.height(10.dp))
+                OutlinedButton(
+                    onClick = { context.startActivity(Intent(context, com.openjarvis.ui.settings.WakeLabActivity::class.java)) },
+                    modifier = Modifier.fillMaxWidth()
+                ) { Text("Open Voicute Wake Lab") }
                 
                 Spacer(modifier = Modifier.height(12.dp))
                 
