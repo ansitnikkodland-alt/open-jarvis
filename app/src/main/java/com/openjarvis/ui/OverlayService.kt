@@ -97,6 +97,7 @@ class OverlayService : Service() {
             val now = System.currentTimeMillis()
             wakeWordSession.onWatchdog(now, wakeWordController) {
                 android.util.Log.w("OpenJarvisWakeWord", "STT watchdog expired; clearing pending wake-word state")
+                com.openjarvis.voice.WakeWordDiagnostics.record("WARN", "STT watchdog expired; pending wake-word state cleared")
                 activationGate.reset()
                 voiceManager.stopListening()
                 statusText?.text = "Voice capture timed out — wake word restarted"
@@ -430,6 +431,7 @@ class OverlayService : Service() {
             overlayView = root
         } catch (e: Exception) {
             android.util.Log.e("OpenJarvis", "Unable to attach assistant overlay", e)
+            com.openjarvis.voice.WakeWordDiagnostics.record("ERROR", "Unable to attach assistant overlay: " + e.stackTraceToString().take(4000))
         }
     }
 
