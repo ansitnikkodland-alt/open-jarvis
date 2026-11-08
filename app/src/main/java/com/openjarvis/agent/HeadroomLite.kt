@@ -59,12 +59,6 @@ object HeadroomLite {
         )
     }
 
-    /** Backwards-compatible helper used by AgentCore context assembly. */
-    fun compressContext(
-        input: String,
-        kind: ContentKind = ContentKind.AUTO
-    ): String = compress(input, kind).content
-
     fun estimateTokens(text: String): Int = (text.length + 3) / 4
 
     private fun isJsonDocument(input: String): Boolean =
