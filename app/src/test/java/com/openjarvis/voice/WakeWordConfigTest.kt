@@ -38,8 +38,9 @@ class WakeWordConfigTest {
             WakeWordConfig.accessKeyDiagnostic("abcd0123456789abcdef0123456789"))
     }
 
-    @Test fun wakePhraseAndEngineKeywordAreStable() {
-        assertEquals("Jarvis", WakeWordConfig.DISPLAY_PHRASE)
+    @Test fun threeWakePhrasesAreConfigured() {
+        assertEquals("Jarvis / Hey Mitra / Hey Dost", WakeWordConfig.DISPLAY_PHRASE)
+        assertEquals(listOf("JARVIS", "HEY MITRA", "HEY DOST"), WakeWordConfig.KEYWORD_PHRASES)
         assertEquals("JARVIS", WakeWordConfig.ENGINE_KEYWORD)
     }
 
@@ -51,13 +52,13 @@ class WakeWordConfigTest {
         assertTrue(WakeWordConfig.Sensitivity.HIGH.threshold < WakeWordConfig.Sensitivity.MEDIUM.threshold)
     }
 
-    @Test fun acceptsFiveTokenizedKeywordLines() {
-        assertTrue(WakeWordConfig.isValidTokenizedKeywordAsset(listOf("1 2 3", "4 5 6", "7 8", "9 10", "11 12")))
+    @Test fun acceptsThreeTokenizedKeywordLines() {
+        assertTrue(WakeWordConfig.isValidTokenizedKeywordAsset(listOf("1 2 3", "4 5 6", "7 8")))
     }
 
     @Test fun rejectsMissingOrRawUnTokenizedKeywordAsset() {
         assertTrue(!WakeWordConfig.isValidTokenizedKeywordAsset(listOf("1 2 3", "4 5")))
-        assertTrue(!WakeWordConfig.isValidTokenizedKeywordAsset(listOf("JARVIS", "4 5 6", "7 8", "9 10", "11 12")))
+        assertTrue(!WakeWordConfig.isValidTokenizedKeywordAsset(listOf("JARVIS", "4 5 6", "7 8")))
     }
 
 }
