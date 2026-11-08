@@ -151,7 +151,7 @@ class OverlayService : Service() {
                                 statusText?.text = "JARVIS active"
                                 voiceManager.speak("Jarvis is active. I am listening.") { resumeWakeWordAfterResponse() }
                             } else {
-                                statusText?.text = "Still muted — say Jarvis, then say unmute ho ja"
+                                statusText?.text = "Still muted — say Jarvis, Hey Mitra or Hey Dost, then say unmute ho ja"
                                 wakeWordSession.clearPending()
                                 startWakeWordListening()
                             }
@@ -210,11 +210,11 @@ class OverlayService : Service() {
                     is com.openjarvis.agent.AgentState.Idle -> statusText?.text = "Ready — type a command or use mic"
                     is com.openjarvis.agent.AgentState.Running -> setVisualState("THINKING", state.step)
                     is com.openjarvis.agent.AgentState.Done -> {
-                        setVisualState(if (mutedUntilWakeWord) "IDLE" else "SPEAKING", if (mutedUntilWakeWord) "MUTED — say Jarvis to wake" else state.result)
+                        setVisualState(if (mutedUntilWakeWord) "IDLE" else "SPEAKING", if (mutedUntilWakeWord) "MUTED — say Jarvis, Hey Mitra or Hey Dost to wake" else state.result)
                         if (!mutedUntilWakeWord) voiceManager.speak(com.openjarvis.agent.AgentResultSpeech.textForDone(state.result)) { resumeWakeWordAfterResponse() }
                     }
                     is com.openjarvis.agent.AgentState.Error -> {
-                        setVisualState(if (mutedUntilWakeWord) "IDLE" else "SPEAKING", if (mutedUntilWakeWord) "MUTED — say Jarvis to wake" else "Jarvis error: ${state.message} • tap to copy debug log")
+                        setVisualState(if (mutedUntilWakeWord) "IDLE" else "SPEAKING", if (mutedUntilWakeWord) "MUTED — say Jarvis, Hey Mitra or Hey Dost to wake" else "Jarvis error: ${state.message} • tap to copy debug log")
                         if (!mutedUntilWakeWord) voiceManager.speak(if (responseLanguage == "mr") "कमांड पूर्ण झाली नाही. ${state.message}" else "कमांड पूरी नहीं हुई। ${state.message}") { resumeWakeWordAfterResponse() }
                     }
                 }
@@ -460,7 +460,7 @@ class OverlayService : Service() {
         clearWakeWordPendingState()
         voiceManager.stopListening()
         voiceManager.stopSpeaking()
-        statusText?.text = "MUTED — say Jarvis to wake"
+        statusText?.text = "MUTED — say Jarvis, Hey Mitra or Hey Dost to wake"
         startWakeWordListening()
     }
 
@@ -481,7 +481,7 @@ class OverlayService : Service() {
             }
         }
         if (command.isBlank()) {
-            statusText?.text = "No speech detected — say Jarvis to try again"
+            statusText?.text = "No speech detected — say Jarvis, Hey Mitra or Hey Dost to try again"
             if (voiceCommand != null) resumeWakeWordAfterResponse()
             return
         }
@@ -565,11 +565,11 @@ class OverlayService : Service() {
             scheduleWakeWordRestart(error)
         }
         statusText?.text = error ?: if (mutedUntilWakeWord) {
-            "MUTED — say Jarvis to wake"
+            "MUTED — say Jarvis, Hey Mitra or Hey Dost to wake"
         } else if (wakeWordController is SherpaOnnxWakeWordController) {
-            "Standby — say Jarvis (offline, no key)"
+            "Standby — say Jarvis, Hey Mitra or Hey Dost (offline, no key)"
         } else {
-            "Standby — say Jarvis (Porcupine fallback)"
+            "Standby — say Jarvis, Hey Mitra or Hey Dost (Porcupine fallback)"
         }
     }
 
@@ -603,7 +603,7 @@ class OverlayService : Service() {
                     wakeWordListeningStartedAtMs = 0L
                     wakeWordRestartAttempt = 0
                     acquireWakeWordCpuLock()
-                    statusText?.text = "Standby — say Jarvis (Porcupine fallback)"
+                    statusText?.text = "Standby — say Jarvis, Hey Mitra or Hey Dost (Porcupine fallback)"
                 } else {
                     scheduleWakeWordRestart("Sherpa recognition timeout; Porcupine fallback failed: $error")
                 }
