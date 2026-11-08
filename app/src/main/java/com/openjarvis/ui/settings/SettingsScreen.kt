@@ -289,13 +289,13 @@ fun SettingsScreen(
                 Spacer(modifier = Modifier.height(10.dp))
                 SettingsToggleRow(
                     title = "Voice Assistant",
-                    subtitle = "Say Hey Jarvis or Hi Jarvis — Voicute offline",
+                    subtitle = "Always-on command listening • Android on-device speech",
                     enabled = voiceEnabled,
                     onToggle = {
                         voiceEnabled = !voiceEnabled
                         voicePrefs.edit().putBoolean("voice_enabled", voiceEnabled).apply()
                         // Apply the toggle immediately. Disabling voice stops the foreground
-                        // microphone service; enabling starts it and re-arms offline wake word.
+                        // microphone service; enabling starts command listening.
                         runCatching {
                             if (voiceEnabled) {
                                 com.openjarvis.ui.OverlayService.start(context)
@@ -306,9 +306,6 @@ fun SettingsScreen(
                     }
                 )
                 
-                if (voiceEnabled) com.openjarvis.ui.OverlayService.restartWakeWord(context)
-                    }
-                )
                 Spacer(modifier = Modifier.height(12.dp))
 
                 if (voiceEnabled) {
