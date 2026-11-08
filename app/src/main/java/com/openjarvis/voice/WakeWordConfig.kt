@@ -2,13 +2,13 @@ package com.openjarvis.voice
 
 object WakeWordConfig {
     const val PREFERENCE_KEY = "picovoice_access_key"
-    const val DISPLAY_PHRASE = "Jarvis"
+    const val DISPLAY_PHRASE = "Jarvis / Hey Mitra / Hey Dost"
     const val ENGINE_KEYWORD = "JARVIS"
     const val ACCESS_KEY_MIN_LENGTH = 30
     const val SENSITIVITY_PREFS = "wake_word_settings"
     const val SENSITIVITY_KEY = "wake_word_sensitivity"
-    val KEYWORD_PHRASES = listOf("JARVIS", "HEY JARVIS", "JARVISS", "JARVEES", "JARVIZ")
-    const val EXPECTED_KEYWORD_TOKEN_LINES = 5
+    val KEYWORD_PHRASES = listOf("JARVIS", "HEY MITRA", "HEY DOST")
+    const val EXPECTED_KEYWORD_TOKEN_LINES = 3
 
     /** Validate the generated BPE asset, not the human-readable phrase list. */
     fun isValidTokenizedKeywordAsset(lines: List<String>): Boolean {
