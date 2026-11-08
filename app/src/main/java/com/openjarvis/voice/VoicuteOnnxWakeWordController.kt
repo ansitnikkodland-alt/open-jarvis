@@ -200,6 +200,12 @@ class VoicuteOnnxWakeWordController(
                         EXTRA_CONSECUTIVE_FRAMES,
                         now
                     )
+                    WakeWordDiagnostics.candidate(
+                        result?.scoreSummary ?: ((keyword ?: "unknown") + "=" + String.format(java.util.Locale.US, "%.4f", probability)),
+                        sensitivityThreshold(),
+                        rawRms,
+                        !accepted.isNullOrBlank()
+                    )
                     if (!accepted.isNullOrBlank() &&
                         WakeWordDetectionPolicy.shouldAccept(now, lastAcceptedAtMs)
                     ) {
