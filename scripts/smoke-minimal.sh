@@ -91,8 +91,14 @@ if [[ "$INSTALL_OK" -ne 1 ]]; then
   exit 16
 fi
 
-echo "Pre-granting microphone permission so the first-run dialog cannot block the startup smoke test."
+echo "Pre-granting runtime permissions used by the first-run flow so system permission UI cannot block the startup smoke test."
 adb shell pm grant "$APP_ID" android.permission.RECORD_AUDIO
+# MainActivity requests notification permission immediately after microphone permission.
+# Grant it here as well; otherwise the permission controller can remain foreground
+# and the smoke test incorrectly reports that MainActivity never resumed.
+if [[ "$(adb shell getprop ro.build.version.sdk | tr -d '\r')" -ge 33 ]]; then
+  adb shell pm grant "$APP_ID" android.permission.POST_NOTIFICATIONS
+fi
 
 echo "Clearing logcat before app launch."
 adb logcat -c
