@@ -13,10 +13,22 @@ class ReportDoctorTest {
         assertFalse(report.safeNextStep.contains("cloud"))
     }
 
-    @Test fun diagnosesVoiceCuteWakeWordFailure() {
-        val report = ReportDoctor.diagnose("Wake word", "VoiceCute wake detection timeout")
-        assertEquals(ReportDoctor.Area.WAKE_WORD, report.area)
-        assertTrue(report.safeNextStep.contains("normal speaking volume"))
+    @Test fun diagnosesManualMicButtonFlow() {
+        val report = ReportDoctor.diagnose("Manual listening", "mic button recording did not start")
+        assertEquals(ReportDoctor.Area.MANUAL_LISTENING, report.area)
+        assertTrue(report.safeNextStep.contains("mic button"))
+    }
+
+    @Test fun diagnosesMicrophonePermissionSeparately() {
+        val report = ReportDoctor.diagnose("Audio", "RECORD_AUDIO permission denied")
+        assertEquals(ReportDoctor.Area.MICROPHONE_PERMISSION, report.area)
+        assertTrue(report.safeNextStep.contains("Microphone"))
+    }
+
+    @Test fun diagnosesSpeechRecognitionFailure() {
+        val report = ReportDoctor.diagnose("STT", "no speech match")
+        assertEquals(ReportDoctor.Area.SPEECH_RECOGNITION, report.area)
+        assertTrue(report.safeNextStep.contains("on-device language support"))
     }
 
     @Test fun diagnosesOverlayWithoutAutomaticallyChangingSettings() {
@@ -24,6 +36,23 @@ class ReportDoctorTest {
         assertEquals(ReportDoctor.Area.OVERLAY, report.area)
         assertTrue(report.safeNextStep.contains("Check Display over other apps"))
         assertFalse(report.safeNextStep.contains("restart"))
+    }
+
+    @Test fun diagnosesAccessibilityAndAppLaunchFailures() {
+        assertEquals(
+            ReportDoctor.Area.ACCESSIBILITY,
+            ReportDoctor.diagnose("Accessibility", "accessibility service disabled").area
+        )
+        assertEquals(
+            ReportDoctor.Area.APP_LAUNCH,
+            ReportDoctor.diagnose("App launch", "package not found").area
+        )
+    }
+
+    @Test fun diagnosesUnusableLocalModelResponse() {
+        val report = ReportDoctor.diagnose("LLM response", "invalid json")
+        assertEquals(ReportDoctor.Area.MODEL_RESPONSE, report.area)
+        assertTrue(report.safeNextStep.contains("deterministic phone actions"))
     }
 
     @Test fun unknownFailureProducesSafeManualNextStep() {
