@@ -72,6 +72,12 @@ class OverlayService : Service() {
     private lateinit var graphifyRepo: GraphifyRepository
     private var socketServer: SocketServer? = null
     private val mainHandler = Handler(Looper.getMainLooper())
+    private val overlayWatchdog = object : Runnable {
+        override fun run() {
+            if (overlayView?.isAttachedToWindow != true) attachAssistant()
+            mainHandler.postDelayed(this, OVERLAY_WATCHDOG_INTERVAL_MS)
+        }
+    }
     private var recentTasks = emptyList<TaskNode>()
     private val serviceScope = CoroutineScope(Dispatchers.Main + SupervisorJob())
     private var isExpanded = false
@@ -94,6 +100,7 @@ class OverlayService : Service() {
             startForeground(NOTIFICATION_ID, createNotification())
         }
         attachAssistant()
+        mainHandler.postDelayed(overlayWatchdog, OVERLAY_WATCHDOG_INTERVAL_MS)
         serviceScope.launch {
             voiceManager.state.collect { state ->
                 when (state) {
@@ -152,6 +159,7 @@ class OverlayService : Service() {
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onDestroy() {
+        mainHandler.removeCallbacks(overlayWatchdog)
         try { overlayView?.let { windowManager?.removeView(it) } } catch (_: Exception) { }
         overlayView = null
         visualState = "IDLE"
@@ -422,6 +430,7 @@ class OverlayService : Service() {
         @Volatile private var activeInstance: OverlayService? = null
         private const val CHANNEL_ID = "jarvis_overlay_channel"
         private const val NOTIFICATION_ID = 1
+        private const val OVERLAY_WATCHDOG_INTERVAL_MS = 1_500L
 
         fun start(context: Context) {
             context.startForegroundService(Intent(context, OverlayService::class.java))
