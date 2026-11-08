@@ -69,7 +69,18 @@ Store only reusable engineering facts in `docs/development/LEARNINGS.md`:
 
 Report evidence separately as implemented, unit-tested, CI-passed, APK-built, emulator-smoke-passed, security-scanned, or phone-verified. Emulator success is not physical-device proof. A skipped optional job is not a pass. Never merge without explicit approval.
 
-## 8. Upstream boundaries
+## 8. Optional full upstream ECC plugin for Codex CLI
+If the repository is opened in a local Codex CLI environment and the user explicitly wants the complete upstream catalogue, use the official native Codex plugin path only:
+
+```bash
+codex plugin marketplace add affaan-m/ECC
+codex plugin add ecc@ecc
+codex plugin list --json
+```
+
+Do not also run ECC's legacy Codex sync script or manually copy the full Claude configuration into the same Codex environment. Review the plugin's requested capabilities and Codex trust prompts before enabling hooks/MCP tools. This is a developer workstation install, not an Android dependency and not performed automatically by this repository's CI.
+
+## 9. Upstream boundaries
 - ECC is a development workflow/tooling reference here, not an Android runtime dependency.
 - The project contains focused skills and read-only Codex role definitions, not the full upstream catalogue of agents/skills/hooks.
 - Do not install multiple ECC adapters into one harness or stack manual and native plugin installs.
