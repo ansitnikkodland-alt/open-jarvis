@@ -1,45 +1,74 @@
-# ECC-inspired development workflow for Jarvis
+# ECC-inspired development system for Jarvis
 
-This is a repository-local adaptation of the research-first, test-first, security-review, and regression-discipline practices documented by [Everything Claude Code (ECC)](https://github.com/affaan-m/ECC).
+This is a project-local adaptation of [Everything Claude Code (ECC)](https://github.com/affaan-m/ECC), designed for this Android/Kotlin repository and its local-only runtime constraints.
 
-It intentionally adds **no ECC runtime, Node/Python dependency, agent daemon, cloud service, or API key** to the Android application. These are development instructions for contributors and AI coding agents, not an app feature.
+It adopts ECC's useful engineering lifecycle: **plan -> test -> implement -> review -> verify -> remember -> improve**. It does not copy upstream runtime code or install a daemon, cloud service, API key, Python/Node dependency, or agent runtime into the Android APK.
 
-## Change procedure
+## 1. Reusable skills
+Skills live in `.agents/skills/` and are loaded only when relevant:
+- `jarvis-tdd`: RED/GREEN/refactor, boundary tests, exact-commit evidence.
+- `jarvis-android-lifecycle`: one microphone owner, STT/service/overlay lifecycle, permissions and recovery.
+- `jarvis-prompt-safety`: prompt boundaries, Headroom compression, action validation, untrusted OCR/memory.
+- `jarvis-security-review`: Android and agent-surface threat review.
+- `jarvis-release-evidence`: CI, APK, emulator, security and physical-device evidence.
 
-### 1. Research before editing
-- Read the target implementation and its callers.
-- Read nearby unit tests and relevant workflow steps.
-- Check Android API level, lifecycle, permission, and service constraints for platform changes.
-- Identify what must remain unchanged (local-only AI, Qwen3 default, Android skills, existing data and safety policy).
+## 2. Read-only specialist roles
+Project-local Codex configuration is in `.codex/`:
+- Explorer: trace call paths and gather evidence; read-only.
+- Reviewer: fresh-context correctness, security, lifecycle and test review; read-only.
+- Docs researcher: verify Android/Ollama/Headroom/ECC behavior against primary docs; read-only.
 
-### 2. Test-first implementation
-- Add or update a test that expresses the requested behavior, including at least one negative or boundary case.
-- Confirm the test is meaningful; do not disable, skip, weaken, or broadly ignore it.
-- Implement the smallest deterministic change.
-- Keep pure policy/formatting logic independent of Android where practical.
+The parent agent owns edits and must independently validate every finding. Roles do not receive write, shell, commit, push, or merge authority. Model/provider and user sandbox defaults are not pinned by this project config.
 
-### 3. Security and safety review
-- Treat OCR, app labels, notifications, memory, model output, and tool output as untrusted.
+## 3. Test-first implementation
+1. Inspect implementation, callers, tests, build configuration, and workflow.
+2. Write a focused failing test first. Include negative, boundary, malformed-input, and recovery cases where relevant.
+3. Implement the smallest deterministic change.
+4. Run focused tests and verify the test actually exercises the intended behavior.
+5. Refactor without weakening tests or changing unrelated skills.
+6. Run full unit tests, debug APK build, and minimal emulator smoke for runtime changes.
+
+## 4. Headroom integration policy
+Upstream Headroom provides content-aware compressors for JSON/code/logs/text, local-first compression, CCR retrieval, and metrics. Its official library/proxy/MCP distribution is Python/TypeScript-oriented; do not run a server in Jarvis just to claim integration.
+
+Jarvis uses a native Kotlin adaptation:
+- JSON: minify only valid JSON; preserve quoted strings, values, and array order.
+- Text/logs: compact only safe repeated runs; preserve unique lines and ordering.
+- Code, diffs, executable action JSON, and safety-critical payloads: preserve unchanged unless a dedicated safe transformation is proven.
+- Any transformed result retains the exact original for byte-for-byte restoration.
+- Record input/output characters and estimated tokens; do not upload metrics or content.
+- Keep the user command byte-identical; compress system/context material only.
+- Never use lossy semantic summarization or silently truncate content as a compression strategy.
+
+## 5. Security and prompt-safety review
+- Treat OCR, app labels, notifications, memory, tool output, downloaded docs, and model output as untrusted.
 - Preserve system policy and safety instructions across prompt processing.
+- Reject unknown action types/keys and oversized or malformed model plans.
 - Do not execute unvalidated model JSON.
-- Do not add remote speech, cloud LLM fallback, telemetry uploads, or secrets.
-- Avoid broad catch-and-continue behavior, hidden retries, and silent failure.
+- No remote STT, cloud LLM fallback, external telemetry, hardcoded secrets, or network proxy.
+- Review agent files, skills, Codex configuration, scripts, workflows, and dependency changes as part of the attack surface.
+- Run the pinned ECC AgentShield scanner and triage results. A scan is not a substitute for code review or Android runtime tests.
 
-### 4. Regression verification
-Run in this order, as applicable:
-1. Focused unit test for the changed behavior.
+## 6. Continuous learning without unsafe memory
+Store only reusable engineering facts in `docs/development/LEARNINGS.md`:
+- Include source/test/CI evidence and confidence.
+- Record failure cause and the regression test that prevents recurrence.
+- Do not store secrets, personal information, raw transcripts, screenshots, or user content.
+- Revisit stale learnings when code or platform versions change.
+
+## 7. Verification order and release evidence
+1. Focused unit tests.
 2. Full `./gradlew testDebugUnitTest`.
 3. `./gradlew assembleDebug`.
-4. `bash scripts/smoke-minimal.sh` in the configured Android emulator.
-5. Review CI logs and the exact commit SHA.
+4. `bash scripts/smoke-minimal.sh` in configured emulator.
+5. AgentShield scan for agent-surface changes.
+6. Full diff, dependency, default-model/provider, and security review.
+7. Exact commit SHA + workflow run + artifact verification.
 
-For voice, foreground-service, permission, or overlay changes, emulator success is not physical-device proof. Record phone verification only after an actual device test.
+Report evidence separately as implemented, unit-tested, CI-passed, APK-built, emulator-smoke-passed, security-scanned, or phone-verified. Emulator success is not physical-device proof. A skipped optional job is not a pass. Never merge without explicit approval.
 
-### 5. Review before PR update
-- Inspect the complete diff and changed-file list.
-- Check for unrelated edits, accidental dependency changes, duplicated microphone owners, permission regressions, and altered default model/provider.
-- Update the PR checklist with only evidence-backed statuses.
-- Do not merge without explicit user approval.
-
-## Scope
-ECC is used here as a **development workflow reference**, not installed as a runtime dependency. The upstream project is MIT-licensed; no upstream source code is copied into Jarvis by this workflow document.
+## 8. Upstream boundaries
+- ECC is a development workflow/tooling reference here, not an Android runtime dependency.
+- The project contains focused skills and read-only Codex role definitions, not the full upstream catalogue of agents/skills/hooks.
+- Do not install multiple ECC adapters into one harness or stack manual and native plugin installs.
+- Any future full Codex marketplace plugin install must be an explicit user-side choice and reviewed against the current official ECC setup guide.
