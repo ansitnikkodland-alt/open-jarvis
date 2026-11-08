@@ -92,7 +92,7 @@ class VoicuteOnnxWakeWordController(
             WakeWordDiagnostics.started(
                 permissionGranted = true,
                 keywords = loaded.keywords,
-                threshold = DETECTION_THRESHOLD,
+                threshold = sensitivityThreshold(),
                 boost = 1f,
                 engineName = VoicuteModelLoader.MODEL_ENGINE_NAME
             )
@@ -118,7 +118,7 @@ class VoicuteOnnxWakeWordController(
             val detail = error.message?.takeIf { it.isNotBlank() } ?: error.javaClass.simpleName
             Log.e(TAG, "Voicute ONNX wake-word initialization failed: $detail", error)
             WakeWordDiagnostics.failed(detail)
-            val friendly = "Voicute offline wake-word model start nahi hua: $detail. Sherpa fallback try hoga."
+            val friendly = "Voicute offline wake-word start nahi hua: $detail. Automatic retry scheduled."
             onError(friendly)
             friendly
         }
@@ -195,7 +195,7 @@ class VoicuteOnnxWakeWordController(
                         keyword,
                         probability,
                         rawRms,
-                        DETECTION_THRESHOLD,
+                        sensitivityThreshold(),
                         result?.recommendedConsFrames ?: 2,
                         EXTRA_CONSECUTIVE_FRAMES,
                         now
@@ -245,11 +245,17 @@ class VoicuteOnnxWakeWordController(
 
     override fun isRunning(): Boolean = running
 
+    private fun sensitivityThreshold(): Float {
+        val preference = appContext.getSharedPreferences(
+            WakeWordConfig.SENSITIVITY_PREFS, Context.MODE_PRIVATE
+        ).getString(WakeWordConfig.SENSITIVITY_KEY, WakeWordConfig.Sensitivity.HIGH.name)
+        return WakeWordConfig.Sensitivity.fromPreference(preference).threshold
+    }
+
     companion object {
         private const val TAG = "JarvisVoicuteKws"
         private const val SAMPLE_RATE = 16_000
         private const val INFERENCE_HOP_SAMPLES = 1_600 // 100ms; one ONNX pass per hop
-        private const val DETECTION_THRESHOLD = 0.50f
         private const val EXTRA_CONSECUTIVE_FRAMES = 2
     }
 }
