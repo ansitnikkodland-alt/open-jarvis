@@ -176,15 +176,15 @@ private fun WakeLabScreen(onBack: () -> Unit) {
         appendLine("Mode A false-trigger rate: ${if (negative.isEmpty()) "N/A (no negative clips)" else "$aFalse/${negative.size} = ${100.0*aFalse/negative.size}%"}")
         appendLine("Mode B false-trigger rate: ${if (negative.isEmpty()) "N/A (no negative clips)" else "$bFalse/${negative.size} = ${100.0*bFalse/negative.size}%"}")
         selfTest?.let { t ->
-            appendLine("SELF-TEST deterministic 440Hz tone: samples=${t.sampleCount}; durationMs=${t.sampleCount*1000L/16000L}; RMS=${t.rms}; peak=${t.peak}; all-zero? ${t.allZeroSamples}")
+            appendLine("SELF-TEST deterministic 440Hz tone: samples=${t.sampleCount}; durationMs=${t.sampleCount*1000L/16000L}; RMS=${t.rms}; peak=${t.peak}; all-zero samples? ${if (t.allZeroSamples) "haan" else "nahi"}")
             appendLine("Raw ONNX output before threshold/gate: ${t.rawOutput}")
             appendLine("Raw best score=${t.rawBestScore}; status=${t.status}")
         } ?: appendLine("SELF-TEST: not run")
         results.forEach { r ->
             appendLine()
             appendLine("Clip: ${r.clipName} label=${r.label}")
-            appendLine("durationMs=${r.durationMs}; sampleCount=${r.sampleCount}; RMS(raw int16 scale)=${r.rms}; peak=${r.peak}; all-zero samples? ${r.allZeroSamples}")
-            appendLine("live listener paused during recording: ${r.liveListenerPaused}")
+            appendLine("durationMs=${r.durationMs}; sampleCount=${r.sampleCount}; RMS(raw int16 scale)=${r.rms}; peak=${r.peak}; all-zero samples? ${if (r.allZeroSamples) "haan" else "nahi"}")
+            appendLine("live listener paused during recording: ${if (r.liveListenerPaused) "haan" else "nahi"}")
             appendLine("Mode A raw ONNX output: ${r.modeARawOutput}")
             appendLine("Mode B raw ONNX output: ${r.modeBRawOutput}")
             appendLine("A: ${r.modeAScores} result=${if (r.label == "negative") if (r.modeAHit) "FALSE TRIGGER" else "NO TRIGGER" else if (r.modeAHit) "HIT" else "MISS"}")
