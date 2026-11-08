@@ -1,7 +1,8 @@
 package com.openjarvis.voice.voicute;
 
-import org.junit.Assert.assertEquals;
-import org.junit.Assert.assertNull;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNull;
+
 import org.junit.Test;
 
 public class DetectionLogicTest {
