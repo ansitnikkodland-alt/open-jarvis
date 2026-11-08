@@ -146,7 +146,6 @@ class OverlayService : Service() {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         if (::voiceManager.isInitialized) {
             if (overlayView?.isAttachedToWindow != true) attachAssistant()
-            if (voiceManager.isVoiceEnabled() && ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) voiceManager.startListening()
         }
         return START_STICKY
     }
