@@ -115,7 +115,7 @@ class VoiceManager(private val context: Context) {
         }
         _state.value = VoiceState.Speaking
         ttsEngine.speak(text) {
-            stateMachine.onSpeakingFinished(false)
+            stateMachine.onSpeakingFinished()
             _state.value = VoiceState.Idle
             onComplete?.invoke()
         }
