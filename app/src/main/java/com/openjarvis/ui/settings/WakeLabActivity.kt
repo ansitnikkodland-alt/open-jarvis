@@ -21,6 +21,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import com.openjarvis.voice.WakeWordConfig
+import com.openjarvis.ui.OverlayService
 import com.openjarvis.voice.voicute.WakeWordEngine
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -47,8 +48,17 @@ private data class WakeReplay(
     val modeAScores: Map<String, Float>,
     val modeBScores: Map<String, Float>,
     val modeAHit: Boolean,
-    val modeBHit: Boolean
+    val modeBHit: Boolean,
+    val durationMs: Long,
+    val sampleCount: Int,
+    val rms: Double,
+    val peak: Int,
+    val allZeroSamples: Boolean,
+    val liveListenerPaused: Boolean,
+    val modeARawOutput: String,
+    val modeBRawOutput: String
 )
+private data class WakeSelfTest(val sampleCount: Int, val rms: Double, val peak: Int, val allZeroSamples: Boolean, val rawOutput: String, val rawBestScore: Float?, val status: String)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -63,6 +73,7 @@ private fun WakeLabScreen(onBack: () -> Unit) {
     var recording by remember { mutableStateOf(false) }
     var status by remember { mutableStateOf("Local-only • Voicute • 16 kHz mono PCM") }
     var results by remember { mutableStateOf<List<WakeReplay>>(emptyList()) }
+    var selfTest by remember { mutableStateOf<WakeSelfTest?>(null) }
     var busy by remember { mutableStateOf(false) }
     val threshold = remember {
         val p = context.getSharedPreferences(WakeWordConfig.SENSITIVITY_PREFS, 0)
@@ -82,41 +93,42 @@ private fun WakeLabScreen(onBack: () -> Unit) {
         }
         if (recording || busy) return
         recording = true
-        status = "Recording 4 seconds…"
+        val listenerWasPaused = OverlayService.pauseWakeWordForWakeLab()
+        status = "Recording 4 seconds… live listener paused=${listenerWasPaused}"
         scope.launch {
-            val saved = withContext(Dispatchers.IO) {
-                val recorder = AudioRecord(
-                    MediaRecorder.AudioSource.MIC, 16000, AudioFormat.CHANNEL_IN_MONO,
-                    AudioFormat.ENCODING_PCM_16BIT, max(AudioRecord.getMinBufferSize(
-                        16000, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT
-                    ), 8192)
-                )
-                try {
-                    check(recorder.state == AudioRecord.STATE_INITIALIZED) { "AudioRecord init failed" }
-                    val pcm = ShortArray(16000 * 4)
-                    recorder.startRecording()
-                    var offset = 0
-                    while (offset < pcm.size) {
-                        val n = recorder.read(pcm, offset, pcm.size - offset)
-                        check(n > 0) { "AudioRecord read failed: $n" }
-                        offset += n
-                    }
-                    recorder.stop()
-                    val stamp = System.currentTimeMillis()
-                    val safe = label.replace(Regex("[^A-Za-z0-9_-]"), "_")
-                    val wav = File(root, "wake_${stamp}_${safe}.wav")
-                    writeWav(wav, pcm)
-                    File(root, wav.nameWithoutExtension + ".label").writeText(label)
-                    wav
-                } finally {
-                    runCatching { recorder.release() }
+            var saved: File? = null
+            var failure: String? = null
+            try {
+                saved = withContext(Dispatchers.IO) {
+                    val recorder = AudioRecord(MediaRecorder.AudioSource.MIC, 16000, AudioFormat.CHANNEL_IN_MONO,
+                        AudioFormat.ENCODING_PCM_16BIT, max(AudioRecord.getMinBufferSize(16000, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT), 8192))
+                    try {
+                        check(recorder.state == AudioRecord.STATE_INITIALIZED) { "AudioRecord init failed" }
+                        val pcm = ShortArray(64000)
+                        recorder.startRecording()
+                        var offset = 0
+                        while (offset < pcm.size) {
+                            val n = recorder.read(pcm, offset, pcm.size - offset)
+                            check(n > 0) { "AudioRecord read failed: $n" }
+                            offset += n
+                        }
+                        recorder.stop()
+                        val stamp = System.currentTimeMillis()
+                        val safe = label.replace(Regex("[^A-Za-z0-9_-]"), "_")
+                        val wav = File(root, "wake_${stamp}_${safe}.wav")
+                        writeWav(wav, pcm)
+                        File(root, wav.nameWithoutExtension + ".label").writeText(label)
+                        File(root, wav.nameWithoutExtension + ".listener_paused").writeText(listenerWasPaused.toString())
+                        wav
+                    } finally { runCatching { recorder.release() } }
                 }
+            } catch (error: Exception) { failure = error.message ?: error.javaClass.simpleName }
+            finally {
+                recording = false
+                OverlayService.resumeWakeWordAfterWakeLab()
             }
-            recording = false
-            if (saved != null) {
-                refresh()
-                status = "Saved locally: ${saved.name}"
-            } else status = "Recording failed"
+            if (saved != null) { refresh(); status = "Saved locally: ${saved.name} • live listener paused=${listenerWasPaused}" }
+            else status = "Recording failed: ${failure ?: "unknown"}"
         }
     }
 
@@ -129,6 +141,13 @@ private fun WakeLabScreen(onBack: () -> Unit) {
                 val model = WakeWordEngine(context)
                 try {
                     check(model.isLoaded) { model.errorMessage ?: "Voicute model failed to load" }
+                    val tone = ShortArray(model.audioSamplesNeeded)
+                    for (i in 0 until minOf(16000, tone.size)) tone[i] = (9000.0 * kotlin.math.sin(2.0 * Math.PI * 440.0 * i / 16000.0)).toInt().toShort()
+                    val testStats = pcmStats(tone)
+                    val testResult = model.processForWakeLab(tone, false)
+                    selfTest = WakeSelfTest(tone.size, testStats.rms, testStats.peak, testStats.allZero,
+                        testResult?.rawOutputSummary ?: "NO_DETECTION_RESULT", testResult?.rawBestScore,
+                        if (testResult == null) "NO_RESULT_OR_INFERENCE_ERROR" else if (testResult.rawBestScore != 0f || testResult.rawOutputSummary.split(",").any { it.substringAfter("=", "").toFloatOrNull()?.let { v -> v != 0f } == true }) "NON_ZERO_RAW_OUTPUT" else "RAW_OUTPUT_ZERO")
                     clips.map { clip -> replayClip(model, clip, threshold) }
                 } finally { model.close() }
             }
