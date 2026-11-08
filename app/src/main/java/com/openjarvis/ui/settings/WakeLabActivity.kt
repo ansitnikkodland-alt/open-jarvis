@@ -167,6 +167,7 @@ private fun WakeLabScreen(onBack: () -> Unit) {
         appendLine("JARVIS WAKE LAB — VOICUTE ONLY")
         appendLine("Sample rate: 16000 Hz mono PCM16")
         appendLine("Threshold: $threshold")
+        appendLine("Clip counts: total=${results.size}; positive=${positive.size}; negative=${negative.size}")
         appendLine("Mode A: raw int16-scale (same preprocessing as live)")
         appendLine("Mode B: short / 32768f (experimental only; never used by live listener)")
         appendLine("Aggregation: maximum score per phrase across overlapping 1.01s windows, 100ms hop")
@@ -174,9 +175,18 @@ private fun WakeLabScreen(onBack: () -> Unit) {
         appendLine("Mode B hit rate: ${if (positive.isEmpty()) "N/A" else "$bHits/${positive.size} = ${100.0*bHits/positive.size}%"}")
         appendLine("Mode A false-trigger rate: ${if (negative.isEmpty()) "N/A (no negative clips)" else "$aFalse/${negative.size} = ${100.0*aFalse/negative.size}%"}")
         appendLine("Mode B false-trigger rate: ${if (negative.isEmpty()) "N/A (no negative clips)" else "$bFalse/${negative.size} = ${100.0*bFalse/negative.size}%"}")
+        selfTest?.let { t ->
+            appendLine("SELF-TEST deterministic 440Hz tone: samples=${t.sampleCount}; durationMs=${t.sampleCount*1000L/16000L}; RMS=${t.rms}; peak=${t.peak}; all-zero? ${t.allZeroSamples}")
+            appendLine("Raw ONNX output before threshold/gate: ${t.rawOutput}")
+            appendLine("Raw best score=${t.rawBestScore}; status=${t.status}")
+        } ?: appendLine("SELF-TEST: not run")
         results.forEach { r ->
             appendLine()
             appendLine("Clip: ${r.clipName} label=${r.label}")
+            appendLine("durationMs=${r.durationMs}; sampleCount=${r.sampleCount}; RMS(raw int16 scale)=${r.rms}; peak=${r.peak}; all-zero samples? ${r.allZeroSamples}")
+            appendLine("live listener paused during recording: ${r.liveListenerPaused}")
+            appendLine("Mode A raw ONNX output: ${r.modeARawOutput}")
+            appendLine("Mode B raw ONNX output: ${r.modeBRawOutput}")
             appendLine("A: ${r.modeAScores} result=${if (r.label == "negative") if (r.modeAHit) "FALSE TRIGGER" else "NO TRIGGER" else if (r.modeAHit) "HIT" else "MISS"}")
             appendLine("B: ${r.modeBScores} result=${if (r.label == "negative") if (r.modeBHit) "FALSE TRIGGER" else "NO TRIGGER" else if (r.modeBHit) "HIT" else "MISS"}")
         }
@@ -269,6 +279,20 @@ private fun WakeLabScreen(onBack: () -> Unit) {
     }
 }
 
+private data class PcmStats(val rms: Double, val peak: Int, val allZero: Boolean)
+private fun pcmStats(pcm: ShortArray): PcmStats {
+    if (pcm.isEmpty()) return PcmStats(0.0, 0, true)
+    var sum = 0.0
+    var peak = 0
+    var allZero = true
+    pcm.forEach { sample ->
+        val v = sample.toInt()
+        if (v != 0) allZero = false
+        peak = max(peak, kotlin.math.abs(v))
+        sum += v.toDouble() * v.toDouble()
+    }
+    return PcmStats(kotlin.math.sqrt(sum / pcm.size), peak, allZero)
+}
 private fun loadClips(root: File): List<WakeClip> = root.listFiles()
     ?.filter { it.extension.equals("wav", true) }
     ?.sortedByDescending { it.lastModified() }
@@ -303,12 +327,16 @@ private fun readWav(file: File): ShortArray {
 
 private fun replayClip(model: WakeWordEngine, clip: WakeClip, threshold: Float): WakeReplay {
     val pcm = readWav(clip.file)
+    val stats = pcmStats(pcm)
+    val paused = File(clip.file.parentFile, clip.file.nameWithoutExtension + ".listener_paused").takeIf { it.exists() }?.readText()?.trim()?.toBooleanStrictOrNull() ?: false
     val windowSize = model.audioSamplesNeeded
     require(windowSize > 0) { "Voicute window size unavailable" }
     val keys = listOf("jarvis", "hey jarvis", "hi jarvis")
     val a = keys.associateWith { 0f }.toMutableMap()
     val b = keys.associateWith { 0f }.toMutableMap()
     val hop = 1600
+    var rawA = "NO_RESULT"
+    var rawB = "NO_RESULT"
     var start = 0
     while (start < pcm.size) {
         val window = ShortArray(windowSize)
@@ -316,6 +344,8 @@ private fun replayClip(model: WakeWordEngine, clip: WakeClip, threshold: Float):
         System.arraycopy(pcm, start, window, 0, count)
         val resultA = model.processForWakeLab(window, false)
         val resultB = model.processForWakeLab(window, true)
+        if (resultA != null) rawA = resultA.rawOutputSummary
+        if (resultB != null) rawB = resultB.rawOutputSummary
         parseScores(resultA?.scoreSummary).forEach { (k, v) -> if (a.containsKey(k)) a[k] = max(a[k] ?: 0f, v) }
         parseScores(resultB?.scoreSummary).forEach { (k, v) -> if (b.containsKey(k)) b[k] = max(b[k] ?: 0f, v) }
         if (start + windowSize >= pcm.size) break
@@ -324,7 +354,7 @@ private fun replayClip(model: WakeWordEngine, clip: WakeClip, threshold: Float):
     val expected = clip.label.lowercase(Locale.US)
     val hitA = if (expected == "negative") a.values.any { it >= threshold } else (a[expected] ?: 0f) >= threshold
     val hitB = if (expected == "negative") b.values.any { it >= threshold } else (b[expected] ?: 0f) >= threshold
-    return WakeReplay(clip.file.name, expected, a, b, hitA, hitB)
+    return WakeReplay(clip.file.name, expected, a, b, hitA, hitB, pcm.size*1000L/16000L, pcm.size, stats.rms, stats.peak, stats.allZero, paused, rawA, rawB)
 }
 
 private fun parseScores(summary: String?): Map<String, Float> = summary.orEmpty().split(",")
