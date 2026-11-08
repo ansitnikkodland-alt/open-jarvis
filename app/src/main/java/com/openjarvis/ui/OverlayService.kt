@@ -60,6 +60,7 @@ import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.launch
 
 class OverlayService : Service() {
+    @Volatile private var wakeLabPauseActive = false
     private var windowManager: WindowManager? = null
     private var overlayView: LinearLayout? = null
     private var windowParams: WindowManager.LayoutParams? = null
@@ -109,7 +110,7 @@ class OverlayService : Service() {
             // Reattach the floating UI if Android detached its window while the service survived.
             if (overlayView?.isAttachedToWindow != true) attachAssistant()
             // Recover a stopped listener without requiring the user to restart the service.
-            if (voiceManager.isVoiceEnabled() && !wakeWordCommandPending && !wakeWordResponsePending &&
+            if (!wakeLabPauseActive && voiceManager.isVoiceEnabled() && !wakeWordCommandPending && !wakeWordResponsePending &&
                 wakeWordController?.isRunning() != true && wakeWordRestartRunnable == null
             ) startWakeWordListening()
             mainHandler.postDelayed(this, WAKE_WORD_WATCHDOG_TICK_MS)
@@ -124,6 +125,7 @@ class OverlayService : Service() {
 
     override fun onCreate() {
         super.onCreate()
+        activeInstance = this
         agentCore = AgentCore(this)
         voiceManager = VoiceManager(this)
         graphifyRepo = GraphifyRepository(this)
@@ -260,6 +262,7 @@ class OverlayService : Service() {
         mainHandler.removeCallbacks(waveformRunnable)
         waveformText = null
         stopWakeWordListening()
+        if (activeInstance === this) activeInstance = null
         socketServer?.stop()
         socketServer = null
         voiceManager.release()
@@ -513,6 +516,7 @@ class OverlayService : Service() {
     }
 
     private fun startWakeWordListening() {
+        if (wakeLabPauseActive) return
         if (!voiceManager.isVoiceEnabled()) {
             stopWakeWordListening()
             return
@@ -630,6 +634,16 @@ class OverlayService : Service() {
         wakeWordSession.reset()
     }
 
+    private fun pauseWakeWordForWakeLabInternal() {
+        wakeLabPauseActive = true
+        stopWakeWordListening()
+        statusText?.text = "Wake Lab recording — live listener paused"
+    }
+    private fun resumeWakeWordAfterWakeLabInternal() {
+        if (!wakeLabPauseActive) return
+        wakeLabPauseActive = false
+        if (::voiceManager.isInitialized && voiceManager.isVoiceEnabled()) startWakeWordListening()
+    }
     private fun stopWakeWordListening(cancelRestart: Boolean = true) {
         if (cancelRestart) {
             wakeWordRestartRunnable?.let { mainHandler.removeCallbacks(it) }
