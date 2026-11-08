@@ -24,11 +24,6 @@ class AndroidSTTEngine(private val context: Context) : STTEngine {
         const val SILENCE_TIMEOUT_MS = 1500L
         const val MAX_RECORDING_MS = 30000L
         private const val TAG = "AndroidSTTEngine"
-        private val RECOVERABLE_ERRORS = setOf(
-            SpeechRecognizer.ERROR_NO_MATCH,
-            SpeechRecognizer.ERROR_SPEECH_TIMEOUT,
-            SpeechRecognizer.ERROR_RECOGNIZER_BUSY
-        )
     }
 
     private var recognizer: SpeechRecognizer? = null
@@ -40,10 +35,8 @@ class AndroidSTTEngine(private val context: Context) : STTEngine {
     private var pendingResult: String? = null
     private val mainHandler = Handler(Looper.getMainLooper())
     private var sessionActive = false
-    private var retryAttempt = 0
     private var silenceStartTime = -1L
     private var recordingStartTime = -1L
-    private var retryRunnable: Runnable? = null
 
     init {
         mainHandler.post { createRecognizer() }
@@ -62,7 +55,6 @@ class AndroidSTTEngine(private val context: Context) : STTEngine {
         recognizer = SpeechRecognizer.createOnDeviceSpeechRecognizer(context).also { speechRecognizer ->
             speechRecognizer.setRecognitionListener(object : RecognitionListener {
                 override fun onReadyForSpeech(params: Bundle?) {
-                    retryAttempt = 0
                     _isListening.value = true
                 }
                 override fun onBeginningOfSpeech() {}
@@ -90,29 +82,20 @@ class AndroidSTTEngine(private val context: Context) : STTEngine {
                         SpeechRecognizer.ERROR_SPEECH_TIMEOUT -> "Speech timeout"
                         else -> "Speech recognition error ($error)"
                     }
-                    if (sessionActive && error in RECOVERABLE_ERRORS) {
-                        currentErrorCallback?.invoke("RETRYING: $message")
-                        scheduleRetry(error)
-                    } else {
-                        sessionActive = false
-                        currentErrorCallback?.invoke(message)
-                    }
+                    sessionActive = false
+                    currentErrorCallback?.invoke(message)
                 }
                 override fun onResults(results: Bundle?) {
                     _isListening.value = false
-                    retryRunnable?.let(mainHandler::removeCallbacks)
-                    retryRunnable = null
                     val matches = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
                     val text = matches?.firstOrNull()?.trim()
                     pendingResult = text
                     if (!text.isNullOrBlank()) {
                         sessionActive = false
-                        retryAttempt = 0
                         currentCallback?.invoke(text)
                     } else {
-                        sessionActive = true
-                        currentErrorCallback?.invoke("RETRYING: No speech detected")
-                        scheduleRetry(SpeechRecognizer.ERROR_NO_MATCH)
+                        sessionActive = false
+                        currentErrorCallback?.invoke("No speech detected")
                     }
                 }
                 override fun onPartialResults(partialResults: Bundle?) {}
@@ -121,31 +104,12 @@ class AndroidSTTEngine(private val context: Context) : STTEngine {
         }
     }
 
-    private fun scheduleRetry(error: Int) {
-        retryRunnable?.let(mainHandler::removeCallbacks)
-        retryAttempt = (retryAttempt + 1).coerceAtMost(5)
-        val delayMs = when (retryAttempt) {
-            1 -> 350L
-            2 -> 700L
-            3 -> 1200L
-            else -> 1800L
-        }
-        retryRunnable = Runnable {
-            if (!sessionActive) return@Runnable
-            if (error == SpeechRecognizer.ERROR_RECOGNIZER_BUSY) createRecognizer()
-            startListeningInternal()
-        }.also { mainHandler.postDelayed(it, delayMs) }
-    }
-
     override fun startListening(onResult: (String?) -> Unit, onError: (String) -> Unit) {
         currentCallback = onResult
         currentErrorCallback = onError
         pendingResult = null
-        retryAttempt = 0
         sessionActive = true
         mainHandler.post {
-            retryRunnable?.let(mainHandler::removeCallbacks)
-            retryRunnable = null
             if (recognizer == null) createRecognizer()
             if (recognizer == null) {
                 sessionActive = false
@@ -192,7 +156,9 @@ class AndroidSTTEngine(private val context: Context) : STTEngine {
         try {
             recognizer?.startListening(intent)
         } catch (error: IllegalStateException) {
-            if (sessionActive) scheduleRetry(SpeechRecognizer.ERROR_RECOGNIZER_BUSY)
+            sessionActive = false
+            _isListening.value = false
+            currentErrorCallback?.invoke("Speech recognizer is busy; tap Mic to try again")
         }
     }
 
@@ -205,8 +171,6 @@ class AndroidSTTEngine(private val context: Context) : STTEngine {
 
     override fun stop(): String? {
         sessionActive = false
-        retryRunnable?.let(mainHandler::removeCallbacks)
-        retryRunnable = null
         _isListening.value = false
         mainHandler.post { recognizer?.cancel() }
         audioRecord?.stop()
