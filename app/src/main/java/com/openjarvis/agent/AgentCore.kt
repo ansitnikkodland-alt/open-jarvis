@@ -55,6 +55,7 @@ class AgentCore(private val context: Context) {
     private val personalMemoryStore = PersonalMemoryStore(context)
     private val skillEngine = SkillEngine(context)
     private val nativeLearnedStore = NativeLearnedStore(context)
+    private val selfHealingExecutor = SelfHealingExecutor(context)
 
     private var workingMemory = TaskWorkingMemory()
     private val contactFollowUpWindow = ContactFollowUpWindow()
@@ -1169,7 +1170,7 @@ ${fullSystem.substringAfter("MEMORY:")}
         for ((index, action) in actions.withIndex()) {
             var failure: String? = null
             var completed = false
-            val maxAttempts = ActionRetryPolicy.maxAttempts(action)
+            val maxAttempts = SelfHealingSafetyPolicy.maxAttempts(action)
             for (attempt in 1..maxAttempts) {
                 _state.value = AgentState.Running(
                     "Action ${index + 1}/${actions.size}: ${action.action} (attempt $attempt/$maxAttempts)"
@@ -1184,12 +1185,14 @@ ${fullSystem.substringAfter("MEMORY:")}
                     break
                 }
                 Log.w(TAG, "Action ${index + 1} ${action.action} attempt $attempt/$maxAttempts failed: $failure")
-                if (ActionRetryPolicy.shouldRetry(action, attempt)) kotlinx.coroutines.delay(400)
+                if (attempt < maxAttempts) kotlinx.coroutines.delay(400)
             }
 
             if (!completed) {
-                val retryNote = if (maxAttempts > 1) "after one safe retry" else "without retry (to prevent duplicate side effects)"
-                val message = "Action ${index + 1}/${actions.size} (${action.action}) failed $retryNote: ${failure ?: "verification failed"}"
+                val failureReason = failure ?: "verification failed"
+                val recovery = selfHealingExecutor.failureDisposition(action, failureReason)
+                val retryNote = if (maxAttempts > 1) "after bounded wait retry" else "without replay"
+                val message = "Action ${index + 1}/${actions.size} (${action.action}) failed $retryNote: $failureReason. $recovery"
                 results.add(message)
                 Log.e(TAG, message)
                 _state.value = AgentState.Error(message)
