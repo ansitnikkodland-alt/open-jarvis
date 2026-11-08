@@ -27,17 +27,8 @@ if [[ "$MODE" == "all" ]]; then
   /tmp/jarvis-sherpa-tokenizer/bin/pip install --disable-pip-version-check sherpa-onnx click sentencepiece pypinyin
   # Keep this list in sync with WakeWordConfig.KEYWORD_PHRASES.
   # The runtime validator requires at least five model-tokenized lines.
-  printf '%s\\n' \\
-    'JARVIS' \\
-    'HEY JARVIS' \\
-    'JARVISS' \\
-    'JARVEES' \\
-    'JARVIZ' > /tmp/jarvis-wake-keywords.raw
-  /tmp/jarvis-sherpa-tokenizer/bin/sherpa-onnx-cli text2token \\
-    --tokens "$MODEL_DIR/tokens.txt" \\
-    --tokens-type bpe \\
-    --bpe-model "$MODEL_DIR/bpe.model" \\
-    /tmp/jarvis-wake-keywords.raw "$MODEL_DIR/keywords.txt"
+  printf '%s\n' 'JARVIS' 'HEY JARVIS' 'JARVISS' 'JARVEES' 'JARVIZ' > /tmp/jarvis-wake-keywords.raw
+  /tmp/jarvis-sherpa-tokenizer/bin/sherpa-onnx-cli text2token --tokens "$MODEL_DIR/tokens.txt" --tokens-type bpe --bpe-model "$MODEL_DIR/bpe.model" /tmp/jarvis-wake-keywords.raw "$MODEL_DIR/keywords.txt"
   test -s "$MODEL_DIR/keywords.txt"
   keyword_line_count="$(grep -cve '^[[:space:]]*$' "$MODEL_DIR/keywords.txt")"
   if [[ "$keyword_line_count" -lt 5 ]]; then
