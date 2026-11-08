@@ -25,8 +25,6 @@ import com.openjarvis.voice.voicute.WakeWordEngine
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import java.io.ByteArrayOutputStream
-import java.io.DataOutputStream
 import java.io.File
 import java.io.FileOutputStream
 import java.nio.ByteBuffer
@@ -160,8 +158,8 @@ private fun WakeLabScreen(onBack: () -> Unit) {
         results.forEach { r ->
             appendLine()
             appendLine("Clip: ${r.clipName} label=${r.label}")
-            appendLine("A: ${r.modeAScores} result=${if (r.modeAHit) "HIT" else "MISS"}")
-            appendLine("B: ${r.modeBScores} result=${if (r.modeBHit) "HIT" else "MISS"}")
+            appendLine("A: ${r.modeAScores} result=${if (r.label == "negative") if (r.modeAHit) "FALSE TRIGGER" else "NO TRIGGER" else if (r.modeAHit) "HIT" else "MISS"}")
+            appendLine("B: ${r.modeBScores} result=${if (r.label == "negative") if (r.modeBHit) "FALSE TRIGGER" else "NO TRIGGER" else if (r.modeBHit) "HIT" else "MISS"}")
         }
         appendLine()
         appendLine("Privacy: clips stay in app-private local storage. No audio is included in diagnostic reports.")
@@ -243,8 +241,8 @@ private fun WakeLabScreen(onBack: () -> Unit) {
                 Card {
                     Column(Modifier.padding(12.dp)) {
                         Text("${result.clipName} • ${result.label}")
-                        Text("Mode A: ${result.modeAScores} • ${if (result.modeAHit) "HIT" else "MISS"}")
-                        Text("Mode B: ${result.modeBScores} • ${if (result.modeBHit) "HIT" else "MISS"}")
+                        Text("Mode A: ${result.modeAScores} • ${if (result.label == "negative") if (result.modeAHit) "FALSE TRIGGER" else "NO TRIGGER" else if (result.modeAHit) "HIT" else "MISS"}")
+                        Text("Mode B: ${result.modeBScores} • ${if (result.label == "negative") if (result.modeBHit) "FALSE TRIGGER" else "NO TRIGGER" else if (result.modeBHit) "HIT" else "MISS"}")
                     }
                 }
             }
@@ -288,7 +286,7 @@ private fun replayClip(model: WakeWordEngine, clip: WakeClip, threshold: Float):
     val pcm = readWav(clip.file)
     val windowSize = model.audioSamplesNeeded
     require(windowSize > 0) { "Voicute window size unavailable" }
-    val keys = listOf("Jarvis", "Hey Jarvis", "Hi Jarvis")
+    val keys = listOf("jarvis", "hey jarvis", "hi jarvis")
     val a = keys.associateWith { 0f }.toMutableMap()
     val b = keys.associateWith { 0f }.toMutableMap()
     val hop = 1600
@@ -304,7 +302,7 @@ private fun replayClip(model: WakeWordEngine, clip: WakeClip, threshold: Float):
         if (start + windowSize >= pcm.size) break
         start += hop
     }
-    val expected = clip.label
+    val expected = clip.label.lowercase(Locale.US)
     val hitA = if (expected == "negative") a.values.any { it >= threshold } else (a[expected] ?: 0f) >= threshold
     val hitB = if (expected == "negative") b.values.any { it >= threshold } else (b[expected] ?: 0f) >= threshold
     return WakeReplay(clip.file.name, expected, a, b, hitA, hitB)
