@@ -5,6 +5,8 @@ import android.os.Build
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import java.io.File
+import java.util.concurrent.atomic.AtomicBoolean
 
 data class WakeWordDiagnosticSnapshot(
     val engineName: String = "Voicute ONNX KWS",
@@ -39,13 +41,52 @@ object WakeWordDiagnostics {
     private const val MAX_EVENTS = 300
     @Volatile private var current = WakeWordDiagnosticSnapshot()
     private val events = ArrayList<JarvisDiagnosticEvent>(MAX_EVENTS)
+    @Volatile private var logFile: File? = null
+    private val crashHandlerInstalled = AtomicBoolean(false)
+
+    @Synchronized
+    fun initialize(context: Context) {
+        if (logFile != null) return
+        val file = File(context.noBackupFilesDir, "jarvis_diagnostics.log")
+        logFile = file
+        runCatching {
+            if (file.exists()) {
+                file.readLines().takeLast(MAX_EVENTS).forEach { line ->
+                    val parts = line.split("\\t", limit = 3)
+                    if (parts.size == 3) {
+                        val at = parts[0].toLongOrNull() ?: System.currentTimeMillis()
+                        events.add(JarvisDiagnosticEvent(at, parts[1], parts[2]))
+                    }
+                }
+            }
+        }
+        if (crashHandlerInstalled.compareAndSet(false, true)) {
+            val previous = Thread.getDefaultUncaughtExceptionHandler()
+            Thread.setDefaultUncaughtExceptionHandler { thread, error ->
+                val trace = error.stackTraceToString().take(10000).replace("\\n", " ")
+                failed("UNCAUGHT CRASH on " + thread.name + ": " + error.javaClass.simpleName + ": " + trace)
+                previous?.uncaughtException(thread, error)
+            }
+        }
+    }
 
     @Synchronized fun snapshot(): WakeWordDiagnosticSnapshot = current
     @Synchronized fun recentEvents(): List<JarvisDiagnosticEvent> = events.toList()
 
     @Synchronized private fun addEvent(level: String, message: String) {
-        events.add(JarvisDiagnosticEvent(System.currentTimeMillis(), level, message.take(500)))
+        val now = System.currentTimeMillis()
+        val safeMessage = message.replace("\\n", " ").replace("\\r", " ").take(12000)
+        events.add(JarvisDiagnosticEvent(now, level, safeMessage.take(500)))
         if (events.size > MAX_EVENTS) events.removeAt(0)
+        runCatching {
+            logFile?.appendText(now.toString() + "\\t" + level + "\\t" + safeMessage + "\\n")
+            logFile?.let { file ->
+                if (file.length() > 256 * 1024) {
+                    val retained = file.readLines().takeLast(MAX_EVENTS)
+                    file.writeText(retained.joinToString("\\n", postfix = if (retained.isEmpty()) "" else "\\n"))
+                }
+            }
+        }
     }
 
     @Synchronized
