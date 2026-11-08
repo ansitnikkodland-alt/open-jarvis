@@ -8,7 +8,7 @@ package com.openjarvis.diagnostics
  */
 object ReportDoctor {
     enum class Area {
-        WAKE_WORD, MICROPHONE_PERMISSION, SPEECH_RECOGNITION, OVERLAY,
+        MANUAL_LISTENING, MICROPHONE_PERMISSION, SPEECH_RECOGNITION, OVERLAY,
         OLLAMA_CONNECTION, MODEL_RESPONSE, ACCESSIBILITY, APP_LAUNCH,
         ACTION_EXECUTION, UNKNOWN
     }
@@ -35,13 +35,13 @@ object ReportDoctor {
                 report(Area.MICROPHONE_PERMISSION, Severity.ERROR,
                     "Microphone access is blocked.",
                     "Android microphone permission is missing or was revoked.",
-                    "Open Android App info > Permissions > Microphone and allow access; then test listening again.")
+                    "Open Android App info > Permissions > Microphone and allow access; then start listening with the in-app mic button.")
 
-            containsAny(text, "wake word", "keyword spotting", "voicecute", "wake detection", "wake detection timeout") ->
-                report(Area.WAKE_WORD, Severity.WARNING,
-                    "Wake-word detection did not trigger.",
-                    "The wake listener may be stopped, background-restricted, or receiving low-volume audio.",
-                    "Open Jarvis and check that VoiceCute shows Listening; test at normal speaking volume and review battery restrictions.")
+            containsAny(text, "manual listening", "mic button", "microphone button", "recording did not start", "start listening failed", "audio capture failed") ->
+                report(Area.MANUAL_LISTENING, Severity.WARNING,
+                    "Jarvis did not start manual listening.",
+                    "The mic button flow may not have started audio capture, or another app may be holding the microphone.",
+                    "Open Jarvis, tap its mic button once, check the listening indicator, and close other apps currently using the microphone.")
 
             containsAny(text, "overlay", "floating window", "draw over other apps", "overlay detached") ->
                 report(Area.OVERLAY, Severity.WARNING,
