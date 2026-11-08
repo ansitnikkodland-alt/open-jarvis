@@ -44,7 +44,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.launch
 
@@ -115,14 +114,13 @@ class OverlayService : Service() {
                             setVisualState("IDLE", "JARVIS active — listening…")
                             voiceManager.speak("Jarvis is active. I am listening.")
                         }
-                        CommandListeningPolicy.Action.IGNORE -> if (isMuted) {
-                            statusText?.text = "MUTED — say only “Ab bolo”"
-                            serviceScope.launch { delay(300); if (isMuted && voiceManager.isVoiceEnabled()) voiceManager.startListening() }
-                        } else submitCommand(state.text)
+                        CommandListeningPolicy.Action.IGNORE -> {
+                            statusText?.text = if (isMuted) "Muted — tap Mic and say “Ab bolo”" else "No command detected — tap Mic to try again"
+                        }
                         CommandListeningPolicy.Action.EXECUTE_COMMAND -> submitCommand(state.text)
                     }
                     is VoiceManager.VoiceState.Error -> setVisualState("IDLE", state.message)
-                    is VoiceManager.VoiceState.Recording -> setVisualState("LISTENING", if (isMuted) "Muted — listening for “Ab bolo”" else "Listening… speak now")
+                    is VoiceManager.VoiceState.Recording -> setVisualState("LISTENING", "Listening… speak now")
                     is VoiceManager.VoiceState.Transcribing -> setVisualState("THINKING", "Thinking…")
                     is VoiceManager.VoiceState.Speaking -> setVisualState("SPEAKING", "Speaking…")
                     is VoiceManager.VoiceState.Idle -> setVisualState("IDLE", if (isMuted) "MUTED — say only “Ab bolo”" else "Ready — type a command or use mic")
@@ -132,7 +130,7 @@ class OverlayService : Service() {
         serviceScope.launch {
             agentCore.state.collect { state ->
                 when (state) {
-                    is com.openjarvis.agent.AgentState.Idle -> statusText?.text = "Ready — type a command or use mic"
+                    is com.openjarvis.agent.AgentState.Idle -> statusText?.text = "Ready — tap Mic to speak or type a command"
                     is com.openjarvis.agent.AgentState.Running -> setVisualState("THINKING", state.step)
                     is com.openjarvis.agent.AgentState.Done -> {
                         setVisualState("SPEAKING", state.result)
@@ -146,8 +144,8 @@ class OverlayService : Service() {
             }
         }
         serviceScope.launch(Dispatchers.IO) { recentTasks = graphifyRepo.getRecentTasks(10) }
-        if (microphoneGranted && voiceManager.isVoiceEnabled()) voiceManager.startListening()
-        else if (!microphoneGranted) statusText?.text = "Allow microphone permission to enable Jarvis"
+        if (!microphoneGranted) statusText?.text = "Allow microphone permission, then tap Mic to speak"
+        else statusText?.text = "Ready — tap Mic to speak or type a command"
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -296,7 +294,7 @@ class OverlayService : Service() {
                     } else if (!voiceManager.isVoiceEnabled()) {
                         status.text = "Enable Voice Assistant in Jarvis Settings first"
                     } else if (voiceManager.isSessionActive()) {
-                        status.text = if (isMuted) "Muted — waiting only for “Ab bolo”" else "Already listening for your command"
+                        status.text = "Already listening — wait for recognition to finish"
                     } else {
                         voiceManager.startListening()
                     }
@@ -368,7 +366,7 @@ class OverlayService : Service() {
 
     private fun enterMuteMode() {
         isMuted = true
-        statusText?.text = "MUTED — say only “Ab bolo”"
+        statusText?.text = "Muted — tap Mic and say “Ab bolo”"
         voiceManager.speak("ठीक है, Jarvis mute हो गया।")
     }
 
