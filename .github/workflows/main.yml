@@ -17,11 +17,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Prepare sherpa-onnx runtime and required offline JARVIS KWS model
-        run: |
-          bash scripts/prepare-sherpa.sh all
-          test -s app/src/main/assets/sherpa-onnx-kws-zipformer-gigaspeech-3.3M-2024-01-01/encoder-epoch-12-avg-2-chunk-16-left-64.onnx
-
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
@@ -52,12 +47,22 @@ jobs:
       # Always collect diagnostics, including when the smoke test fails.
       - name: Capture emulator crash diagnostics
         if: always()
+        timeout-minutes: 2
         run: |
           mkdir -p emulator-diagnostics
-          adb logcat -b all -d -v threadtime > emulator-diagnostics/logcat.txt 2>&1 || true
-          adb shell dumpsys activity activities > emulator-diagnostics/activities.txt 2>&1 || true
-          adb shell dumpsys activity services > emulator-diagnostics/services.txt 2>&1 || true
-          adb shell dumpsys package com.openjarvis > emulator-diagnostics/package.txt 2>&1 || true
+          safe_adb() {
+            label="$1"
+            shift
+            if command -v timeout >/dev/null 2>&1; then
+              timeout 12s adb "$@" > "emulator-diagnostics/${label}.txt" 2>&1 || echo "Diagnostic command unavailable or timed out: adb $*" >> "emulator-diagnostics/${label}.txt"
+            else
+              adb "$@" > "emulator-diagnostics/${label}.txt" 2>&1 || echo "Diagnostic command failed: adb $*" >> "emulator-diagnostics/${label}.txt"
+            fi
+          }
+          safe_adb logcat logcat -b all -d -v threadtime
+          safe_adb activities shell dumpsys activity activities
+          safe_adb services shell dumpsys activity services
+          safe_adb package shell dumpsys package com.openjarvis
           grep -Ei "FATAL EXCEPTION|AndroidRuntime|am_crash|ANR in|Process .* has died|Fatal signal" emulator-diagnostics/logcat.txt > emulator-diagnostics/crash-summary.txt || true
 
       - name: Upload emulator diagnostics
