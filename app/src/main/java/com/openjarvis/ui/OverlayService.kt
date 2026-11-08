@@ -733,6 +733,20 @@ class OverlayService : Service() {
     fun executeCommand(command: String) = agentCore.executeTask(command)
 
     companion object {
+        @Volatile private var activeInstance: OverlayService? = null
+
+        /** True only when the active Voicute listener was running and was stopped. */
+        fun pauseWakeWordForWakeLab(): Boolean {
+            val service = activeInstance ?: return false
+            val wasRunning = service.wakeWordController?.isRunning() == true
+            service.pauseWakeWordForWakeLabInternal()
+            return wasRunning
+        }
+
+        fun resumeWakeWordAfterWakeLab() {
+            activeInstance?.resumeWakeWordAfterWakeLabInternal()
+        }
+
         private const val CHANNEL_ID = "jarvis_overlay_channel"
         private const val NOTIFICATION_ID = 1
         private const val ACTION_SIMULATE_WAKE_WORD = "com.openjarvis.action.SIMULATE_WAKE_WORD"
