@@ -2,11 +2,11 @@ package com.openjarvis.voice
 
 /**
  * Process-local diagnostics shared by the foreground listener and Settings.
- * Sherpa's Kotlin KeywordSpotterResult does not expose an acoustic confidence
+ * The wake-word runtime reports its own detection confidence
  * score, so score remains null rather than presenting a fabricated value.
  */
 data class WakeWordDiagnosticSnapshot(
-    val engineName: String = "Sherpa-ONNX KWS",
+    val engineName: String = "Voicute ONNX KWS",
     val state: String = "NOT_STARTED",
     val micPermissionGranted: Boolean = false,
     val rms: Float = 0f,
