@@ -260,13 +260,22 @@ public class WakeWordEngine {
      * @return best matching DetectionResult or null on error
      */
     public DetectionResult process(short[] audio) {
+        return processInternal(audio, false, true);
+    }
+
+    /** Wake Lab only. Mode A mirrors the live int16-scale path; Mode B is experimental normalized input. */
+    public DetectionResult processForWakeLab(short[] audio, boolean normalizedMode) {
+        return processInternal(audio, normalizedMode, false);
+    }
+
+    private DetectionResult processInternal(short[] audio, boolean normalizedMode, boolean applyStartupSkip) {
         if (!loaded) return null;
 
         try {
             // 1. Convert to float
             float[] floatAudio = new float[audio.length];
             for (int i = 0; i < audio.length; i++) {
-                floatAudio[i] = (float) audio[i];
+                floatAudio[i] = normalizedMode ? ((float) audio[i] / 32768.0f) : (float) audio[i];
             }
 
             // 2. Mel spectrogram
@@ -291,7 +300,7 @@ public class WakeWordEngine {
 
             // 4. Prepare classifier input with hidden zero-channel padding
             // Skip first 3s to avoid cold-start false triggers
-            if (System.currentTimeMillis() - engineStartTime < STARTUP_SKIP_MS) return null;
+            if (applyStartupSkip && System.currentTimeMillis() - engineStartTime < STARTUP_SKIP_MS) return null;
 
             int melStart = Math.max(0, frames - dscnnMelTime);
             float[][][] dscnnInput = new float[1][dscnnMelTime][inputMels];
