@@ -409,7 +409,12 @@ public class WakeWordEngine {
             }
 
             float bgProb = 1.0f - bestSigmoid;
-            String detected = bestSigmoid > 0.5f ? bestWord : null;
+            // Do not apply a second hard-coded 0.5 cutoff here. The caller's
+            // configured sensitivity (LOW/MEDIUM/HIGH) is enforced by
+            // DetectionLogic. Keeping this gate at 0.5 made HIGH=0.25 and
+            // MEDIUM=0.35 ineffective, so ordinary-volume speech was discarded
+            // before the configurable detector ever saw its score.
+            String detected = bestWord;
             return new DetectionResult(detected, bestSigmoid, bgProb, bestConsFrames);
 
         } catch (OrtException e) {
