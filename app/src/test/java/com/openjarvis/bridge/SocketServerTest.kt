@@ -52,7 +52,7 @@ class SocketServerTest {
     }
 
     @Test
-    fun \`token comparison is exact and does not normalize whitespace case or unicode\`() {
+    fun `token comparison is exact and does not normalize whitespace case or unicode`() {
         assertTrue(SocketServer.isValidToken("jarvis-नमस्ते", "jarvis-नमस्ते"))
         assertFalse(SocketServer.isValidToken("Secret-Token", "secret-token"))
         assertFalse(SocketServer.isValidToken("secret-token ", "secret-token"))
@@ -88,7 +88,7 @@ class SocketServerTest {
     }
 
     @Test
-    fun \`token provider rejects URI authority and path confusion attempts\`() {
+    fun `token provider rejects URI authority and path confusion attempts`() {
         val authority = "com.openjarvis.bridgeconfig"
         val invalidUris = listOf(
             "content://com.openjarvis.bridgeconfig.evil/config",
@@ -119,7 +119,7 @@ class SocketServerTest {
     }
 
     @Test
-    fun \`token provider accepts only configured shell UID\`() {
+    fun `token provider accepts only configured shell UID`() {
         assertTrue(BridgeTokenProvider.isTrustedUid(2100, appUid = 10123, termuxUid = null, shellUid = 2100))
         assertFalse(BridgeTokenProvider.isTrustedUid(2100, appUid = 10123, termuxUid = null))
         assertFalse(BridgeTokenProvider.isTrustedUid(-1, appUid = 10123, termuxUid = null))
