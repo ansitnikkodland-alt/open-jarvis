@@ -1105,14 +1105,7 @@ ${fullSystem.substringAfter("MEMORY:")}
         if (blockedBankingRule != null) {
             val blockedAction = scopedActions.firstOrNull {
                 it.action in setOf(Action.CLICK, Action.TAP, Action.TYPE, Action.TYPE_TEXT) &&
-                    (BankingSafetyPolicy.isFinancialPackage(it.packageName) ||
-                        (BankingSafetyPolicy.isFinancialPackage(it.packageName) ||
-                            listOfNotNull(it.text, it.hint, it.value).any { value ->
-                                value.contains("otp", ignoreCase = true) ||
-                                    value.contains("upi pin", ignoreCase = true) ||
-                                    value.contains("cvv", ignoreCase = true) ||
-                                    value.contains("cvc", ignoreCase = true)
-                            }))
+                    BankingSafetyPolicy.isFinancialPackage(it.packageName)
             } ?: scopedActions.firstOrNull()
             val guidance = BankingSafetyPolicy.userGuidance(blockedBankingRule)
             Log.w(TAG, "Blocked financial side effect at execution boundary: $blockedBankingRule")
