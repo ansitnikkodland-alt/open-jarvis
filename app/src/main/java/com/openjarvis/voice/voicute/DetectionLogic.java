@@ -228,6 +228,13 @@ public class DetectionLogic {
         return null;
     }
 
+    /** Read-only gate diagnostics for the Kotlin adapter; no PCM/audio is exposed. */
+    public int getDebugFail() { return dbgFail; }
+    public int getConsecutiveFrames() { return consFrames; }
+    public float getDebugPeak() { return dbgPeak; }
+    public float getDebugBackground() { return dbgBg; }
+    public float getDebugPreRms() { return dbgPreRms; }
+
     public void reset() {
         cons = 0; consWord = ""; consGap = 0; count = 0; lastTrig = 0; blocked = 0; bg = 0.001f;
         pendingWord = null; pendingTime = 0;
