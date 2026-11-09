@@ -21,10 +21,7 @@ class SelfHealingExecutor(context: Context) {
 
     suspend fun failureDisposition(action: Action, reason: String): String {
         val decision = SelfHealingRecoveryPolicy.classify(action, reason)
-        val pattern = patternStore.record(decision.area.name)
-        val recurrence = if (SelfHealingPatternCodec.recurring(pattern)) {
-            " This failure category has ${pattern.consecutiveFailures} consecutive unresolved occurrences; pause automatic retries and escalate for user review."
-        } else ""
+        var pattern = patternStore.record(decision.area.name)
         val verification = when (decision.area) {
             SelfHealingRecoveryPolicy.FailureArea.OLLAMA_CONNECTIVITY,
             SelfHealingRecoveryPolicy.FailureArea.MODEL_UNAVAILABLE -> {
@@ -37,7 +34,13 @@ class SelfHealingExecutor(context: Context) {
             }
             else -> " Verification required: ${SelfHealingVerificationPolicy.instruction(decision.area)}"
         }
-        Log.w("JarvisSelfHealing", "area=${decision.area} recovery=${decision.recovery} autoRetry=${decision.mayRetryAutomatically} recurring=${pattern.count}")
+        // Re-read after the probe: a verified dependency recovery must clear the
+        // consecutive-unresolved streak before recurrence guidance is generated.
+        pattern = patternStore.patterns().firstOrNull { it.area == decision.area.name } ?: pattern
+        val recurrence = if (SelfHealingPatternCodec.recurring(pattern)) {
+            " This failure category has ${pattern.consecutiveFailures} consecutive unresolved occurrences; pause automatic retries and escalate for user review."
+        } else ""
+        Log.w("JarvisSelfHealing", "area=${decision.area} recovery=${decision.recovery} autoRetry=${decision.mayRetryAutomatically} consecutiveUnresolved=${pattern.consecutiveFailures} unresolved=${pattern.unresolvedFailures}")
         return "${decision.explanation}${verification}${recurrence}"
     }
 }
