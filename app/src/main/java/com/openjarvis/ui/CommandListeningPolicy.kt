@@ -11,7 +11,7 @@ object CommandListeningPolicy {
         if (transcript.isBlank()) return Action.IGNORE
         // Voice-session controls are intercepted in both states. In particular,
         // "awaaz chalu karo" must never fall through and become a volume-up action.
-        if (MuteCommandPolicy.isMuteCommand(transcript)) return Action.MUTE
+        if (MuteCommandPolicy.isMuteCommand(transcript)) return if (muted) Action.IGNORE else Action.MUTE
         if (MuteCommandPolicy.isUnmuteCommand(transcript)) return Action.UNMUTE
         return if (muted) Action.IGNORE else Action.EXECUTE_COMMAND
     }
