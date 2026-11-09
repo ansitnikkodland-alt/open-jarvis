@@ -36,6 +36,8 @@ class BankingSafetyPolicyTest {
         }
         assertFalse(BankingSafetyPolicy.isBlockedCommand("What is a UPI PIN?"))
         assertFalse(BankingSafetyPolicy.isBlockedCommand("Explain how OTP works"))
+        assertFalse(BankingSafetyPolicy.isBlockedCommand("How to pay a bill"))
+        assertFalse(BankingSafetyPolicy.isBlockedCommand("How to enter OTP"))
     }
 
     @Test fun allowsReadOnlyBankingAndAppLaunchCommands() {
