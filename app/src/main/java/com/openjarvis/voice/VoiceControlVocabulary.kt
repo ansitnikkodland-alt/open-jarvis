@@ -18,7 +18,7 @@ object VoiceControlVocabulary {
         "mic band", "mic band karo", "mic bandh karo", "jarvis mic band karo",
         "sunna band karo", "suno band karo", "awaaz band karo", "awaz band karo",
         "mic band kar", "jarvis mic band kar", "aikna band kar", "aikaycha band kar",
-        "आवाज बंद करो", "आवाज बंद कर", "माइक बंद करो", "माइक बंद कर", "सुनना बंद करो",
+        "आवाज बंद करो", "आवाज़ बंद करो", "आवाज बंद कर", "आवाज़ बंद कर", "माइक बंद करो", "माइक बंद कर", "सुनना बंद करो",
         "सुनना बंद कर", "चुप हो जा", "चुप हो जाओ", "चुप रहो", "जार्विस चुप हो जाओ", "गप्प बस", "गप्प बसा",
         "ऐकणं बंद कर", "ऐकायचं बंद कर", "ऐकणं थांबव", "ऐकायचं थांबव",
         "माइक बंद करा", "आवाज बंद करा"
@@ -31,16 +31,16 @@ object VoiceControlVocabulary {
         "mic on", "microphone on", "turn on mic", "turn on the microphone",
         "ab bolo", "jarvis ab bolo", "अब बोलो", "जार्विस अब बोलो",
         "mic chalu karo", "mic chalu kar", "mic on karo",
-        "voice chalu karo", "awaaz chalu", "awaz chalu", "awaaz chalu kar", "awaz chalu kar",
+        "voice chalu karo", "voice chalu kar do", "awaaz chalu", "awaz chalu", "awaaz chalu kar", "awaz chalu kar",
         "sunna shuru karo", "phir se suno", "awaaz chalu karo", "awaz chalu karo",
         "listen to me", "jarvis listen",
         "mic chalu kara", "mic suru kara", "punha aika", "aikayla suru kar",
         "aikna suru kar", "punha aik",
         "माइक चालू करो", "माइक चालू कर", "माइक चालू करा",
-        "आवाज चालू करो", "आवाज चालू करा", "सुनना शुरू करो", "फिर से सुनो",
+        "आवाज चालू करो", "आवाज़ चालू करो", "आवाज चालू कर", "आवाज़ चालू कर", "आवाज चालू करा", "आवाज़ चालू करा", "सुनना शुरू करो", "फिर से सुनो",
         "पुन्हा ऐक", "पुन्हा ऐका", "पुन्हा बोल", "पुन्हा बोला", "ऐकायला सुरू कर", "ऐकायला सुरू करा",
         "ऐकणं सुरू कर", "ऐकायचं सुरू कर", "माइक सुरू कर", "माइक सुरू करा",
-        "आवाज सुरू कर", "आवाज सुरू करा"
+        "आवाज सुरू कर", "आवाज़ सुरू कर", "आवाज सुरू करा", "आवाज़ सुरू करा"
     )
 
     val recognitionPhrases: List<String> =
