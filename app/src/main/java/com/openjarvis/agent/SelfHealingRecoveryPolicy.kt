@@ -43,7 +43,9 @@ internal object SelfHealingRecoveryPolicy {
             (isObservation && action.action in setOf(Action.WAIT, Action.WAIT_FOR) &&
                 contains(value, "timed out", "timeout", "timed-out")) -> FailureArea.ACCESSIBILITY
             contains(value, "accessibility", "visible text", "node not found", "no accessible text",
-                "could not read current screen", "could not extract text from current screen") -> FailureArea.ACCESSIBILITY
+                "could not read current screen", "could not extract text from current screen") ||
+                (isObservation && contains(value, "permission denied", "permission denial", "securityexception",
+                    "requires permission", "accessibility permission")) -> FailureArea.ACCESSIBILITY
             isAppLaunch -> FailureArea.APP_LAUNCH
             contains(value, "speech", "stt", "microphone", "no match") -> FailureArea.SPEECH
             contains(value, "overlay", "floating window") -> FailureArea.OVERLAY
