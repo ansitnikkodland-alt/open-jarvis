@@ -53,10 +53,14 @@ object JarvisDiagnosticLog {
         rejectionReason: String,
         consecutiveFrames: Int,
         gateCode: Int,
+        peak: Float = 0f,
+        background: Float = 0f,
+        preRmsRaw: Float = -1f,
         timestampMs: Long = System.currentTimeMillis()
     ) {
         val message = formatCandidateMessage(
-            keyword, score, threshold, accepted, rejectionReason, consecutiveFrames, gateCode
+            keyword, score, threshold, accepted, rejectionReason, consecutiveFrames, gateCode,
+            peak, background, preRmsRaw
         )
         val key = message.substringBefore(' ')
         val shouldWrite = synchronized(lock) {
@@ -146,7 +150,10 @@ object JarvisDiagnosticLog {
         accepted: Boolean,
         rejectionReason: String,
         consecutiveFrames: Int,
-        gateCode: Int
+        gateCode: Int,
+        peak: Float = 0f,
+        background: Float = 0f,
+        preRmsRaw: Float = -1f
     ): String {
         val safeKeyword = when (keyword?.trim()?.lowercase(Locale.US)) {
             "jarvis" -> "Jarvis"
@@ -158,14 +165,17 @@ object JarvisDiagnosticLog {
         val safeReason = rejectionReason.filter { it.isLetterOrDigit() || it == '_' || it == '-' }.take(48)
         return String.format(
             Locale.US,
-            "keyword=%s score=%.4f threshold=%.4f accepted=%s rejection=%s consecutiveFrames=%d gateCode=%d",
+            "keyword=%s score=%.4f threshold=%.4f accepted=%s rejection=%s consecutiveFrames=%d gateCode=%d peak=%.4f background=%.4f preRmsRaw=%.1f",
             safeKeyword,
             score.coerceIn(0f, 1f),
             threshold.coerceIn(0f, 1f),
             accepted,
             safeReason.ifBlank { "unspecified" },
             consecutiveFrames.coerceAtLeast(0),
-            gateCode
+            gateCode,
+            peak.coerceIn(0f, 1f),
+            background.coerceIn(0f, 1f),
+            preRmsRaw
         )
     }
 
