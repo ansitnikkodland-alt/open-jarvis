@@ -147,6 +147,8 @@ class OverlayService : Service() {
                         // AgentCore is still executing a command.
                         if (agentCore.state.value is com.openjarvis.agent.AgentState.Running) {
                             setVisualState("THINKING", "Jarvis is working…")
+                        } else if (!voiceManager.isVoiceEnabled()) {
+                            setVisualState("IDLE", "Voice assistant disabled — microphone off")
                         } else if (isMuted) {
                             setVisualState("IDLE", "COMMAND MUTED — mic active for Unmute; other commands ignored")
                         } else if (voiceManager.isContinuousSessionActive()) {
@@ -162,11 +164,11 @@ class OverlayService : Service() {
             agentCore.state.collect { state ->
                 when (state) {
                     is com.openjarvis.agent.AgentState.Idle -> {
-                        statusText?.text = if (voiceManager.isContinuousSessionActive()) {
-                            if (isMuted) "COMMAND MUTED — mic active for Unmute; other commands ignored"
-                            else "Ready — listening continuously"
-                        } else {
-                            "Ready — tap Mic once to start continuous voice or type a command"
+                        statusText?.text = when {
+                            !voiceManager.isVoiceEnabled() -> "Voice assistant disabled — microphone off"
+                            voiceManager.isContinuousSessionActive() && isMuted -> "COMMAND MUTED — mic active for Unmute; other commands ignored"
+                            voiceManager.isContinuousSessionActive() -> "Ready — listening continuously"
+                            else -> "Ready — tap Mic once to start continuous voice or type a command"
                         }
                     }
                     is com.openjarvis.agent.AgentState.Running -> setVisualState("THINKING", state.step)
