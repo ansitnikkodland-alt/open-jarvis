@@ -58,9 +58,16 @@ class SelfHealingExecutor(context: Context) {
             SelfHealingRecoveryPolicy.FailureArea.MODEL_UNAVAILABLE -> {
                 val result = ollamaHealthCheck.verify()
                 Log.i("JarvisSelfHealing", "local_ollama_probe state=${result.state}")
-                val dependencyVerified = result.state == LocalOllamaHealthPolicy.State.READY
-                val outcome = patternStore.recordOutcome(decision.area.name, dependencyVerified)
-                Log.i("JarvisSelfHealing", "recovery_outcome area=${decision.area} verified=$dependencyVerified unresolved=${outcome?.unresolvedFailures ?: -1}")
+                if (decision.area == SelfHealingRecoveryPolicy.FailureArea.OLLAMA_CONNECTIVITY) {
+                    // A ready endpoint plus the configured model verifies connectivity recovery.
+                    val dependencyVerified = result.state == LocalOllamaHealthPolicy.State.READY
+                    val outcome = patternStore.recordOutcome(decision.area.name, dependencyVerified)
+                    Log.i("JarvisSelfHealing", "recovery_outcome area=${decision.area} verified=$dependencyVerified unresolved=${outcome?.unresolvedFailures ?: -1}")
+                } else {
+                    // Listing the model is diagnostic evidence, not proof that the failed
+                    // model request recovered. Keep MODEL_UNAVAILABLE unresolved.
+                    Log.i("JarvisSelfHealing", "model_availability_observed state=${result.state}; failure remains unresolved")
+                }
                 " Local dependency check: ${result.detail} The failed task was not replayed; retry it only after reviewing this result."
             }
             SelfHealingRecoveryPolicy.FailureArea.ACCESSIBILITY,
