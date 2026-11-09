@@ -106,8 +106,8 @@ class OverlayService : Service() {
                     is VoiceManager.VoiceState.Result -> when (CommandListeningPolicy.classify(state.text, isMuted)) {
                         CommandListeningPolicy.Action.MUTE -> {
                             isMuted = true
-                            setVisualState("IDLE", "COMMAND MUTED — mic active only to hear “Unmute”")
-                            updateNotification("Mic active only to hear Unmute")
+                            setVisualState("IDLE", "COMMAND MUTED — mic active for Unmute; other commands ignored")
+                            updateNotification("Mic active for Unmute; other commands ignored")
                             voiceManager.speak("ठीक है, Jarvis command mute हो गया। Unmute बोलकर फिर से शुरू करें।") {
                                 voiceManager.resumeContinuousSession()
                             }
@@ -122,7 +122,7 @@ class OverlayService : Service() {
                         }
                         CommandListeningPolicy.Action.IGNORE -> {
                             statusText?.text = if (isMuted) {
-                                "COMMAND MUTED — mic active only to hear “Unmute”"
+                                "COMMAND MUTED — mic active for Unmute; other commands ignored"
                             } else {
                                 "No command detected — listening again"
                             }
@@ -148,7 +148,7 @@ class OverlayService : Service() {
                         if (agentCore.state.value is com.openjarvis.agent.AgentState.Running) {
                             setVisualState("THINKING", "Jarvis is working…")
                         } else if (isMuted) {
-                            setVisualState("IDLE", "COMMAND MUTED — mic active only to hear “Unmute”")
+                            setVisualState("IDLE", "COMMAND MUTED — mic active for Unmute; other commands ignored")
                         } else if (voiceManager.isContinuousSessionActive()) {
                             setVisualState("IDLE", "Ready — listening continuously")
                         } else {
@@ -161,7 +161,14 @@ class OverlayService : Service() {
         serviceScope.launch {
             agentCore.state.collect { state ->
                 when (state) {
-                    is com.openjarvis.agent.AgentState.Idle -> statusText?.text = "Ready — tap Mic to speak or type a command"
+                    is com.openjarvis.agent.AgentState.Idle -> {
+                        statusText?.text = if (voiceManager.isContinuousSessionActive()) {
+                            if (isMuted) "COMMAND MUTED — mic active for Unmute; other commands ignored"
+                            else "Ready — listening continuously"
+                        } else {
+                            "Ready — tap Mic once to start continuous voice or type a command"
+                        }
+                    }
                     is com.openjarvis.agent.AgentState.Running -> setVisualState("THINKING", state.step)
                     is com.openjarvis.agent.AgentState.Done -> {
                         setVisualState("SPEAKING", state.result)
@@ -413,8 +420,8 @@ class OverlayService : Service() {
 
     private fun enterMuteMode() {
         isMuted = true
-        statusText?.text = "COMMAND MUTED — mic active only to hear “Unmute”"
-        updateNotification("Mic active only to hear Unmute")
+        statusText?.text = "COMMAND MUTED — mic active for Unmute; other commands ignored"
+        updateNotification("Mic active for Unmute; other commands ignored")
         voiceManager.speak("ठीक है, Jarvis command mute हो गया। Unmute बोलकर फिर से शुरू करें।") {
             voiceManager.resumeContinuousSession()
         }
