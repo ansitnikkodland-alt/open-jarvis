@@ -85,6 +85,47 @@ class SelfHealingRecoveryPolicyTest {
         assertTrue(result.requiresUserConfirmation)
     }
 
+
+    @Test fun verifiedReadOnlyRecoveryResetsConsecutiveFailureLearning() {
+        var patterns = emptyList<SelfHealingPatternCodec.Pattern>()
+        repeat(3) { index ->
+            patterns = SelfHealingPatternCodec.record(patterns, "ACCESSIBILITY", 100L + index)
+        }
+        assertTrue(SelfHealingPatternCodec.recurring(patterns.single()))
+        patterns = SelfHealingPatternCodec.recordOutcome(patterns, "ACCESSIBILITY", true, 200L)
+        val learned = patterns.single()
+        assertEquals(3, learned.count)
+        assertEquals(1, learned.verifiedRecoveries)
+        assertEquals(2, learned.unresolvedFailures)
+        assertEquals(0, learned.consecutiveFailures)
+        assertEquals("VERIFIED_READ_ONLY_RECOVERY", learned.lastOutcome)
+        assertFalse(SelfHealingPatternCodec.recurring(learned))
+    }
+
+    @Test fun failuresAfterVerifiedRecoveryStartANewConsecutiveSequence() {
+        var patterns = emptyList<SelfHealingPatternCodec.Pattern>()
+        repeat(2) { index ->
+            patterns = SelfHealingPatternCodec.record(patterns, "ACCESSIBILITY", 100L + index)
+        }
+        patterns = SelfHealingPatternCodec.recordOutcome(patterns, "ACCESSIBILITY", true, 200L)
+        patterns = SelfHealingPatternCodec.record(patterns, "ACCESSIBILITY", 201L)
+        assertEquals(3, patterns.single().count)
+        assertEquals(1, patterns.single().consecutiveFailures)
+        assertFalse(SelfHealingPatternCodec.recurring(patterns.single()))
+    }
+
+    @Test fun unresolvedRecurringFailuresRemainEscalatedUntilVerifiedRecovery() {
+        var patterns = emptyList<SelfHealingPatternCodec.Pattern>()
+        repeat(4) { index ->
+            patterns = SelfHealingPatternCodec.record(patterns, "OVERLAY", 100L + index)
+        }
+        assertTrue(SelfHealingPatternCodec.recurring(patterns.single()))
+        assertEquals(4, patterns.single().unresolvedFailures)
+        patterns = SelfHealingPatternCodec.recordOutcome(patterns, "OVERLAY", false, 300L)
+        assertTrue(SelfHealingPatternCodec.recurring(patterns.single()))
+        assertEquals(4, patterns.single().consecutiveFailures)
+    }
+
     @Test fun recurringPatternsStoreOnlyBoundedCategories() {
         var patterns = emptyList<SelfHealingPatternCodec.Pattern>()
         repeat(3) { index ->

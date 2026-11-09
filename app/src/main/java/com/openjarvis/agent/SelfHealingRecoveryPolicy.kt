@@ -76,17 +76,56 @@ internal object SelfHealingRecoveryPolicy {
 
 /** Privacy-safe recurring-failure signature; never includes command, screen, or message text. */
 internal object SelfHealingPatternCodec {
-    data class Pattern(val area: String, val count: Int, val lastSeenMillis: Long)
+    data class Pattern(
+        val area: String,
+        val count: Int,
+        val lastSeenMillis: Long,
+        val verifiedRecoveries: Int = 0,
+        val unresolvedFailures: Int = count,
+        val consecutiveFailures: Int = count,
+        val lastOutcome: String = "UNRESOLVED"
+    )
 
     fun record(existing: List<Pattern>, area: String, now: Long, limit: Int = 12): List<Pattern> {
         val safeArea = area.takeIf { it in SelfHealingRecoveryPolicy.FailureArea.values().map { item -> item.name } }
             ?: SelfHealingRecoveryPolicy.FailureArea.UNKNOWN.name
         val current = existing.firstOrNull { it.area == safeArea }
-        val updated = Pattern(safeArea, (current?.count ?: 0) + 1, now)
+        val updated = Pattern(
+            area = safeArea,
+            count = (current?.count ?: 0) + 1,
+            lastSeenMillis = now,
+            verifiedRecoveries = current?.verifiedRecoveries ?: 0,
+            unresolvedFailures = (current?.unresolvedFailures ?: 0) + 1,
+            consecutiveFailures = (current?.consecutiveFailures ?: 0) + 1,
+            lastOutcome = "UNRESOLVED"
+        )
         return (listOf(updated) + existing.filterNot { it.area == safeArea })
             .sortedByDescending { it.lastSeenMillis }
             .take(limit.coerceAtLeast(1))
     }
 
-    fun recurring(pattern: Pattern, threshold: Int = 3): Boolean = pattern.count >= threshold.coerceAtLeast(2)
+    /** Record only a verified, read-only recovery outcome; never stores command or screen data. */
+    fun recordOutcome(
+        existing: List<Pattern>,
+        area: String,
+        verified: Boolean,
+        now: Long,
+        limit: Int = 12
+    ): List<Pattern> {
+        val current = existing.firstOrNull { it.area == area } ?: return existing.take(limit.coerceAtLeast(1))
+        val updated = current.copy(
+            lastSeenMillis = now,
+            verifiedRecoveries = current.verifiedRecoveries + if (verified) 1 else 0,
+            unresolvedFailures = if (verified) (current.unresolvedFailures - 1).coerceAtLeast(0)
+                else current.unresolvedFailures,
+            consecutiveFailures = if (verified) 0 else current.consecutiveFailures,
+            lastOutcome = if (verified) "VERIFIED_READ_ONLY_RECOVERY" else "UNRESOLVED"
+        )
+        return (listOf(updated) + existing.filterNot { it.area == area })
+            .sortedByDescending { it.lastSeenMillis }
+            .take(limit.coerceAtLeast(1))
+    }
+
+    fun recurring(pattern: Pattern, threshold: Int = 3): Boolean =
+        pattern.consecutiveFailures >= threshold.coerceAtLeast(2)
 }

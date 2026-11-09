@@ -1185,6 +1185,7 @@ ${fullSystem.substringAfter("MEMORY:")}
 
         for ((index, action) in actions.withIndex()) {
             var failure: String? = null
+            var firstFailure: String? = null
             var completed = false
             val maxAttempts = SelfHealingSafetyPolicy.maxAttempts(action)
             for (attempt in 1..maxAttempts) {
@@ -1197,9 +1198,13 @@ ${fullSystem.substringAfter("MEMORY:")}
                     error.message?.takeIf { it.isNotBlank() } ?: error.javaClass.simpleName
                 }
                 if (failure == null) {
+                    if (attempt > 1 && firstFailure != null) {
+                        selfHealingExecutor.recordVerifiedReadOnlyRecovery(action, firstFailure.orEmpty())
+                    }
                     completed = true
                     break
                 }
+                if (firstFailure == null) firstFailure = failure
                 Log.w(TAG, "Action ${index + 1} ${action.action} attempt $attempt/$maxAttempts failed: $failure")
                 if (attempt < maxAttempts && SelfHealingSafetyPolicy.shouldRetry(action, failure.orEmpty())) {
                     kotlinx.coroutines.delay(400)
