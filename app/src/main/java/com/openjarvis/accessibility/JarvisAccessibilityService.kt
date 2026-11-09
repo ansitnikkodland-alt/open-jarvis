@@ -403,6 +403,42 @@ class JarvisAccessibilityService : AccessibilityService() {
         }
     }
 
+    /** Returns package names currently represented by visible accessibility windows. */
+    fun activePackageNames(): Set<String> {
+        val packages = linkedSetOf<String>()
+
+        runCatching {
+            rootInActiveWindow?.let { root ->
+                try {
+                    root.packageName?.toString()?.takeIf { it.isNotBlank() }?.let(packages::add)
+                } finally {
+                    root.recycle()
+                }
+            }
+        }
+
+        runCatching {
+            windows.forEach { window ->
+                val windowRoot = window.root
+                try {
+                    windowRoot?.packageName?.toString()
+                        ?.takeIf { it.isNotBlank() }
+                        ?.let(packages::add)
+                } finally {
+                    windowRoot?.recycle()
+                }
+            }
+        }
+
+        // Include only a fresh window-state event; stale foreground history must
+        // never scope a new action to an app that is no longer visible.
+        val eventAgeMs = System.currentTimeMillis() - lastWindowStateAtMs
+        if (eventAgeMs in 0..5000) {
+            lastWindowStatePackage?.takeIf { it.isNotBlank() }?.let(packages::add)
+        }
+        return packages
+    }
+
     fun isPackageActive(packageName: String): Boolean {
         // The floating JARVIS overlay can be the active root while the target app
         // is already visible underneath it. Inspect all interactive windows too.
