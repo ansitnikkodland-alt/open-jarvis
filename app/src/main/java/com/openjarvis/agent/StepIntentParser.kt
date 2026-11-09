@@ -12,7 +12,7 @@ sealed class StepIntent {
     data class Message(val app: String?, val contact: String?, val text: String?) : StepIntent()
     data class AppLaunch(val label: String) : StepIntent()
     data class ScreenRead(val remember: Boolean = false) : StepIntent()
-    data class Screenshot(val unused: Boolean = false) : StepIntent()
+    data class Screenshot(val saveToGallery: Boolean = true) : StepIntent()
 }
 
 /**
