@@ -101,6 +101,25 @@ class HeadroomContextBudgetTest {
     }
 
     @Test
+    fun oversizedElementDoesNotHideLaterCompleteTargets() {
+        val oversized = "[#1 clickable] " + "x".repeat(500)
+        val later = "[#2 editable] text=Search bounds=1,2,3,4"
+        val result = HeadroomContextBudget.fitCompleteLines("$oversized\\n$later", 450)
+
+        assertEquals(later, result)
+    }
+
+    @Test
+    fun oversizedAppLabelDoesNotHideLaterCompleteAppNames() {
+        val result = HeadroomContextBudget.fitDelimitedItems(
+            "${"A".repeat(60)}, Chrome",
+            ", ",
+            50
+        )
+        assertEquals("Chrome", result)
+    }
+
+    @Test
     fun emptyContextStaysEmpty() {
         val result = HeadroomContextBudget.allocate("", "", "", "")
         assertEquals(0, result.outputChars)
