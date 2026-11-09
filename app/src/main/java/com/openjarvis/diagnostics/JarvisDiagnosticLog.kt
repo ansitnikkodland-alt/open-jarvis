@@ -239,8 +239,8 @@ internal object DiagnosticRedactor {
 
     fun redact(input: String): String {
         var safe = input.replace("\u0000", "")
-        safe = secretAssignment.replace(safe) { "${it.groupValues[1]}${it.groupValues[2]}[REDACTED]" }
         safe = bearer.replace(safe, "Bearer [REDACTED]")
+        safe = secretAssignment.replace(safe) { "${it.groupValues[1]}${it.groupValues[2]}[REDACTED]" }
         safe = jwt.replace(safe, "[REDACTED_TOKEN]")
         safe = url.replace(safe, "[URL_REDACTED]")
         safe = email.replace(safe, "[EMAIL_REDACTED]")
