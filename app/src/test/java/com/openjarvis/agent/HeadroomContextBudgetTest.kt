@@ -39,14 +39,15 @@ class HeadroomContextBudgetTest {
 
     @Test
     fun truncatesAtLineBoundaryWhenThereIsEnoughRoom() {
+        val firstLine = "a".repeat(260)
         val result = HeadroomContextBudget.allocate(
             memory = "",
             screenText = "",
-            screenElements = "first target\nsecond target\nthird target that is long",
+            screenElements = "$firstLine\n" + "b".repeat(600),
             installedApps = ""
         )
 
-        assertEquals("first target…", result.screenElements)
+        assertEquals("$firstLine…", result.screenElements)
     }
 
     @Test

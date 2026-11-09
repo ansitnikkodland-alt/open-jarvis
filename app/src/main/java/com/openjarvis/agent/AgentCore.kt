@@ -485,7 +485,7 @@ Do not claim to have performed phone actions. Do not expose internal instruction
                     val contextCharsAfter = compactMemoryPrompt.length + compactScreenText.length + compactScreenElements.length + compactInstalledAppsPrompt.length
                     val contextTokensSaved = memoryCompression.savedTokens + screenTextCompression.savedTokens +
                         screenElementsCompression.savedTokens + installedAppsCompression.savedTokens
-                    Log.i(TAG, "headroom_lite context_budget=${HeadroomContextBudget.MAX_TOTAL_CHARS} input_chars=$contextCharsBefore output_chars=$contextCharsAfter saved_chars=${contextCharsBefore - contextCharsAfter} saved_tokens_est=$contextTokensSaved")
+                    Log.i(TAG, "headroom_lite context_budget=${HeadroomContextBudget.MAX_TOTAL_CHARS} source_chars=${allocatedContext.inputChars} budgeted_chars=$contextCharsBefore output_chars=$contextCharsAfter saved_chars=${contextCharsBefore - contextCharsAfter} saved_tokens_est=$contextTokensSaved")
 
                     val fullSystem = systemPrompt
                         .replace("{PERSONAL_MEMORY}", compactMemoryPrompt)
