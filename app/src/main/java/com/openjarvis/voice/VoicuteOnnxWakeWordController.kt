@@ -230,8 +230,18 @@ class VoicuteOnnxWakeWordController(
                     if (!keyword.isNullOrBlank() || probability >= threshold * 0.5f) {
                         WakeWordDiagnostics.candidate(keyword, probability, threshold, finalAccepted, rejectionReason, now)
                         JarvisDiagnosticLog.recordCandidate(
-                            appContext, keyword, probability, threshold, finalAccepted, rejectionReason,
-                            detector.consecutiveFrames, detector.debugFail, now
+                            context = appContext,
+                            keyword = keyword,
+                            score = probability,
+                            threshold = threshold,
+                            accepted = finalAccepted,
+                            rejectionReason = rejectionReason,
+                            consecutiveFrames = detector.consecutiveFrames,
+                            gateCode = detector.debugFail,
+                            peak = detector.debugPeak,
+                            background = detector.debugBackground,
+                            preRmsRaw = detector.debugPreRms,
+                            timestampMs = now
                         )
                     }
                     if (finalAccepted) {
