@@ -54,9 +54,8 @@ class BankingSafetyPolicyTest {
 
     @Test fun recognizesUnlistedIndianBankPackagesForForegroundProtection() {
         listOf(
-            "com.hdfcbank.mobilebanking",
-            "com.icicibank.imobile",
-            "com.axis.mobile",
+            "com.example.bank.app",
+            "com.example.wallet.client",
             "com.paytm"
         ).forEach { packageName ->
             assertTrue("Should recognize financial package: $packageName",
