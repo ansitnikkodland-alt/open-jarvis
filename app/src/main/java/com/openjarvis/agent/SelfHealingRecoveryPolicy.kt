@@ -112,7 +112,26 @@ internal object SelfHealingPatternCodec {
         now: Long,
         limit: Int = 12
     ): List<Pattern> {
-        val current = existing.firstOrNull { it.area == area } ?: return existing.take(limit.coerceAtLeast(1))
+        val current = existing.firstOrNull { it.area == area }
+        if (current == null) {
+            if (!verified || area !in SelfHealingRecoveryPolicy.FailureArea.values().map { it.name }) {
+                return existing.take(limit.coerceAtLeast(1))
+            }
+            // A transient failure may recover on its first bounded retry before an
+            // unresolved pattern exists. Preserve that verified recovery as a baseline.
+            val recovered = Pattern(
+                area = area,
+                count = 1,
+                lastSeenMillis = now,
+                verifiedRecoveries = 1,
+                unresolvedFailures = 0,
+                consecutiveFailures = 0,
+                lastOutcome = "VERIFIED_READ_ONLY_RECOVERY"
+            )
+            return (listOf(recovered) + existing)
+                .sortedByDescending { it.lastSeenMillis }
+                .take(limit.coerceAtLeast(1))
+        }
         val updated = current.copy(
             lastSeenMillis = now,
             verifiedRecoveries = current.verifiedRecoveries + if (verified) 1 else 0,

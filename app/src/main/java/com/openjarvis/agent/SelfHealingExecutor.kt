@@ -28,11 +28,22 @@ class SelfHealingExecutor(context: Context) {
         return allowed
     }
 
-    fun recordVerifiedReadOnlyRecovery(action: Action, originalFailure: String) {
+    suspend fun recordVerifiedReadOnlyRecovery(action: Action, originalFailure: String) {
         val decision = SelfHealingRecoveryPolicy.classify(action, originalFailure)
         if (!decision.mayRetryAutomatically) return
-        val outcome = patternStore.recordOutcome(decision.area.name, verified = true)
-        Log.i("JarvisSelfHealing", "recovery_outcome area=${decision.area} verified=true unresolved=${outcome?.unresolvedFailures ?: -1}")
+
+        // A successful UI observation does not prove that Ollama recovered. Verify each
+        // failure area with evidence from that same subsystem before updating learned state.
+        val verified = when (decision.area) {
+            SelfHealingRecoveryPolicy.FailureArea.OLLAMA_CONNECTIVITY -> {
+                val result = ollamaHealthCheck.verify()
+                Log.i("JarvisSelfHealing", "post_retry_ollama_probe state=${result.state}")
+                result.state == LocalOllamaHealthPolicy.State.READY
+            }
+            else -> SelfHealingVerificationPolicy.confirmsReadOnlyRecovery(action, decision.area)
+        }
+        val outcome = patternStore.recordOutcome(decision.area.name, verified)
+        Log.i("JarvisSelfHealing", "recovery_outcome area=${decision.area} verified=$verified unresolved=${outcome?.unresolvedFailures ?: -1}")
     }
 
     suspend fun failureDisposition(action: Action, reason: String): String {

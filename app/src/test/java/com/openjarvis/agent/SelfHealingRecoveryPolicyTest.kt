@@ -126,6 +126,41 @@ class SelfHealingRecoveryPolicyTest {
         assertEquals(4, patterns.single().consecutiveFailures)
     }
 
+    @Test fun uiObservationCannotPretendToVerifyOllamaRecovery() {
+        val read = Action(Action.READ_SCREEN)
+        assertFalse(SelfHealingVerificationPolicy.confirmsReadOnlyRecovery(
+            read, SelfHealingRecoveryPolicy.FailureArea.OLLAMA_CONNECTIVITY
+        ))
+        assertTrue(SelfHealingVerificationPolicy.confirmsReadOnlyRecovery(
+            read, SelfHealingRecoveryPolicy.FailureArea.ACCESSIBILITY
+        ))
+        assertFalse(SelfHealingVerificationPolicy.confirmsReadOnlyRecovery(
+            Action(Action.TAP, text = "Continue"), SelfHealingRecoveryPolicy.FailureArea.ACCESSIBILITY
+        ))
+        assertFalse(SelfHealingVerificationPolicy.confirmsReadOnlyRecovery(
+            Action(Action.READ_SCREEN), SelfHealingRecoveryPolicy.FailureArea.OVERLAY
+        ))
+    }
+
+    @Test fun firstVerifiedRecoveryIsPersistedEvenWithoutPriorUnresolvedPattern() {
+        val recovered = SelfHealingPatternCodec.recordOutcome(
+            emptyList(), "ACCESSIBILITY", verified = true, now = 500L
+        )
+        assertEquals(1, recovered.size)
+        assertEquals(1, recovered.single().count)
+        assertEquals(1, recovered.single().verifiedRecoveries)
+        assertEquals(0, recovered.single().unresolvedFailures)
+        assertEquals(0, recovered.single().consecutiveFailures)
+        assertEquals("VERIFIED_READ_ONLY_RECOVERY", recovered.single().lastOutcome)
+    }
+
+    @Test fun unverifiedOutcomeDoesNotCreateSuccessfulLearningEntry() {
+        val unchanged = SelfHealingPatternCodec.recordOutcome(
+            emptyList(), "OLLAMA_CONNECTIVITY", verified = false, now = 500L
+        )
+        assertTrue(unchanged.isEmpty())
+    }
+
     @Test fun recurringPatternsStoreOnlyBoundedCategories() {
         var patterns = emptyList<SelfHealingPatternCodec.Pattern>()
         repeat(3) { index ->
