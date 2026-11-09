@@ -69,7 +69,7 @@ object JarvisDiagnosticLog {
         if (shouldWrite) record(context, "WAKE_CANDIDATE", message)
     }
 
-    fun events(context: Context): List<LocalDiagnosticEvent> = synchronized(lock) {
+    internal fun events(context: Context): List<LocalDiagnosticEvent> = synchronized(lock) {
         readEventsLocked(context).toList()
     }
 
