@@ -151,6 +151,55 @@ internal object SelfHealingPatternCodec {
             .take(limit.coerceAtLeast(1))
     }
 
+    /**
+     * Decode both the original array format and the current additive schema.
+     * Missing outcome fields are migrated with the original safe defaults.
+     * Unknown fields are ignored; malformed rows are dropped independently.
+     */
+    fun decodeJson(raw: String?): List<Pattern> = runCatching {
+        val array = JSONArray(raw?.takeIf { it.isNotBlank() } ?: "[]")
+        val validAreas = SelfHealingRecoveryPolicy.FailureArea.values().map { it.name }.toSet()
+        (0 until array.length()).mapNotNull { index ->
+            val item = array.optJSONObject(index) ?: return@mapNotNull null
+            val area = item.optString("area")
+            val count = item.optInt("count", 0)
+            val lastSeen = item.optLong("lastSeen", 0L)
+            if (area !in validAreas || count <= 0 || lastSeen <= 0L) return@mapNotNull null
+            Pattern(
+                area = area,
+                count = count,
+                lastSeenMillis = lastSeen,
+                verifiedRecoveries = item.optInt("verifiedRecoveries", 0).coerceAtLeast(0),
+                unresolvedFailures = item.optInt("unresolvedFailures", count).coerceAtLeast(0),
+                consecutiveFailures = item.optInt("consecutiveFailures", count).coerceAtLeast(0),
+                lastOutcome = item.optString("lastOutcome", "UNRESOLVED")
+                    .takeIf { it in setOf("UNRESOLVED", "VERIFIED_READ_ONLY_RECOVERY") } ?: "UNRESOLVED"
+            )
+        }
+            .distinctBy { it.area }
+            .sortedByDescending { it.lastSeenMillis }
+            .take(12)
+    }.getOrDefault(emptyList())
+
+    /** Persist only the explicit allow-listed counters; never serialize caller content. */
+    fun encodeJson(patterns: List<Pattern>): String {
+        val array = JSONArray()
+        patterns.take(12).forEach { item ->
+            if (item.area !in SelfHealingRecoveryPolicy.FailureArea.values().map { it.name }) return@forEach
+            array.put(org.json.JSONObject()
+                .put("area", item.area)
+                .put("count", item.count.coerceAtLeast(0))
+                .put("lastSeen", item.lastSeenMillis.coerceAtLeast(0L))
+                .put("verifiedRecoveries", item.verifiedRecoveries.coerceAtLeast(0))
+                .put("unresolvedFailures", item.unresolvedFailures.coerceAtLeast(0))
+                .put("consecutiveFailures", item.consecutiveFailures.coerceAtLeast(0))
+                .put("lastOutcome", item.lastOutcome.takeIf {
+                    it == "UNRESOLVED" || it == "VERIFIED_READ_ONLY_RECOVERY"
+                } ?: "UNRESOLVED"))
+        }
+        return array.toString()
+    }
+
     fun recurring(pattern: Pattern, threshold: Int = 3): Boolean =
         pattern.consecutiveFailures >= threshold.coerceAtLeast(2)
 }

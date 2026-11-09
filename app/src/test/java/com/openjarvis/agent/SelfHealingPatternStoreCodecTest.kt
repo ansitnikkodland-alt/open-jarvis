@@ -1,0 +1,82 @@
+package com.openjarvis.agent
+
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
+import org.junit.Test
+
+class SelfHealingPatternStoreCodecTest {
+    @Test fun migratesLegacyRowsWithMissingOutcomeFields() {
+        val decoded = SelfHealingPatternCodec.decodeJson(
+            """[{"area":"ACCESSIBILITY","count":3,"lastSeen":1234}]"""
+        )
+        assertEquals(1, decoded.size)
+        val pattern = decoded.single()
+        assertEquals(0, pattern.verifiedRecoveries)
+        assertEquals(3, pattern.unresolvedFailures)
+        assertEquals(3, pattern.consecutiveFailures)
+        assertEquals("UNRESOLVED", pattern.lastOutcome)
+    }
+
+    @Test fun malformedJsonFailsClosedWithoutThrowing() {
+        assertTrue(SelfHealingPatternCodec.decodeJson("{not-json").isEmpty())
+        assertTrue(SelfHealingPatternCodec.decodeJson("").isEmpty())
+        assertTrue(SelfHealingPatternCodec.decodeJson(null).isEmpty())
+    }
+
+    @Test fun malformedRowsAreSkippedWithoutDroppingValidRows() {
+        val decoded = SelfHealingPatternCodec.decodeJson(
+            """[null,{"area":"NOT_A_REAL_AREA","count":4,"lastSeen":9},{"area":"OVERLAY","count":2,"lastSeen":20},{"area":"SPEECH","count":0,"lastSeen":30}]"""
+        )
+        assertEquals(1, decoded.size)
+        assertEquals("OVERLAY", decoded.single().area)
+    }
+
+    @Test fun duplicateAreasAreDeduplicatedAndHistoryRemainsBounded() {
+        val rows = (0..14).joinToString(",") { index ->
+            """{"area":"${if (index % 2 == 0) "OVERLAY" else "SPEECH"}","count":1,"lastSeen":${100 + index}}"""
+        }
+        val decoded = SelfHealingPatternCodec.decodeJson("[$rows]")
+        assertTrue(decoded.size <= 2)
+        assertEquals(114L, decoded.first().lastSeenMillis)
+    }
+
+    @Test fun encodeDecodeRoundTripPreservesOnlyAllowListedCounters() {
+        val pattern = SelfHealingPatternCodec.Pattern(
+            area = "ACCESSIBILITY",
+            count = 4,
+            lastSeenMillis = 9876L,
+            verifiedRecoveries = 1,
+            unresolvedFailures = 3,
+            consecutiveFailures = 2,
+            lastOutcome = "VERIFIED_READ_ONLY_RECOVERY"
+        )
+        val encoded = SelfHealingPatternCodec.encodeJson(listOf(pattern))
+        val decoded = SelfHealingPatternCodec.decodeJson(encoded).single()
+        assertEquals(pattern, decoded)
+        assertFalse(encoded.contains("command"))
+        assertFalse(encoded.contains("message"))
+        assertFalse(encoded.contains("screen"))
+    }
+
+    @Test fun encoderDoesNotPersistInvalidAreasOrUnknownOutcomeText() {
+        val encoded = SelfHealingPatternCodec.encodeJson(
+            listOf(
+                SelfHealingPatternCodec.Pattern(
+                    area = "PRIVATE_USER_COMMAND",
+                    count = 1,
+                    lastSeenMillis = 1L
+                ),
+                SelfHealingPatternCodec.Pattern(
+                    area = "OVERLAY",
+                    count = 1,
+                    lastSeenMillis = 2L,
+                    lastOutcome = "raw message content"
+                )
+            )
+        )
+        assertFalse(encoded.contains("PRIVATE_USER_COMMAND"))
+        assertFalse(encoded.contains("raw message content"))
+        assertTrue(encoded.contains("UNRESOLVED"))
+    }
+}
