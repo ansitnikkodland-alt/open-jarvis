@@ -110,7 +110,7 @@ class SelfHealingExecutor(context: Context) {
         SelfHealingRecoveryPolicy.FailureArea.SPEECH -> {
             val granted = appContext.checkSelfPermission(Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED
             if (granted) {
-                "Microphone permission is granted. This does not prove Voicute wake-word detection; a live listening test is still required."
+                "Microphone permission is granted. This does not prove speech activation; a live listening test is still required."
             } else {
                 "Microphone permission is not granted. Enable it manually in Android app permissions; Jarvis did not request or change it."
             }
