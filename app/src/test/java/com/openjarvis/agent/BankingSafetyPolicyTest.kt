@@ -56,7 +56,18 @@ class BankingSafetyPolicyTest {
         listOf(
             "com.example.bank.app",
             "com.example.wallet.client",
-            "com.paytm"
+            "com.paytm",
+            "net.one97.paytm",
+            "com.phonepe.app",
+            "com.sbi.lotusintouch",
+            "com.csam.icici.bank.imobile",
+            "com.axis.mobile",
+            "com.snapwork.hdfc",
+            "com.fss.pnbpsp",
+            "com.mobikwik_new",
+            "com.dreamplug.androidapp",
+            "com.bankofbaroda.upi",
+            "com.samsung.android.spay"
         ).forEach { packageName ->
             assertTrue("Should recognize financial package: $packageName",
                 BankingSafetyPolicy.isFinancialPackage(packageName))
