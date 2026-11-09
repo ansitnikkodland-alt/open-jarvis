@@ -21,15 +21,23 @@ internal object SelfHealingRecoveryPolicy {
         val value = reason.lowercase()
         val isObservation = action.action == Action.WAIT || action.action == Action.WAIT_FOR ||
             action.action == Action.READ_SCREEN || action.action == Action.EXTRACT_TEXT
+        val isAppLaunch = action.action == Action.OPEN_APP ||
+            contains(value, "app not installed", "package not found", "launch activity", "could not launch")
+        val isSideEffect = action.action in setOf(
+            Action.TAP, Action.CLICK, Action.TYPE, Action.TYPE_TEXT, Action.OPEN_APP,
+            Action.BACK, Action.PRESS_BACK, Action.HOME, Action.PRESS_HOME,
+            Action.PRESS_RECENTS, Action.SCROLL, Action.AI_PROMPT
+        )
         val area = when {
             contains(value, "ollama", "11434", "connection refused", "failed to connect", "socket timeout") -> FailureArea.OLLAMA_CONNECTIVITY
             contains(value, "model not found", "unknown model", "qwen3:1.7b") -> FailureArea.MODEL_UNAVAILABLE
             contains(value, "accessibility", "visible text", "node not found", "no accessible text",
                 "could not read current screen", "could not extract text from current screen") -> FailureArea.ACCESSIBILITY
-            contains(value, "app not installed", "package not found", "launch activity") -> FailureArea.APP_LAUNCH
+            isAppLaunch -> FailureArea.APP_LAUNCH
             contains(value, "speech", "stt", "microphone", "no match") -> FailureArea.SPEECH
             contains(value, "overlay", "floating window") -> FailureArea.OVERLAY
-            contains(value, "tap", "type", "click", "send", "delete", "payment") -> FailureArea.ACTION
+            isSideEffect || contains(value, "tap", "type", "click", "send", "delete", "payment",
+                "scroll", "android back action", "android home action", "recent apps action") -> FailureArea.ACTION
             else -> FailureArea.UNKNOWN
         }
         return when (area) {

@@ -21,11 +21,21 @@ class SelfHealingRecoveryPolicyTest {
     }
 
     @Test fun sideEffectingActionsAreNeverAutomaticallyReplayed() {
-        listOf(Action.TAP, Action.TYPE, Action.OPEN_APP, Action.CLICK, Action.BACK, Action.HOME).forEach { kind ->
+        listOf(Action.TAP, Action.TYPE, Action.CLICK, Action.BACK, Action.HOME).forEach { kind ->
             val result = SelfHealingRecoveryPolicy.classify(Action(kind), "action failed")
+            assertEquals("action=$kind", SelfHealingRecoveryPolicy.FailureArea.ACTION, result.area)
             assertFalse("action=$kind", result.mayRetryAutomatically)
             assertTrue(result.requiresUserConfirmation)
         }
+        val launch = SelfHealingRecoveryPolicy.classify(Action(Action.OPEN_APP), "action failed")
+        assertEquals(SelfHealingRecoveryPolicy.FailureArea.APP_LAUNCH, launch.area)
+        assertFalse(launch.mayRetryAutomatically)
+        assertTrue(launch.requiresUserConfirmation)
+    }
+
+    @Test fun appLaunchFailureTextIsClassifiedEvenWithoutOpenAppAction() {
+        val result = SelfHealingRecoveryPolicy.classify(Action(Action.ERROR), "Android could not launch com.example.app")
+        assertEquals(SelfHealingRecoveryPolicy.FailureArea.APP_LAUNCH, result.area)
     }
 
     @Test fun onlyReadOnlyObservationMayBeMarkedForAutomaticRetry() {
@@ -40,6 +50,7 @@ class SelfHealingRecoveryPolicyTest {
         val tap = SelfHealingRecoveryPolicy.classify(
             Action(Action.TAP, text = "Continue"), "tap failed"
         )
+        assertEquals(SelfHealingRecoveryPolicy.FailureArea.ACTION, tap.area)
         assertFalse(tap.mayRetryAutomatically)
         assertTrue(tap.requiresUserConfirmation)
     }
