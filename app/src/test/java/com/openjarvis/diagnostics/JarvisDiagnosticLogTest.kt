@@ -56,4 +56,14 @@ class JarvisDiagnosticLogTest {
         assertEquals(listOf(3, 4, 5), JarvisDiagnosticLog.retainNewest(listOf(1, 2, 3, 4, 5), 3))
         assertEquals(emptyList<Int>(), JarvisDiagnosticLog.retainNewest(listOf(1, 2), 0))
     }
+    @Test fun stackTraceKeepsFramesButOmitsExceptionMessage() {
+        val error = IllegalStateException("user@example.com api_key=private-value")
+        val safe = DiagnosticRedactor.stackTrace(error)
+
+        assertTrue(safe.contains("java.lang.IllegalStateException"))
+        assertTrue(safe.contains("JarvisDiagnosticLogTest"))
+        assertFalse(safe.contains("user@example.com"))
+        assertFalse(safe.contains("private-value"))
+    }
+
 }
