@@ -27,7 +27,10 @@ class JarvisDiagnosticLogTest {
             accepted = false,
             rejectionReason = "consecutive_frames",
             consecutiveFrames = 1,
-            gateCode = 1
+            gateCode = 1,
+            peak = 0.31f,
+            background = 0.04f,
+            preRmsRaw = 182.5f
         )
 
         assertTrue(message.contains("keyword=Hey Jarvis"))
@@ -35,6 +38,9 @@ class JarvisDiagnosticLogTest {
         assertTrue(message.contains("threshold=0.2500"))
         assertTrue(message.contains("accepted=false"))
         assertTrue(message.contains("rejection=consecutive_frames"))
+        assertTrue(message.contains("peak=0.3100"))
+        assertTrue(message.contains("background=0.0400"))
+        assertTrue(message.contains("preRmsRaw=182.5"))
     }
 
     @Test fun arbitraryModelLabelIsNotCopiedIntoDiagnosticMessage() {
