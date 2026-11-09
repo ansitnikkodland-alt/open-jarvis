@@ -31,6 +31,14 @@ class SelfHealingRecoveryPolicyTest {
         assertEquals(SelfHealingRecoveryPolicy.FailureArea.APP_LAUNCH, launch.area)
         assertFalse(launch.mayRetryAutomatically)
         assertTrue(launch.requiresUserConfirmation)
+
+        listOf(Action.TAP_COORDS, Action.CLEAR_TYPE, Action.LONG_PRESS, Action.SWIPE, Action.SCROLL,
+            Action.PRESS_RECENTS).forEach { kind ->
+            val decision = SelfHealingRecoveryPolicy.classify(Action(kind), "action failed")
+            assertEquals("action=$kind", SelfHealingRecoveryPolicy.FailureArea.ACTION, decision.area)
+            assertFalse("action=$kind", decision.mayRetryAutomatically)
+            assertTrue("action=$kind", decision.requiresUserConfirmation)
+        }
     }
 
     @Test fun appLaunchFailureTextIsClassifiedEvenWithoutOpenAppAction() {
