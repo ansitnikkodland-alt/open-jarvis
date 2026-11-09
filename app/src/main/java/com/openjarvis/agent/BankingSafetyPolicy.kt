@@ -17,13 +17,12 @@ internal object BankingSafetyPolicy {
             .replace(Regex("\\s+"), " ")
             .trim()
 
-    private val transactionIntent = Regex(
+    private val explicitTransactionIntent = Regex(
         "(?<![\\p{L}\\p{N}])(" +
-            "pay(?:ment)?|transfer|send money|send cash|make payment|pay now|pay bill|" +
+            "send money|send cash|make payment|pay now|pay bill|pay karo|payment karo|" +
             "upi payment|upi transfer|bank transfer|money transfer|withdraw money|" +
-            "recharge|top ?up|" +
             "paisa bhejo|paise bhejo|paisa transfer|paise transfer|paise bhej|paisa bhej|" +
-            "payment karo|pay karo|bhugtan karo|bhugtaan karo|bill bharo|" +
+            "bhugtan karo|bhugtaan karo|bill bharo|" +
             "पैसे भेजो|पैसा भेजो|पैसे ट्रांसफर|पैसा ट्रांसफर|भुगतान करो|भुगतान करें|" +
             "यूपीआई पेमेंट|यूपीआई ट्रांसफर|बिल भरो|" +
             "paise pathav|paise pathva|paise transfer kara|payment kara|" +
@@ -32,10 +31,13 @@ internal object BankingSafetyPolicy {
         RegexOption.IGNORE_CASE
     )
 
+    private val transactionVerb = Regex(
+        "(?<![\\p{L}\\p{N}])(pay|payment|transfer|send|withdraw|recharge|bhejo|bhej|पाठवा|पाठव|भेजो|भेज)(?![\\p{L}\\p{N}])",
+        RegexOption.IGNORE_CASE
+    )
+
     private val amountOrRecipient = Regex(
-        "(?<![\\p{L}\\p{N}])(\\d+(?:\\.\\d{1,2})?\\s*(?:₹|rs\\.?|rupees?|रुपये?|रुपया)|" +
-            "(?:₹|rs\\.?|rupees?|रुपये?|रुपया)\\s*\\d+|" +
-            "to\\s+[\\p{L}]+|ko\\s+[\\p{L}]+|को\\s*[\\p{L}]+)(?![\\p{L}\\p{N}])",
+        "(?<![\\p{L}\\p{N}])(\\d+(?:\\.\\d{1,2})?|to\\s+[\\p{L}]+|ko\\s+[\\p{L}]+|को\\s*[\\p{L}]+)(?![\\p{L}\\p{N}])",
         RegexOption.IGNORE_CASE
     )
 
@@ -59,7 +61,6 @@ internal object BankingSafetyPolicy {
         "com.paytm",
         "com.phonepe",
         "in.org.npci.upiapp",
-        "com.amazon.mShop.android.shopping"
     )
 
     private val financialControl = Regex(
@@ -71,7 +72,8 @@ internal object BankingSafetyPolicy {
     fun isBlockedCommand(command: String): Boolean {
         val s = normalize(command)
         if (s.isBlank()) return false
-        if (transactionIntent.containsMatchIn(s)) return true
+        if (explicitTransactionIntent.containsMatchIn(s)) return true
+        if (transactionVerb.containsMatchIn(s) && amountOrRecipient.containsMatchIn(s)) return true
         return credentialTerms.containsMatchIn(s) && credentialSubmission.containsMatchIn(s)
     }
 
