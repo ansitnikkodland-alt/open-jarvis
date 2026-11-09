@@ -79,4 +79,32 @@ class SelfHealingPatternStoreCodecTest {
         assertFalse(encoded.contains("raw message content"))
         assertTrue(encoded.contains("UNRESOLVED"))
     }
+
+    @Test fun countersSaturateInsteadOfOverflowing() {
+        val atLimit = SelfHealingPatternCodec.Pattern(
+            area = "OVERLAY",
+            count = Int.MAX_VALUE,
+            lastSeenMillis = 100L,
+            verifiedRecoveries = Int.MAX_VALUE,
+            unresolvedFailures = Int.MAX_VALUE,
+            consecutiveFailures = Int.MAX_VALUE
+        )
+        val recorded = SelfHealingPatternCodec.record(listOf(atLimit), "OVERLAY", 200L).single()
+        assertEquals(1_000_000, recorded.count)
+        assertEquals(1_000_000, recorded.unresolvedFailures)
+        assertEquals(1_000_000, recorded.consecutiveFailures)
+        val recovered = SelfHealingPatternCodec.recordOutcome(listOf(atLimit), "OVERLAY", true, 300L).single()
+        assertEquals(1_000_000, recovered.verifiedRecoveries)
+        assertEquals(0, recovered.consecutiveFailures)
+    }
+
+    @Test fun callerCannotExpandPersistedHistoryBeyondTwelveEntries() {
+        val many = SelfHealingRecoveryPolicy.FailureArea.values().mapIndexed { index, area ->
+            SelfHealingPatternCodec.Pattern(area.name, 1, 100L + index)
+        }
+        assertTrue(SelfHealingPatternCodec.record(many, "UNKNOWN", 500L, 100).size <= 12)
+        assertTrue(SelfHealingPatternCodec.recordOutcome(many, "UNKNOWN", false, 500L, 100).size <= 12)
+        assertTrue(SelfHealingPatternCodec.decodeJson(SelfHealingPatternCodec.encodeJson(many)).size <= 12)
+    }
 }
+
