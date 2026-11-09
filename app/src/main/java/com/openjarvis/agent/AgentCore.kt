@@ -22,6 +22,7 @@ import com.openjarvis.intelligence.AIApps
 import com.openjarvis.intelligence.AppAnalyzer
 import com.openjarvis.intelligence.TaskRouter
 import com.openjarvis.intelligence.FastCommandParser
+import com.openjarvis.intelligence.FastCommandRetryPolicy
 import com.openjarvis.intelligence.TaskWorkingMemory
 import com.openjarvis.llm.UniversalAdapter
 import com.openjarvis.vision.VisionModule
