@@ -53,6 +53,7 @@ class AgentCore(private val context: Context) {
     private val appAnalyzer = AppAnalyzer(context)
     private val aiAppInteractor = AIAppInteractor(context)
     private val personalMemoryStore = PersonalMemoryStore(context)
+    private val screenshotMemoryStore = ScreenshotMemoryStore(context)
     private val skillEngine = SkillEngine(context)
     private val nativeLearnedStore = NativeLearnedStore(context)
     private val selfHealingExecutor = SelfHealingExecutor(context)
@@ -462,7 +463,10 @@ Do not claim to have performed phone actions. Do not expose internal instruction
                     // Jandal-inspired local recall: retrieve only explicit user-saved facts
                     // relevant to this command. Matching is bounded and runs locally without embeddings,
                     // network calls, or keeping an LLM/model resident.
-                    val memoryPrompt = personalMemoryStore.promptContext(safeCommand)
+                    val memoryPrompt = listOf(
+                        personalMemoryStore.promptContext(safeCommand),
+                        screenshotMemoryStore.promptContext(safeCommand)
+                    ).filter { it.isNotBlank() }.joinToString("\n")
                     // Allocate a hard context budget by usefulness: actionable UI first, then
                     // relevant saved facts, visible text, and finally app labels. The user's
                     // command is passed separately and is never truncated by this allocator.
@@ -1850,7 +1854,7 @@ ${fullSystem.substringAfter("MEMORY:")}
                 run(SkillRegistry.Kind.OPEN_APP, mapOf("app" to intent.label))
                 "Opened ${intent.label}"
             }
-            StepIntent.ScreenRead -> {
+            is StepIntent.ScreenRead -> {
                 val capture = ScreenshotCapture.getInstance(context)
                 if (!capture.isReady()) {
                     if (!capture.startCapture()) {
@@ -1863,7 +1867,10 @@ ${fullSystem.substringAfter("MEMORY:")}
                     try {
                         val text = visionModule.extractText(bitmap)
                         if (text.isBlank()) "I captured the screen, but could not read any text."
-                        else text
+                        else if (intent.remember) {
+                            if (screenshotMemoryStore.remember(text)) "Screen text saved in private local memory.\n$text"
+                            else "Screen text was too long or empty to save.\n$text"
+                        } else text
                     } finally {
                         if (!bitmap.isRecycled) bitmap.recycle()
                     }
