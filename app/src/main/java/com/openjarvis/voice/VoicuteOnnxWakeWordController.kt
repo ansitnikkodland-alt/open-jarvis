@@ -124,7 +124,7 @@ class VoicuteOnnxWakeWordController(
             null
         } catch (error: Exception) {
             stop()
-            val detail = error.message?.takeIf { it.isNotBlank() } ?: error.javaClass.simpleName
+            val detail = error.javaClass.simpleName
             Log.e(TAG, "Voicute ONNX wake-word initialization failed: $detail", error)
             WakeWordDiagnostics.failed(detail)
             JarvisDiagnosticLog.record(appContext, "WAKEWORD_START", "Voicute ONNX initialization failed", error)
@@ -244,7 +244,7 @@ class VoicuteOnnxWakeWordController(
             }
         } catch (error: Exception) {
             if (running) {
-                val detail = error.message ?: error.javaClass.simpleName
+                val detail = error.javaClass.simpleName
                 WakeWordDiagnostics.failed(detail)
                 JarvisDiagnosticLog.record(appContext, "WAKEWORD_PROCESS", "Voicute ONNX audio loop failed", error)
                 onError("Voicute ONNX processing failed: $detail")
