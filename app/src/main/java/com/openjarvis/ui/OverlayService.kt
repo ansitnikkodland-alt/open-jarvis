@@ -50,6 +50,7 @@ import com.openjarvis.voice.WakeWordEngine
 import com.openjarvis.voice.VoicuteOnnxWakeWordController
 import com.openjarvis.voice.VoicuteModelLoader
 import com.openjarvis.voice.WakeWordConfig
+import com.openjarvis.voice.WakeWordDiagnostics
 import com.openjarvis.voice.WakeWordSessionStateMachine
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
