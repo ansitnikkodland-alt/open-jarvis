@@ -232,4 +232,19 @@ class SelfHealingRecoveryPolicyTest {
         }
     }
 
+
+    @Test fun androidPermissionDenialForReadOnlyObservationRequiresUserAction() {
+        listOf(
+            "Permission Denial: reading current window requires android.permission.BIND_ACCESSIBILITY_SERVICE",
+            "SecurityException: permission denied while reading screen",
+            "Accessibility permission is not granted"
+        ).forEach { reason ->
+            val decision = SelfHealingRecoveryPolicy.classify(Action(Action.READ_SCREEN), reason)
+            assertEquals(SelfHealingRecoveryPolicy.FailureArea.ACCESSIBILITY, decision.area)
+            assertEquals(SelfHealingRecoveryPolicy.RecoveryKind.USER_ACTION_REQUIRED, decision.recovery)
+            assertFalse(decision.mayRetryAutomatically)
+            assertTrue(decision.requiresUserConfirmation)
+            assertFalse(SelfHealingSafetyPolicy.shouldRetry(Action(Action.READ_SCREEN), reason))
+        }
+    }
 }
