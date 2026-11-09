@@ -508,14 +508,37 @@ class OverlayService : Service() {
 
     fun executeCommand(command: String) = agentCore.executeTask(command)
 
+    private fun applyVoiceAssistantEnabled(enabled: Boolean) {
+        voiceManager.setVoiceEnabled(enabled)
+        if (!enabled) {
+            isMuted = false
+            voiceManager.stopContinuousSession()
+            setVisualState("IDLE", "Voice assistant disabled — microphone off")
+            updateNotification("Voice assistant disabled — microphone off")
+        } else {
+            setVisualState("IDLE", "Voice enabled — tap Mic once to start")
+            updateNotification("Voice enabled — microphone off until Mic is tapped")
+        }
+    }
+
     companion object {
         @Volatile private var activeInstance: OverlayService? = null
         private const val CHANNEL_ID = "jarvis_overlay_channel"
         private const val NOTIFICATION_ID = 1
         private const val OVERLAY_WATCHDOG_INTERVAL_MS = 1_500L
 
+        @Synchronized
         fun start(context: Context) {
+            val current = activeInstance
+            if (current != null) {
+                if (current.overlayView?.isAttachedToWindow != true) current.attachAssistant()
+                return
+            }
             context.startForegroundService(Intent(context, OverlayService::class.java))
+        }
+
+        fun onVoiceAssistantToggled(enabled: Boolean) {
+            activeInstance?.applyVoiceAssistantEnabled(enabled)
         }
     }
 }
