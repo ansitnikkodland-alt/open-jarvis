@@ -246,7 +246,8 @@ object WakeWordDiagnostics {
             lastCandidateRejectionReason = null,
             lastDetectionAtMs = null,
             lastDetectionKeyword = null,
-            lastDetectionScore = null
+            lastDetectionScore = null,
+            lastError = null
         )
     }
 }
