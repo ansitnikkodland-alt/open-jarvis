@@ -22,13 +22,12 @@ class SelfHealingExecutor(context: Context) {
         val decision = SelfHealingRecoveryPolicy.classify(action, reason)
         val pattern = patternStore.patterns().firstOrNull { it.area == decision.area.name }
         val consecutive = pattern?.consecutiveFailures ?: 0
-        val allowed = SelfHealingSafetyPolicy.shouldRetryAfterLearning(
-            action = action,
-            failureReason = reason,
-            consecutiveUnresolved = consecutive
-        )
+        val learnedDecision = SelfHealingRecoveryPolicy.applyLearning(decision, consecutive)
+        val allowed = SelfHealingSafetyPolicy.shouldRetry(action, reason) &&
+            SelfHealingSafetyPolicy.shouldRetryAfterLearning(action, reason, consecutive) &&
+            learnedDecision.mayRetryAutomatically
         if (!allowed && SelfHealingSafetyPolicy.shouldRetry(action, reason)) {
-            Log.w("JarvisSelfHealing", "retry_paused area=${decision.area} consecutiveUnresolved=$consecutive")
+            Log.w("JarvisSelfHealing", "retry_paused area=${decision.area} recovery=${learnedDecision.recovery} consecutiveUnresolved=$consecutive")
         }
         return allowed
     }
@@ -77,11 +76,15 @@ class SelfHealingExecutor(context: Context) {
         // Re-read after the probe: a verified dependency recovery must clear the
         // consecutive-unresolved streak before recurrence guidance is generated.
         pattern = patternStore.patterns().firstOrNull { it.area == decision.area.name } ?: pattern
-        val recurrence = if (SelfHealingPatternCodec.recurring(pattern)) {
-            " This failure category has ${pattern.consecutiveFailures} consecutive unresolved occurrences; pause automatic retries and escalate for user review."
+        val learnedDecision = SelfHealingRecoveryPolicy.applyLearning(
+            decision,
+            pattern.consecutiveFailures
+        )
+        val recurrence = if (learnedDecision.recovery == SelfHealingRecoveryPolicy.RecoveryKind.ESCALATE) {
+            " This failure category has ${pattern.consecutiveFailures} consecutive unresolved occurrences; automatic retry is paused until user review."
         } else ""
-        Log.w("JarvisSelfHealing", "area=${decision.area} recovery=${decision.recovery} autoRetry=${decision.mayRetryAutomatically} consecutiveUnresolved=${pattern.consecutiveFailures} unresolved=${pattern.unresolvedFailures}")
-        return "${decision.explanation}${verification}${recurrence}"
+        Log.w("JarvisSelfHealing", "area=${decision.area} recovery=${learnedDecision.recovery} autoRetry=${learnedDecision.mayRetryAutomatically} consecutiveUnresolved=${pattern.consecutiveFailures} unresolved=${pattern.unresolvedFailures}")
+        return "${learnedDecision.explanation}${verification}${recurrence}"
     }
 
     /**
