@@ -191,6 +191,21 @@ ${rawResponse.take(1000)}
                         else -> cleanCommand
                     }
 
+                    // Block financial side effects before native skills, learned intents,
+                    // step routing, or the LLM can reach an Android executor.
+                    if (BankingSafetyPolicy.isBlockedCommand(safeCommand)) {
+                        val rule = BankingSafetyPolicy.failureRule(safeCommand, emptyList())
+                            ?: BankingSafetyPolicy.BLOCKED_TRANSACTION
+                        val guidance = BankingSafetyPolicy.userGuidance(rule)
+                        AgentDiagnostics.record(
+                            context, "banking-safety-block", safeCommand, rule,
+                            provider = "Deterministic BankingSafetyPolicy", model = "Not used"
+                        )
+                        _state.value = AgentState.Error(guidance)
+                        graphifyRepo.logTask(safeCommand, "blocked: $rule", "BankingSafetyPolicy", 0)
+                        return@withLock
+                    }
+
                     _state.value = AgentState.Running("checking direct command...")
 
                     // Consume the next utterance as a contact name only during the 10s pending window.
