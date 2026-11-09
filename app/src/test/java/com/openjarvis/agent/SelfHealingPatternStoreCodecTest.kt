@@ -106,5 +106,50 @@ class SelfHealingPatternStoreCodecTest {
         assertTrue(SelfHealingPatternCodec.recordOutcome(many, "UNKNOWN", false, 500L, 100).size <= 12)
         assertTrue(SelfHealingPatternCodec.decodeJson(SelfHealingPatternCodec.encodeJson(many)).size <= 12)
     }
-}
 
+    @Test fun countersSaturateAndHistoryCannotExceedTwelveEntries() {
+        val saturated = SelfHealingPatternCodec.Pattern(
+            area = "OVERLAY",
+            count = Int.MAX_VALUE,
+            lastSeenMillis = 100L,
+            verifiedRecoveries = Int.MAX_VALUE,
+            unresolvedFailures = Int.MAX_VALUE,
+            consecutiveFailures = Int.MAX_VALUE
+        )
+        val updated = SelfHealingPatternCodec.record(listOf(saturated), "OVERLAY", 200L).single()
+        assertEquals(1_000_000, updated.count)
+        assertEquals(1_000_000, updated.unresolvedFailures)
+        assertEquals(1_000_000, updated.consecutiveFailures)
+        assertEquals(1_000_000, updated.verifiedRecoveries)
+
+        var history = emptyList<SelfHealingPatternCodec.Pattern>()
+        SelfHealingRecoveryPolicy.FailureArea.values().forEachIndexed { index, area ->
+            history = SelfHealingPatternCodec.record(history, area.name, 1_000L + index)
+        }
+        assertEquals(12, history.size)
+    }
+
+    @Test fun callerCannotExpandHistoryLimitOrPersistNegativeCounters() {
+        val rows = (0..20).map { index ->
+            SelfHealingPatternCodec.Pattern(
+                area = SelfHealingRecoveryPolicy.FailureArea.values()[index % SelfHealingRecoveryPolicy.FailureArea.values().size].name,
+                count = -index,
+                lastSeenMillis = (index + 1).toLong(),
+                verifiedRecoveries = -1,
+                unresolvedFailures = -2,
+                consecutiveFailures = -3
+            )
+        }
+        val encoded = SelfHealingPatternCodec.encodeJson(rows)
+        assertTrue(encoded.length < 8_000)
+        assertTrue(SelfHealingPatternCodec.decodeJson(encoded).size <= 12)
+        val decoded = SelfHealingPatternCodec.decodeJson(encoded)
+        decoded.forEach {
+            assertTrue(it.count >= 0)
+            assertTrue(it.verifiedRecoveries >= 0)
+            assertTrue(it.unresolvedFailures >= 0)
+            assertTrue(it.consecutiveFailures >= 0)
+        }
+    }
+
+}
