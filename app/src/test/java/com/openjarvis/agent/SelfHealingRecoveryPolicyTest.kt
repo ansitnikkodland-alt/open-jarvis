@@ -171,4 +171,14 @@ class SelfHealingRecoveryPolicyTest {
         assertEquals("UNKNOWN", unknown.area)
         assertEquals(1, SelfHealingPatternCodec.record(patterns, "OLLAMA_CONNECTIVITY", 201L, 0).size)
     }
+
+    @Test fun ollamaNativeMissingModelMessageIsClassifiedAsModelUnavailable() {
+        val result = SelfHealingRecoveryPolicy.classify(
+            Action(Action.ERROR),
+            "Error: model 'qwen3:1.7b' not found, try pulling it first"
+        )
+        assertEquals(SelfHealingRecoveryPolicy.FailureArea.MODEL_UNAVAILABLE, result.area)
+        assertFalse(result.mayRetryAutomatically)
+        assertTrue(result.requiresUserConfirmation)
+    }
 }
