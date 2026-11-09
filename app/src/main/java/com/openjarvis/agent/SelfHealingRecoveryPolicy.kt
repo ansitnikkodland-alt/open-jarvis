@@ -19,6 +19,8 @@ internal object SelfHealingRecoveryPolicy {
 
     fun classify(action: Action, reason: String): Decision {
         val value = reason.lowercase()
+        val isObservation = action.action == Action.WAIT || action.action == Action.WAIT_FOR ||
+            action.action == Action.READ_SCREEN || action.action == Action.EXTRACT_TEXT
         val area = when {
             contains(value, "ollama", "11434", "connection refused", "failed to connect", "socket timeout") -> FailureArea.OLLAMA_CONNECTIVITY
             contains(value, "model not found", "unknown model", "qwen3:1.7b") -> FailureArea.MODEL_UNAVAILABLE
@@ -29,14 +31,26 @@ internal object SelfHealingRecoveryPolicy {
             contains(value, "tap", "type", "click", "send", "delete", "payment") -> FailureArea.ACTION
             else -> FailureArea.UNKNOWN
         }
-        val isObservation = action.action == Action.WAIT || action.action == Action.WAIT_FOR ||
-            action.action == Action.READ_SCREEN || action.action == Action.EXTRACT_TEXT
         return when (area) {
             FailureArea.OLLAMA_CONNECTIVITY -> Decision(area, RecoveryKind.VERIFY_LOCAL_SERVICE, true, false, true,
                 "Check the local Ollama endpoint only; never switch provider or model.")
             FailureArea.MODEL_UNAVAILABLE -> Decision(area, RecoveryKind.VERIFY_CONFIGURATION, false, true, true,
                 "Verify the installed local qwen3:1.7b model; do not download or change the default automatically.")
-            FailureArea.ACCESSIBILITY, FailureArea.OVERLAY, FailureArea.SPEECH ->
+            FailureArea.ACCESSIBILITY -> {
+                // Missing screen content/node is a stale observation, not proof that Android
+                // accessibility is disabled. Refreshing a read-only observation is safe;
+                // permission/service failures still require the user to intervene.
+                val missingObservation = isObservation &&
+                    contains(value, "visible text not found", "node not found", "element not found")
+                if (missingObservation) {
+                    Decision(area, RecoveryKind.REFRESH_OBSERVATION, true, false, true,
+                        "Refresh the read-only screen observation; do not repeat any UI action.")
+                } else {
+                    Decision(area, RecoveryKind.USER_ACTION_REQUIRED, false, true, true,
+                        "Ask the user to check Android accessibility permission/service state, then verify again.")
+                }
+            }
+            FailureArea.OVERLAY, FailureArea.SPEECH ->
                 Decision(area, RecoveryKind.USER_ACTION_REQUIRED, false, true, true,
                     "Ask the user to check Android permission/service state, then verify again after the user acts.")
             FailureArea.APP_LAUNCH, FailureArea.ACTION ->

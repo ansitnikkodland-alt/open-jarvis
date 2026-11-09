@@ -32,13 +32,26 @@ class SelfHealingRecoveryPolicyTest {
         val observation = SelfHealingRecoveryPolicy.classify(
             Action(Action.READ_SCREEN), "visible text not found"
         )
+        assertEquals(SelfHealingRecoveryPolicy.FailureArea.ACCESSIBILITY, observation.area)
+        assertEquals(SelfHealingRecoveryPolicy.RecoveryKind.REFRESH_OBSERVATION, observation.recovery)
         assertTrue(observation.mayRetryAutomatically)
+        assertFalse(observation.requiresUserConfirmation)
 
         val tap = SelfHealingRecoveryPolicy.classify(
             Action(Action.TAP, text = "Continue"), "tap failed"
         )
         assertFalse(tap.mayRetryAutomatically)
         assertTrue(tap.requiresUserConfirmation)
+    }
+
+    @Test fun accessibilityServiceFailureStillRequiresUserAction() {
+        val result = SelfHealingRecoveryPolicy.classify(
+            Action(Action.READ_SCREEN), "Android accessibility service is disabled"
+        )
+        assertEquals(SelfHealingRecoveryPolicy.FailureArea.ACCESSIBILITY, result.area)
+        assertEquals(SelfHealingRecoveryPolicy.RecoveryKind.USER_ACTION_REQUIRED, result.recovery)
+        assertFalse(result.mayRetryAutomatically)
+        assertTrue(result.requiresUserConfirmation)
     }
 
     @Test fun recurringPatternsStoreOnlyBoundedCategories() {
