@@ -1087,6 +1087,40 @@ ${fullSystem.substringAfter("MEMORY:")}
         appAnalyzer.getAICount()
 
     private suspend fun executeActions(actions: List<Action>): ActionExecutionResult {
+        // Re-check at the last side-effect boundary. Carry the launched financial app
+        // context onto unqualified tap/type steps, or detect a currently foreground app.
+        val activeService = JarvisAccessibilityService.instance
+        val launchedFinancialPackage = actions.firstOrNull { it.action == Action.OPEN_APP }
+            ?.packageName?.takeIf(BankingSafetyPolicy::isFinancialPackage)
+        val foregroundFinancialPackage = launchedFinancialPackage
+            ?: BankingSafetyPolicy.knownFinancialPackages().firstOrNull {
+                activeService?.isPackageActive(it) == true
+            }
+        val scopedActions = if (foregroundFinancialPackage == null) actions else actions.map { action ->
+            if (action.packageName.isNullOrBlank() &&
+                action.action in setOf(Action.CLICK, Action.TAP, Action.TYPE, Action.TYPE_TEXT)
+            ) action.copy(packageName = foregroundFinancialPackage) else action
+        }
+        val blockedBankingRule = BankingSafetyPolicy.failureRule("", scopedActions)
+        if (blockedBankingRule != null) {
+            val blockedAction = scopedActions.firstOrNull {
+                it.action in setOf(Action.CLICK, Action.TAP, Action.TYPE, Action.TYPE_TEXT) &&
+                    (BankingSafetyPolicy.isFinancialPackage(it.packageName) ||
+                        listOfNotNull(it.text, it.hint, it.value).any { value ->
+                            value.contains(Regex("(?i)\\\\b(otp|upi pin|cvv|cvc|pin)\\\\b"))
+                        })
+            } ?: scopedActions.firstOrNull()
+            val guidance = BankingSafetyPolicy.userGuidance(blockedBankingRule)
+            Log.w(TAG, "Blocked financial side effect at execution boundary: $blockedBankingRule")
+            _state.value = AgentState.Error(guidance)
+            return ActionExecutionResult(
+                succeeded = false,
+                completedActions = emptyList(),
+                failedAction = blockedAction,
+                failure = guidance
+            )
+        }
+
         val results = mutableListOf<String>()
         val completedActions = mutableListOf<Action>()
 
