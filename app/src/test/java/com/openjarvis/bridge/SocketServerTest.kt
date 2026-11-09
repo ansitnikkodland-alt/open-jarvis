@@ -68,7 +68,7 @@ class SocketServerTest {
         assertEquals(
             exactlyLimit,
             SocketServer.readBoundedLine(
-                ByteArrayInputStream((exactlyLimit + "\\n").toByteArray(Charsets.UTF_8)),
+                ByteArrayInputStream((exactlyLimit + "\n").toByteArray(Charsets.UTF_8)),
                 SocketServer.MAX_REQUEST_BYTES
             )
         )
@@ -77,7 +77,7 @@ class SocketServerTest {
         assertTrue(overLimit.length < SocketServer.MAX_REQUEST_BYTES)
         try {
             SocketServer.readBoundedLine(
-                ByteArrayInputStream((overLimit + "\\n").toByteArray(Charsets.UTF_8)),
+                ByteArrayInputStream((overLimit + "\n").toByteArray(Charsets.UTF_8)),
                 SocketServer.MAX_REQUEST_BYTES
             )
             fail("Expected RequestTooLargeException for UTF-8 byte overflow")
