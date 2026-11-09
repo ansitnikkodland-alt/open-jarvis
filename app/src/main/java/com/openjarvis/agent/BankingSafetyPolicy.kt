@@ -77,14 +77,15 @@ internal object BankingSafetyPolicy {
         RegexOption.IGNORE_CASE
     )
 
-    private val informationalRequest = Regex(
-        "^(how|what|why|explain|describe|meaning|kaise|kyun|kya|samjhao|samjha|क्यों|कैसे|क्या|समझाओ|काय|कसे)\\\\b",
-        RegexOption.IGNORE_CASE
+    private val informationalPrefixes = listOf(
+        "how ", "what ", "why ", "explain ", "describe ", "meaning ",
+        "kaise ", "kyun ", "kya ", "samjhao ", "samjha ",
+        "क्यों ", "कैसे ", "क्या ", "समझाओ ", "काय ", "कसे "
     )
 
     fun isBlockedCommand(command: String): Boolean {
         val s = normalize(command)
-        if (s.isBlank() || informationalRequest.containsMatchIn(s)) return false
+        if (s.isBlank() || informationalPrefixes.any(s::startsWith)) return false
         if (explicitTransactionIntent.containsMatchIn(s)) return true
         if (transactionVerb.containsMatchIn(s) && amountOrRecipient.containsMatchIn(s)) return true
         return credentialTerms.containsMatchIn(s) && credentialSubmission.containsMatchIn(s)
