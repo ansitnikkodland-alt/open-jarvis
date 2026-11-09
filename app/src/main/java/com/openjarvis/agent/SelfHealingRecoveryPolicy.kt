@@ -79,6 +79,22 @@ internal object SelfHealingRecoveryPolicy {
         }
     }
 
+    /** Apply learned recurrence state to the same decision used by retry gating and user guidance. */
+    fun applyLearning(
+        decision: Decision,
+        consecutiveUnresolved: Int,
+        threshold: Int = 3
+    ): Decision {
+        val safeThreshold = threshold.coerceAtLeast(2)
+        if (!decision.mayRetryAutomatically || consecutiveUnresolved < safeThreshold) return decision
+        return decision.copy(
+            recovery = RecoveryKind.ESCALATE,
+            mayRetryAutomatically = false,
+            requiresUserConfirmation = true,
+            explanation = "Repeated unresolved ${decision.area.name.lowercase().replace('_', ' ')} failures reached $safeThreshold occurrences. Stop automatic retries and request user review."
+        )
+    }
+
     private fun contains(value: String, vararg terms: String) = terms.any(value::contains)
 }
 
