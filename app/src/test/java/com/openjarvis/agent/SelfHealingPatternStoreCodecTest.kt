@@ -153,4 +153,10 @@ class SelfHealingPatternStoreCodecTest {
         }
     }
 
+
+    @Test fun oversizedPersistedJsonFailsClosedBeforeParsing() {
+        val oversized = "[" + " ".repeat(9_000) + "]"
+        assertTrue(SelfHealingPatternCodec.decodeJson(oversized).isEmpty())
+    }
+
 }
