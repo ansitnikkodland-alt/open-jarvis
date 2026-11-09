@@ -18,11 +18,15 @@ class SelfHealingExecutor(context: Context) {
         val recurrence = if (SelfHealingPatternCodec.recurring(pattern)) {
             " This is a recurring ${decision.area.name.lowercase().replace('_', ' ')} failure (${pattern.count} occurrences); escalate for review."
         } else ""
-        val verification = if (decision.area == SelfHealingRecoveryPolicy.FailureArea.OLLAMA_CONNECTIVITY) {
-            val result = ollamaHealthCheck.verify()
-            Log.i("JarvisSelfHealing", "local_ollama_probe state=${result.state}")
-            " Local dependency check: ${result.detail} The failed task was not replayed; retry it only after reviewing this result."
-        } else ""
+        val verification = when (decision.area) {
+            SelfHealingRecoveryPolicy.FailureArea.OLLAMA_CONNECTIVITY,
+            SelfHealingRecoveryPolicy.FailureArea.MODEL_UNAVAILABLE -> {
+                val result = ollamaHealthCheck.verify()
+                Log.i("JarvisSelfHealing", "local_ollama_probe state=${result.state}")
+                " Local dependency check: ${result.detail} The failed task was not replayed; retry it only after reviewing this result."
+            }
+            else -> " Verification required: ${SelfHealingVerificationPolicy.instruction(decision.area)}"
+        }
         Log.w("JarvisSelfHealing", "area=${decision.area} recovery=${decision.recovery} autoRetry=${decision.mayRetryAutomatically} recurring=${pattern.count}")
         return "${decision.explanation}${verification}${recurrence}"
     }
