@@ -3,8 +3,8 @@ package com.openjarvis.agent
 /**
  * Offline, Android-native adaptation of Headroom's content-aware compression principles.
  * JSON is minified only after strict JSON validation; quoted strings and values are preserved.
- * Text/log output uses conservative run-length encoding for adjacent identical lines.
- * UI labels and policy prompts preserve every nonblank line to avoid changing action targets/rules.
+ * Only diagnostic logs use explicit run-length encoding; natural text, UI labels, and policy
+ * prompts preserve repeated nonblank lines so memory counts and action targets/rules stay intact.
  * Code, diffs and safety-critical payloads can explicitly opt out.
  *
  * CompressionResult retains the exact original so callers/tests can restore byte-for-byte.
@@ -163,8 +163,8 @@ object HeadroomLite {
     }
 
     /**
-     * Collapse repeated blank-line runs. For TEXT/LOG only, encode long adjacent identical
-     * nonblank-line runs as line + count. UI_TEXT and POLICY never rewrite nonblank lines.
+     * Collapse repeated blank-line runs. LOG may encode long adjacent identical nonblank
+     * lines with an explicit count. TEXT, UI_TEXT, and POLICY never rewrite nonblank lines.
      */
     private fun compactLines(input: String, encodeRepeats: Boolean): String {
         if (input.isEmpty()) return input
