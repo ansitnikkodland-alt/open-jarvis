@@ -147,7 +147,7 @@ class AndroidSTTEngine(private val context: Context) : STTEngine {
                     "समय क्या हुआ है", "अभी कितने बजे हैं",
                     "आत्ता किती वाजले", "सध्या किती वाजले",
                     "खोलो", "बंद करो", "कॉल करो", "टॉर्च चालू करो"
-                )
+                ).apply { addAll(VoiceControlVocabulary.recognitionPhrases) }
             )
             putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 5)
             putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
