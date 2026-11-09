@@ -43,6 +43,49 @@ class SocketServerTest {
         assertNull(SocketServer.parseRequest("""{"cmd":"status","requestId":"${"x".repeat(SocketServer.MAX_REQUEST_ID_LENGTH + 1)}","token":"secret"}"""))
     }
 
+
+    @Test
+    fun \`parseRequest enforces 2000 character limit with Unicode commands\`() {
+        val command = "न".repeat(SocketServer.MAX_COMMAND_LENGTH)
+        val accepted = SocketServer.parseRequest(
+            """{"cmd":"$command","requestId":"unicode-limit","token":"secret"}"""
+        )
+        assertNotNull(accepted)
+        assertEquals(command, accepted?.second)
+
+        val tooLong = command + "न"
+        assertNull(
+            SocketServer.parseRequest(
+                """{"cmd":"$tooLong","requestId":"unicode-over-limit","token":"secret"}"""
+            )
+        )
+    }
+
+    @Test
+    fun \`bounded line reader enforces 8 KiB using UTF8 bytes not character count\`() {
+        val exactlyLimit = "न".repeat(2_730) + "ab"
+        assertEquals(SocketServer.MAX_REQUEST_BYTES, exactlyLimit.toByteArray(Charsets.UTF_8).size)
+        assertEquals(
+            exactlyLimit,
+            SocketServer.readBoundedLine(
+                ByteArrayInputStream((exactlyLimit + "\\n").toByteArray(Charsets.UTF_8)),
+                SocketServer.MAX_REQUEST_BYTES
+            )
+        )
+
+        val overLimit = exactlyLimit + "x"
+        assertTrue(overLimit.length < SocketServer.MAX_REQUEST_BYTES)
+        try {
+            SocketServer.readBoundedLine(
+                ByteArrayInputStream((overLimit + "\\n").toByteArray(Charsets.UTF_8)),
+                SocketServer.MAX_REQUEST_BYTES
+            )
+            fail("Expected RequestTooLargeException for UTF-8 byte overflow")
+        } catch (_: RequestTooLargeException) {
+            // expected: raw UTF-8 bytes, not Kotlin character count, define the limit.
+        }
+    }
+
     @Test
     fun `token comparison accepts exact token and rejects mismatch`() {
         assertTrue(SocketServer.isValidToken("secret-token", "secret-token"))
