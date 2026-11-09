@@ -207,4 +207,21 @@ class SelfHealingRecoveryPolicyTest {
         assertFalse(result.mayRetryAutomatically)
         assertTrue(result.requiresUserConfirmation)
     }
+
+    @Test fun boundedWaitTimeoutsAreClassifiedAsSafeRefreshableObservations() {
+        listOf(Action.WAIT, Action.WAIT_FOR).forEach { kind ->
+            val decision = SelfHealingRecoveryPolicy.classify(
+                Action(kind), "Timed out waiting for visible text"
+            )
+            assertEquals(kind.toString(), SelfHealingRecoveryPolicy.FailureArea.ACCESSIBILITY, decision.area)
+            assertEquals(kind.toString(), SelfHealingRecoveryPolicy.RecoveryKind.REFRESH_OBSERVATION, decision.recovery)
+            assertTrue(kind.toString(), decision.mayRetryAutomatically)
+            assertFalse(kind.toString(), decision.requiresUserConfirmation)
+            assertTrue(kind.toString(), SelfHealingSafetyPolicy.shouldRetry(Action(kind), "Timed out waiting for visible text"))
+            assertTrue(kind.toString(), SelfHealingSafetyPolicy.shouldRetryAfterLearning(
+                Action(kind), "Timed out waiting for visible text", 0
+            ))
+        }
+    }
+
 }
