@@ -55,12 +55,33 @@ internal object BankingSafetyPolicy {
         RegexOption.IGNORE_CASE
     )
 
+    // Verified Indian UPI/banking app package IDs. Keep this exact set in addition
+    // to conservative package-name heuristics below; app IDs vary by publisher.
     private val financialPackages = setOf(
         "com.google.android.apps.wallet",
         "com.google.android.apps.nbu.paisa.user",
         "com.paytm",
+        "net.one97.paytm",
         "com.phonepe",
+        "com.phonepe.app",
         "in.org.npci.upiapp",
+        "com.sbi.lotusintouch",
+        "com.sbi.upi",
+        "com.csam.icici.bank.imobile",
+        "com.icicibank.pockets",
+        "com.snapwork.hdfc",
+        "com.enstage.wibmo.hdfc",
+        "com.axis.mobile",
+        "com.upi.axispay",
+        "com.fss.pnbpsp",
+        "com.fss.unbipsp",
+        "com.mobikwik_new",
+        "com.freecharge.android",
+        "com.dreamplug.androidapp",
+        "com.bankofbaroda.upi",
+        "com.myairtelapp",
+        "com.samsung.android.spaymini",
+        "com.samsung.android.spay",
     )
 
     fun isFinancialPackage(packageName: String?): Boolean {
