@@ -1094,9 +1094,8 @@ ${fullSystem.substringAfter("MEMORY:")}
         val launchedFinancialPackage = actions.firstOrNull { it.action == Action.OPEN_APP }
             ?.packageName?.takeIf(BankingSafetyPolicy::isFinancialPackage)
         val foregroundFinancialPackage = launchedFinancialPackage
-            ?: BankingSafetyPolicy.knownFinancialPackages().firstOrNull {
-                activeService?.isPackageActive(it) == true
-            }
+            ?: activeService?.activePackageNames()
+                ?.firstOrNull(BankingSafetyPolicy::isFinancialPackage)
         val scopedActions = if (foregroundFinancialPackage == null) actions else actions.map { action ->
             if (action.packageName.isNullOrBlank() &&
                 action.action in setOf(Action.CLICK, Action.TAP, Action.TYPE, Action.TYPE_TEXT)
