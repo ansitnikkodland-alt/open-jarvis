@@ -236,7 +236,7 @@ class VoicuteOnnxWakeWordController(
                     }
                     if (finalAccepted) {
                         lastAcceptedAtMs = now
-                        WakeWordDiagnostics.detected(accepted, probability)
+                        WakeWordDiagnostics.detected(accepted.orEmpty(), probability)
                         Log.i(TAG, "Voicute wake word detected: $accepted score=$probability")
                         onWakeWord()
                     }
