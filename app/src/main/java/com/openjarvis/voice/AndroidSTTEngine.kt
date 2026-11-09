@@ -158,7 +158,7 @@ class AndroidSTTEngine(private val context: Context) : STTEngine {
         } catch (error: IllegalStateException) {
             sessionActive = false
             _isListening.value = false
-            currentErrorCallback?.invoke("Speech recognizer is busy; tap Mic to try again")
+            currentErrorCallback?.invoke("Speech recognizer is busy; retrying automatically")
         }
     }
 
