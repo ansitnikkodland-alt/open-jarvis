@@ -386,6 +386,11 @@ fun SettingsScreen(
                         color = VoidColor.TextSecondary,
                         fontSize = 11.sp
                     )
+                    Text(
+                        "Last candidate: ${wakeWordDiagnostics.lastCandidateKeyword ?: "None"} • Score: ${wakeWordDiagnostics.lastCandidateScore?.let { "%.3f".format(it) } ?: "Unavailable"} • ${if (wakeWordDiagnostics.lastCandidateAccepted) "accepted" else wakeWordDiagnostics.lastCandidateRejectionReason ?: "not accepted"}",
+                        color = VoidColor.TextSecondary,
+                        fontSize = 11.sp
+                    )
                     wakeWordDiagnostics.lastError?.let {
                         Text("Last error: $it", color = VoidColor.Red, fontSize = 11.sp)
                     }
