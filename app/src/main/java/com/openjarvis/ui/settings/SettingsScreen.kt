@@ -395,65 +395,6 @@ fun SettingsScreen(
                         Text("Last error: $it", color = VoidColor.Red, fontSize = 11.sp)
                     }
                     Spacer(modifier = Modifier.height(12.dp))
-                    SectionLabel("LOCAL DIAGNOSTIC EXPORT")
-                    Text(
-                        "$diagnosticEventCount local events saved on this device. Nothing is uploaded automatically.",
-                        color = VoidColor.TextSecondary,
-                        fontSize = 11.sp
-                    )
-                    Text(
-                        "Export contains app/build version, mic configuration, rejected wake-word scores, service/watchdog state and redacted errors. No audio or transcript content.",
-                        color = VoidColor.TextDisabled,
-                        fontSize = 10.sp
-                    )
-                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        OutlinedButton(
-                            modifier = Modifier.weight(1f),
-                            onClick = {
-                                val report = JarvisDiagnosticLog.buildReport(context)
-                                val clipboard = context.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
-                                clipboard.setPrimaryClip(android.content.ClipData.newPlainText("JARVIS Diagnostic Export", report))
-                                android.widget.Toast.makeText(context, "Diagnostic log copied", android.widget.Toast.LENGTH_LONG).show()
-                            }
-                        ) { Text("Copy") }
-                        Button(
-                            modifier = Modifier.weight(1f),
-                            onClick = {
-                                val report = JarvisDiagnosticLog.buildReport(context)
-                                val sendIntent = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
-                                    type = "text/plain"
-                                    putExtra(android.content.Intent.EXTRA_SUBJECT, "Open Jarvis diagnostic report")
-                                    putExtra(android.content.Intent.EXTRA_TEXT, report)
-                                }
-                                context.startActivity(android.content.Intent.createChooser(sendIntent, "Share Jarvis diagnostics"))
-                            }
-                        ) { Text("Share") }
-                        TextButton(
-                            modifier = Modifier.weight(1f),
-                            onClick = { showClearDiagnosticDialog = true }
-                        ) { Text("Clear") }
-                    }
-                    if (showClearDiagnosticDialog) {
-                        AlertDialog(
-                            onDismissRequest = { showClearDiagnosticDialog = false },
-                            title = { Text("Clear local diagnostics?") },
-                            text = { Text("This removes the saved diagnostic event history and candidate scores from this device. It does not change Jarvis settings or wake-word behavior.") },
-                            confirmButton = {
-                                TextButton(onClick = {
-                                    JarvisDiagnosticLog.clear(context)
-                                    WakeWordDiagnostics.clearCandidateHistory()
-                                    diagnosticEventCount = 0
-                                    wakeWordDiagnostics = WakeWordDiagnostics.snapshot()
-                                    showClearDiagnosticDialog = false
-                                }) { Text("Clear logs") }
-                            },
-                            dismissButton = {
-                                TextButton(onClick = { showClearDiagnosticDialog = false }) { Text("Cancel") }
-                            }
-                        )
-                    }
-                    Spacer(modifier = Modifier.height(12.dp))
-
                     SettingsToggleRow(
                         title = "Speak Results",
                         subtitle = "Jarvis reads results aloud",
@@ -566,9 +507,68 @@ fun SettingsScreen(
                         }
                     }
                 }
-                
+
+                    SectionLabel("LOCAL DIAGNOSTIC EXPORT")
+                    Text(
+                        "$diagnosticEventCount local events saved on this device. Nothing is uploaded automatically.",
+                        color = VoidColor.TextSecondary,
+                        fontSize = 11.sp
+                    )
+                    Text(
+                        "Export contains app/build version, mic configuration, rejected wake-word scores, service/watchdog state and redacted errors. No audio or transcript content.",
+                        color = VoidColor.TextDisabled,
+                        fontSize = 10.sp
+                    )
+                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        OutlinedButton(
+                            modifier = Modifier.weight(1f),
+                            onClick = {
+                                val report = JarvisDiagnosticLog.buildReport(context)
+                                val clipboard = context.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+                                clipboard.setPrimaryClip(android.content.ClipData.newPlainText("JARVIS Diagnostic Export", report))
+                                android.widget.Toast.makeText(context, "Diagnostic log copied", android.widget.Toast.LENGTH_LONG).show()
+                            }
+                        ) { Text("Copy") }
+                        Button(
+                            modifier = Modifier.weight(1f),
+                            onClick = {
+                                val report = JarvisDiagnosticLog.buildReport(context)
+                                val sendIntent = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
+                                    type = "text/plain"
+                                    putExtra(android.content.Intent.EXTRA_SUBJECT, "Open Jarvis diagnostic report")
+                                    putExtra(android.content.Intent.EXTRA_TEXT, report)
+                                }
+                                context.startActivity(android.content.Intent.createChooser(sendIntent, "Share Jarvis diagnostics"))
+                            }
+                        ) { Text("Share") }
+                        TextButton(
+                            modifier = Modifier.weight(1f),
+                            onClick = { showClearDiagnosticDialog = true }
+                        ) { Text("Clear") }
+                    }
+                    if (showClearDiagnosticDialog) {
+                        AlertDialog(
+                            onDismissRequest = { showClearDiagnosticDialog = false },
+                            title = { Text("Clear local diagnostics?") },
+                            text = { Text("This removes the saved diagnostic event history and candidate scores from this device. It does not change Jarvis settings or wake-word behavior.") },
+                            confirmButton = {
+                                TextButton(onClick = {
+                                    JarvisDiagnosticLog.clear(context)
+                                    WakeWordDiagnostics.clearCandidateHistory()
+                                    diagnosticEventCount = 0
+                                    wakeWordDiagnostics = WakeWordDiagnostics.snapshot()
+                                    showClearDiagnosticDialog = false
+                                }) { Text("Clear logs") }
+                            },
+                            dismissButton = {
+                                TextButton(onClick = { showClearDiagnosticDialog = false }) { Text("Cancel") }
+                            }
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(12.dp))
+
                 Spacer(modifier = Modifier.height(32.dp))
-                
+
                 SectionLabel("PERMISSIONS")
                 
                 Spacer(modifier = Modifier.height(12.dp))
