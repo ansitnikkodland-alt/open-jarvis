@@ -40,6 +40,7 @@ import androidx.core.app.ServiceCompat
 import androidx.core.content.ContextCompat
 import com.openjarvis.R
 import com.openjarvis.agent.AgentCore
+import com.openjarvis.diagnostics.JarvisDiagnosticLog
 import com.openjarvis.graphify.GraphifyRepository
 import com.openjarvis.bridge.SocketServer
 import com.openjarvis.graphify.nodes.TaskNode
@@ -95,7 +96,15 @@ class OverlayService : Service() {
     private val wakeWordWatchdog = object : Runnable {
         override fun run() {
             val now = System.currentTimeMillis()
+            WakeWordDiagnostics.watchdogTick(
+                now,
+                overlayView?.isAttachedToWindow == true,
+                wakeWordController?.isRunning() == true,
+                wakeWordRestartAttempt
+            )
             wakeWordSession.onWatchdog(now, wakeWordController) {
+                JarvisDiagnosticLog.record(this@OverlayService, "WATCHDOG", "STT watchdog expired; pending voice capture was reset")
+                WakeWordDiagnostics.watchdogRecovery()
                 android.util.Log.w("OpenJarvisWakeWord", "STT watchdog expired; clearing pending wake-word state")
                 activationGate.reset()
                 voiceManager.stopListening()
@@ -106,11 +115,19 @@ class OverlayService : Service() {
                 }
             }
             // Reattach the floating UI if Android detached its window while the service survived.
-            if (overlayView?.isAttachedToWindow != true) attachAssistant()
+            if (Settings.canDrawOverlays(this@OverlayService) && overlayView?.isAttachedToWindow != true) {
+                WakeWordDiagnostics.watchdogRecovery()
+                JarvisDiagnosticLog.record(this@OverlayService, "WATCHDOG", "Floating overlay detached; reattach attempted")
+                attachAssistant()
+            }
             // Recover a stopped listener without requiring the user to restart the service.
             if (voiceManager.isVoiceEnabled() && !wakeWordCommandPending && !wakeWordResponsePending &&
                 wakeWordController?.isRunning() != true && wakeWordRestartRunnable == null
-            ) startWakeWordListening()
+            ) {
+                WakeWordDiagnostics.watchdogRecovery()
+                JarvisDiagnosticLog.record(this@OverlayService, "WATCHDOG", "Voicute listener stopped outside command/response; rearm attempted")
+                startWakeWordListening()
+            }
             mainHandler.postDelayed(this, WAKE_WORD_WATCHDOG_TICK_MS)
         }
     }
@@ -136,6 +153,8 @@ class OverlayService : Service() {
             startForeground(NOTIFICATION_ID, createNotification())
         }
         attachAssistant()
+        WakeWordDiagnostics.serviceState("RUNNING", overlayAttached = overlayView?.isAttachedToWindow == true, wakeWordRunning = false)
+        JarvisDiagnosticLog.record(this, "SERVICE", "OverlayService created")
         mainHandler.postDelayed(wakeWordWatchdog, WAKE_WORD_WATCHDOG_TICK_MS)
         serviceScope.launch {
             voiceManager.state.collect { state ->
@@ -178,6 +197,7 @@ class OverlayService : Service() {
                     }
                     is VoiceManager.VoiceState.Error -> {
                         wakeWordFeedbackActive = false
+                        JarvisDiagnosticLog.record(this@OverlayService, "VOICE_STT", "Speech recognition error: ${state.message}")
                         statusText?.text = state.message
                         if (wakeWordCommandPending || wakeWordResponsePending) {
                             clearWakeWordPendingState()
@@ -215,6 +235,7 @@ class OverlayService : Service() {
                         if (!mutedUntilWakeWord) voiceManager.speak(com.openjarvis.agent.AgentResultSpeech.textForDone(state.result)) { resumeWakeWordAfterResponse() }
                     }
                     is com.openjarvis.agent.AgentState.Error -> {
+                        JarvisDiagnosticLog.record(this@OverlayService, "AGENT", "AgentCore reported an error; response text omitted")
                         setVisualState(if (mutedUntilWakeWord) "IDLE" else "SPEAKING", if (mutedUntilWakeWord) "MUTED — say Jarvis, Hey Jarvis or Hi Jarvis to wake" else "Jarvis error: ${state.message} • tap to copy debug log")
                         if (!mutedUntilWakeWord) voiceManager.speak(if (responseLanguage == "mr") "कमांड पूर्ण झाली नाही. ${state.message}" else "कमांड पूरी नहीं हुई। ${state.message}") { resumeWakeWordAfterResponse() }
                     }
@@ -249,6 +270,8 @@ class OverlayService : Service() {
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onDestroy() {
+        JarvisDiagnosticLog.record(this, "SERVICE", "OverlayService stopping")
+        WakeWordDiagnostics.serviceState("STOPPING", overlayAttached = overlayView?.isAttachedToWindow == true)
         mainHandler.removeCallbacks(wakeWordWatchdog)
         wakeWordRestartRunnable?.let { mainHandler.removeCallbacks(it) }
         wakeWordRestartRunnable = null
@@ -259,6 +282,7 @@ class OverlayService : Service() {
         mainHandler.removeCallbacks(waveformRunnable)
         waveformText = null
         stopWakeWordListening()
+        WakeWordDiagnostics.serviceState("STOPPED", overlayAttached = false, wakeWordRunning = false, restartAttempt = wakeWordRestartAttempt)
         socketServer?.stop()
         socketServer = null
         voiceManager.release()
@@ -267,7 +291,10 @@ class OverlayService : Service() {
     }
 
     private fun attachAssistant() {
-        if (!Settings.canDrawOverlays(this)) return
+        if (!Settings.canDrawOverlays(this)) {
+            WakeWordDiagnostics.serviceState("RUNNING", overlayAttached = false)
+            return
+        }
         if (overlayView?.isAttachedToWindow == true) return
         // A stale detached View must not block recreation of the floating overlay.
         overlayView = null
@@ -428,7 +455,10 @@ class OverlayService : Service() {
             windowParams = params
             windowManager?.addView(root, params)
             overlayView = root
+            WakeWordDiagnostics.serviceState("RUNNING", overlayAttached = true)
         } catch (e: Exception) {
+            WakeWordDiagnostics.serviceState("RUNNING", overlayAttached = false)
+            JarvisDiagnosticLog.record(this, "OVERLAY", "Unable to attach assistant overlay", e)
             android.util.Log.e("OpenJarvis", "Unable to attach assistant overlay", e)
         }
     }
@@ -541,8 +571,10 @@ class OverlayService : Service() {
             wakeWordRestartRunnable?.let { mainHandler.removeCallbacks(it) }
             wakeWordRestartRunnable = null
             acquireWakeWordCpuLock()
+            WakeWordDiagnostics.serviceState("RUNNING", overlayAttached = overlayView?.isAttachedToWindow == true, wakeWordRunning = true, restartAttempt = 0)
         } else {
             releaseWakeWordCpuLock()
+            WakeWordDiagnostics.serviceState("RUNNING", overlayAttached = overlayView?.isAttachedToWindow == true, wakeWordRunning = false, restartAttempt = wakeWordRestartAttempt)
             scheduleWakeWordRestart(error)
         }
         val activeWakePhrases = VoicuteModelLoader.DEMO_DISPLAY_PHRASES
@@ -611,6 +643,8 @@ class OverlayService : Service() {
         val delays = longArrayOf(1_000L, 2_000L, 4_000L, 8_000L, 15_000L)
         val retryDelay = delays[wakeWordRestartAttempt.coerceIn(0, delays.lastIndex)]
         wakeWordRestartAttempt = (wakeWordRestartAttempt + 1).coerceAtMost(delays.lastIndex)
+        JarvisDiagnosticLog.record(this, "WAKEWORD_RETRY", "Wake-word restart scheduled; attempt=$wakeWordRestartAttempt retrySeconds=${retryDelay / 1_000}; reason=$message")
+        WakeWordDiagnostics.serviceState("RUNNING", wakeWordRunning = false, restartAttempt = wakeWordRestartAttempt)
         statusText?.text = "Mic/wake-word error: $message — retry in ${retryDelay / 1_000}s"
         val retry = Runnable {
             wakeWordRestartRunnable = null
@@ -664,26 +698,10 @@ class OverlayService : Service() {
     }
 
     private fun copyLatestDebugLog() {
-        val baseReport = com.openjarvis.agent.AgentDiagnostics.latest(this)
-        val wake = com.openjarvis.voice.WakeWordDiagnostics.snapshot()
-        val detectionAt = wake.lastDetectionAtMs?.let {
-            android.text.format.DateFormat.format("yyyy-MM-dd HH:mm:ss", java.util.Date(it)).toString()
-        } ?: "never"
-        val wakeReport = buildString {
-            appendLine("Wake-word diagnostics:")
-            appendLine("engine=${wake.engineName}, state=${wake.state}, micPermission=${wake.micPermissionGranted}")
-            appendLine("framesProcessed=${wake.framesProcessed}, liveRms=${"%.4f".format(wake.rms)}, peakLevel=${"%.4f".format(wake.peakLevel)}")
-            appendLine("silentFrames=${wake.silentFrames}, clippedSamples=${wake.clippedSamples}")
-            appendLine("audioSource=${wake.audioSource}, sampleRate=${wake.sampleRate}")
-            appendLine("AGC available=${wake.agcAvailable}, enabled=${wake.agcEnabled}; NoiseSuppressor available=${wake.noiseSuppressorAvailable}, enabled=${wake.noiseSuppressorEnabled}")
-            appendLine("lastDetectionAt=$detectionAt, keyword=${wake.lastDetectionKeyword ?: "none"}, score=${wake.lastDetectionScore?.toString() ?: "unavailable"}")
-            appendLine("keywords=${wake.keywords.joinToString()}, threshold=${wake.threshold}, keywordBoost=${wake.keywordBoost}")
-            appendLine("lastError=${wake.lastError ?: "none"}")
-        }
-        val report = "$baseReport\n\n$wakeReport"
+        val report = JarvisDiagnosticLog.buildReport(this)
         val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-        clipboard.setPrimaryClip(ClipData.newPlainText("JARVIS Debug Log", report))
-        Toast.makeText(this, "Debug log copied. Paste it here in ChatGPT.", Toast.LENGTH_LONG).show()
+        clipboard.setPrimaryClip(ClipData.newPlainText("JARVIS Diagnostic Export", report))
+        Toast.makeText(this, "Safe diagnostic log copied. Paste it here in ChatGPT.", Toast.LENGTH_LONG).show()
     }
 
     private fun dp(value: Int): Int = (value * resources.displayMetrics.density).toInt()
