@@ -112,7 +112,8 @@ internal object HeadroomContextBudget {
 
         val candidate = value.take(limit - 1)
         val boundary = candidate.indexOfLast { it.isWhitespace() }
-        val safePrefix = if (boundary >= limit / 2) candidate.substring(0, boundary) else candidate
-        return safePrefix.trimEnd() + "…"
+        if (boundary < 0) return ""
+        val safePrefix = candidate.substring(0, boundary).trimEnd()
+        return if (safePrefix.isEmpty()) "" else safePrefix + "…"
     }
 }
