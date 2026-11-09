@@ -1236,8 +1236,10 @@ ${fullSystem.substringAfter("MEMORY:")}
             var failure: String? = null
             var firstFailure: String? = null
             var completed = false
+            var attemptsMade = 0
             val maxAttempts = SelfHealingSafetyPolicy.maxAttempts(action)
             for (attempt in 1..maxAttempts) {
+                attemptsMade = attempt
                 _state.value = AgentState.Running(
                     "Action ${index + 1}/${actions.size}: ${action.action} (attempt $attempt/$maxAttempts)"
                 )
@@ -1266,7 +1268,7 @@ ${fullSystem.substringAfter("MEMORY:")}
             if (!completed) {
                 val failureReason = failure ?: "verification failed"
                 val recovery = selfHealingExecutor.failureDisposition(action, failureReason)
-                val retryNote = if (maxAttempts > 1) "after bounded wait retry" else "without replay"
+                val retryNote = if (attemptsMade > 1) "after bounded wait retry" else "without retry/replay"
                 val message = "Action ${index + 1}/${actions.size} (${action.action}) failed $retryNote: $failureReason. $recovery"
                 results.add(message)
                 // The user-facing result retains details; Logcat must not duplicate raw failure text.
