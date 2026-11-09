@@ -6,9 +6,11 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class SelfHealingSafetyPolicyTest {
-    @Test fun onlyWaitCanBeRetried() {
+    @Test fun onlyWaitAndReadOnlyObservationsCanBeRetried() {
         assertEquals(2, SelfHealingSafetyPolicy.maxAttempts(Action(Action.WAIT)))
         assertEquals(2, SelfHealingSafetyPolicy.maxAttempts(Action(Action.WAIT_FOR, text = "Ready")))
+        assertEquals(2, SelfHealingSafetyPolicy.maxAttempts(Action(Action.READ_SCREEN)))
+        assertEquals(2, SelfHealingSafetyPolicy.maxAttempts(Action(Action.EXTRACT_TEXT)))
         listOf(
             Action(Action.TAP, text = "Send"),
             Action(Action.TYPE, value = "hello"),

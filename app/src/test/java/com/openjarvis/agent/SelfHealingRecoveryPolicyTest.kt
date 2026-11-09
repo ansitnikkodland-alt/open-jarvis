@@ -44,6 +44,16 @@ class SelfHealingRecoveryPolicyTest {
         assertTrue(tap.requiresUserConfirmation)
     }
 
+    @Test fun emptyReadOnlyScreenObservationCanBeRefreshedSafely() {
+        val result = SelfHealingRecoveryPolicy.classify(
+            Action(Action.READ_SCREEN), "Could not read current screen (no accessible text)"
+        )
+        assertEquals(SelfHealingRecoveryPolicy.FailureArea.ACCESSIBILITY, result.area)
+        assertEquals(SelfHealingRecoveryPolicy.RecoveryKind.REFRESH_OBSERVATION, result.recovery)
+        assertTrue(result.mayRetryAutomatically)
+        assertFalse(result.requiresUserConfirmation)
+    }
+
     @Test fun accessibilityServiceFailureStillRequiresUserAction() {
         val result = SelfHealingRecoveryPolicy.classify(
             Action(Action.READ_SCREEN), "Android accessibility service is disabled"

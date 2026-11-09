@@ -24,7 +24,7 @@ internal object SelfHealingRecoveryPolicy {
         val area = when {
             contains(value, "ollama", "11434", "connection refused", "failed to connect", "socket timeout") -> FailureArea.OLLAMA_CONNECTIVITY
             contains(value, "model not found", "unknown model", "qwen3:1.7b") -> FailureArea.MODEL_UNAVAILABLE
-            contains(value, "accessibility", "visible text", "node not found") -> FailureArea.ACCESSIBILITY
+            contains(value, "accessibility", "visible text", "node not found", "no accessible text") -> FailureArea.ACCESSIBILITY
             contains(value, "app not installed", "package not found", "launch activity") -> FailureArea.APP_LAUNCH
             contains(value, "speech", "stt", "microphone", "no match") -> FailureArea.SPEECH
             contains(value, "overlay", "floating window") -> FailureArea.OVERLAY
@@ -41,7 +41,7 @@ internal object SelfHealingRecoveryPolicy {
                 // accessibility is disabled. Refreshing a read-only observation is safe;
                 // permission/service failures still require the user to intervene.
                 val missingObservation = isObservation &&
-                    contains(value, "visible text not found", "node not found", "element not found")
+                    contains(value, "visible text not found", "node not found", "element not found", "no accessible text")
                 if (missingObservation) {
                     Decision(area, RecoveryKind.REFRESH_OBSERVATION, true, false, true,
                         "Refresh the read-only screen observation; do not repeat any UI action.")
