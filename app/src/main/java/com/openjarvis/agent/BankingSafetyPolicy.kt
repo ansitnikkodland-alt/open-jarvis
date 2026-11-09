@@ -50,8 +50,8 @@ internal object BankingSafetyPolicy {
     )
 
     private val credentialSubmission = Regex(
-        "(?<![\\p{L}\\p{N}])(enter|type|input|submit|share|tell|send|paste|fill| डालो|डालें|लिखो|भेजो|बताओ|शेयर करो|" +
-            "tak|dalo|likho|bhejo|batao|share karo|enter karo|type karo| भरें|टाइप करो|दाखल करा|टाका)(?![\\p{L}\\p{N}])",
+        "(?<![\\p{L}\\p{N}])(enter|type|input|submit|share|tell|send|paste|fill|डालो|डालें|लिखो|भेजो|बताओ|शेयर करो|" +
+            "tak|dalo|likho|bhejo|batao|share karo|enter karo|type karo|भरें|टाइप करो|दाखल करा|टाका)(?![\\p{L}\\p{N}])",
         RegexOption.IGNORE_CASE
     )
 
