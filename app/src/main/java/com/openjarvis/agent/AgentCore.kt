@@ -1256,7 +1256,8 @@ ${fullSystem.substringAfter("MEMORY:")}
                     break
                 }
                 if (firstFailure == null) firstFailure = failure
-                Log.w(TAG, "Action ${index + 1} ${action.action} attempt $attempt/$maxAttempts failed: $failure")
+                // Failure text may contain screen/app data; keep Logcat metadata-only.
+                Log.w(TAG, "Action ${index + 1} ${action.action} attempt $attempt/$maxAttempts failed")
                 if (attempt < maxAttempts && selfHealingExecutor.shouldRetry(action, failure.orEmpty())) {
                     kotlinx.coroutines.delay(400)
                 } else {
@@ -1270,7 +1271,8 @@ ${fullSystem.substringAfter("MEMORY:")}
                 val retryNote = if (maxAttempts > 1) "after bounded wait retry" else "without replay"
                 val message = "Action ${index + 1}/${actions.size} (${action.action}) failed $retryNote: $failureReason. $recovery"
                 results.add(message)
-                Log.e(TAG, message)
+                // The user-facing result retains details; Logcat must not duplicate raw failure text.
+                Log.e(TAG, "Action ${index + 1} ${action.action} failed; recovery guidance generated")
                 _state.value = AgentState.Error(message)
                 return ActionExecutionResult(
                     succeeded = false,
