@@ -431,7 +431,8 @@ class OverlayService : Service() {
             statusText?.text = "No speech detected — listening again"
             voiceManager.resumeContinuousSession()
             return
-        }        // Typed commands use the same deterministic voice-control gate as speech transcripts.
+        }
+        // Typed commands use the same deterministic voice-control gate as speech transcripts.
         when (CommandListeningPolicy.classify(command, isMuted)) {
             CommandListeningPolicy.Action.MUTE -> {
                 enterMuteMode()
