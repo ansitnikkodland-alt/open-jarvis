@@ -176,8 +176,8 @@ internal object SelfHealingPatternCodec {
                     .takeIf { it in setOf("UNRESOLVED", "VERIFIED_READ_ONLY_RECOVERY") } ?: "UNRESOLVED"
             )
         }
-            .distinctBy { it.area }
             .sortedByDescending { it.lastSeenMillis }
+            .distinctBy { it.area }
             .take(12)
     }.getOrDefault(emptyList())
 
