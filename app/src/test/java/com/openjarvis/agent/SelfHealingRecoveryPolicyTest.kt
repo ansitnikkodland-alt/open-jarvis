@@ -54,6 +54,16 @@ class SelfHealingRecoveryPolicyTest {
         assertFalse(result.requiresUserConfirmation)
     }
 
+    @Test fun extractTextRuntimeFailureIsRecognizedAsRefreshableObservation() {
+        val result = SelfHealingRecoveryPolicy.classify(
+            Action(Action.EXTRACT_TEXT), "Could not extract text from current screen"
+        )
+        assertEquals(SelfHealingRecoveryPolicy.FailureArea.ACCESSIBILITY, result.area)
+        assertEquals(SelfHealingRecoveryPolicy.RecoveryKind.REFRESH_OBSERVATION, result.recovery)
+        assertTrue(result.mayRetryAutomatically)
+        assertFalse(result.requiresUserConfirmation)
+    }
+
     @Test fun accessibilityServiceFailureStillRequiresUserAction() {
         val result = SelfHealingRecoveryPolicy.classify(
             Action(Action.READ_SCREEN), "Android accessibility service is disabled"

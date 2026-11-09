@@ -19,7 +19,24 @@ class SelfHealingSafetyPolicyTest {
             Action(Action.CLICK, text = "Submit")
         ).forEach { action ->
             assertEquals(action.action, 1, SelfHealingSafetyPolicy.maxAttempts(action))
+            assertFalse(action.action.toString(), SelfHealingSafetyPolicy.shouldRetry(action, "action failed"))
         }
+    }
+
+    @Test fun retryRequiresSafeFailureClassificationForReadOnlyObservations() {
+        assertTrue(SelfHealingSafetyPolicy.shouldRetry(
+            Action(Action.READ_SCREEN), "Could not read current screen (no accessible text)"
+        ))
+        assertTrue(SelfHealingSafetyPolicy.shouldRetry(
+            Action(Action.EXTRACT_TEXT), "Could not extract text from current screen"
+        ))
+        assertFalse(SelfHealingSafetyPolicy.shouldRetry(
+            Action(Action.READ_SCREEN), "Android accessibility service is disabled"
+        ))
+        assertFalse(SelfHealingSafetyPolicy.shouldRetry(
+            Action(Action.EXTRACT_TEXT), "Unexpected internal failure"
+        ))
+        assertTrue(SelfHealingSafetyPolicy.shouldRetry(Action(Action.WAIT), "Timed out waiting for visible text"))
     }
 
     @Test fun waitDurationIsBounded() {

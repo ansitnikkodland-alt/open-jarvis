@@ -24,7 +24,8 @@ internal object SelfHealingRecoveryPolicy {
         val area = when {
             contains(value, "ollama", "11434", "connection refused", "failed to connect", "socket timeout") -> FailureArea.OLLAMA_CONNECTIVITY
             contains(value, "model not found", "unknown model", "qwen3:1.7b") -> FailureArea.MODEL_UNAVAILABLE
-            contains(value, "accessibility", "visible text", "node not found", "no accessible text") -> FailureArea.ACCESSIBILITY
+            contains(value, "accessibility", "visible text", "node not found", "no accessible text",
+                "could not read current screen", "could not extract text from current screen") -> FailureArea.ACCESSIBILITY
             contains(value, "app not installed", "package not found", "launch activity") -> FailureArea.APP_LAUNCH
             contains(value, "speech", "stt", "microphone", "no match") -> FailureArea.SPEECH
             contains(value, "overlay", "floating window") -> FailureArea.OVERLAY
@@ -37,11 +38,11 @@ internal object SelfHealingRecoveryPolicy {
             FailureArea.MODEL_UNAVAILABLE -> Decision(area, RecoveryKind.VERIFY_CONFIGURATION, false, true, true,
                 "Verify the installed local qwen3:1.7b model; do not download or change the default automatically.")
             FailureArea.ACCESSIBILITY -> {
-                // Missing screen content/node is a stale observation, not proof that Android
-                // accessibility is disabled. Refreshing a read-only observation is safe;
-                // permission/service failures still require the user to intervene.
+                // Empty screen content is a stale observation; permission/service failures require user action.
                 val missingObservation = isObservation &&
-                    contains(value, "visible text not found", "node not found", "element not found", "no accessible text")
+                    contains(value, "visible text not found", "node not found", "element not found",
+                        "no accessible text", "could not read current screen",
+                        "could not extract text from current screen")
                 if (missingObservation) {
                     Decision(area, RecoveryKind.REFRESH_OBSERVATION, true, false, true,
                         "Refresh the read-only screen observation; do not repeat any UI action.")
@@ -54,14 +55,9 @@ internal object SelfHealingRecoveryPolicy {
                 Decision(area, RecoveryKind.USER_ACTION_REQUIRED, false, true, true,
                     "Ask the user to check Android permission/service state, then verify again after the user acts.")
             FailureArea.APP_LAUNCH, FailureArea.ACTION ->
-                Decision(
-                    area,
-                    if (isObservation) RecoveryKind.REFRESH_OBSERVATION else RecoveryKind.USER_ACTION_REQUIRED,
-                    isObservation,
-                    !isObservation,
-                    true,
-                    "Observe current state before any retry; never replay a possibly completed side effect."
-                )
+                Decision(area, if (isObservation) RecoveryKind.REFRESH_OBSERVATION else RecoveryKind.USER_ACTION_REQUIRED,
+                    isObservation, !isObservation, true,
+                    "Observe current state before any retry; never replay a possibly completed side effect.")
             FailureArea.UNKNOWN -> Decision(area, RecoveryKind.ESCALATE, false, true, false,
                 "Unknown failure: stop automation and request user review.")
         }

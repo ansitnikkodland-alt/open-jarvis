@@ -14,9 +14,16 @@ internal object SelfHealingSafetyPolicy {
         else -> 1
     }
 
+    /** Retry a read-only observation only when the classifier explicitly permits refresh. */
+    fun shouldRetry(action: Action, failureReason: String): Boolean = when (action.action) {
+        Action.WAIT, Action.WAIT_FOR -> true
+        Action.READ_SCREEN, Action.EXTRACT_TEXT ->
+            SelfHealingRecoveryPolicy.classify(action, failureReason).mayRetryAutomatically
+        else -> false
+    }
+
     fun boundedWaitMs(action: Action): Long =
         action.timeoutMs.coerceIn(0L, MAX_WAIT_MS)
 
-    /** LLM-generated alternatives are deliberately not executable. */
     fun acceptsModelAlternative(action: Action?): Boolean = false
 }
