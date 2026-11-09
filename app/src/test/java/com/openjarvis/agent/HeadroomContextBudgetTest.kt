@@ -120,6 +120,12 @@ class HeadroomContextBudgetTest {
     }
 
     @Test
+    fun ocrTruncationDropsAnUnbrokenLongTokenInsteadOfSplittingIt() {
+        val result = HeadroomContextBudget.fitTextAtWordBoundary("x".repeat(200), 50)
+        assertEquals("", result)
+    }
+
+    @Test
     fun emptyContextStaysEmpty() {
         val result = HeadroomContextBudget.allocate("", "", "", "")
         assertEquals(0, result.outputChars)
