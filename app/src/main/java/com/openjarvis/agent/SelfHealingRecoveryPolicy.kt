@@ -54,8 +54,14 @@ internal object SelfHealingRecoveryPolicy {
                 Decision(area, RecoveryKind.USER_ACTION_REQUIRED, false, true, true,
                     "Ask the user to check Android permission/service state, then verify again after the user acts.")
             FailureArea.APP_LAUNCH, FailureArea.ACTION ->
-                Decision(area, RecoveryKind.REFRESH_OBSERVATION, isObservation, false, true,
-                    "Observe current state before any retry; never replay a possibly completed side effect.")
+                Decision(
+                    area,
+                    if (isObservation) RecoveryKind.REFRESH_OBSERVATION else RecoveryKind.USER_ACTION_REQUIRED,
+                    isObservation,
+                    !isObservation,
+                    true,
+                    "Observe current state before any retry; never replay a possibly completed side effect."
+                )
             FailureArea.UNKNOWN -> Decision(area, RecoveryKind.ESCALATE, false, true, false,
                 "Unknown failure: stop automation and request user review.")
         }
