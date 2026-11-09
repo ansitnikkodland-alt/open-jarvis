@@ -1096,11 +1096,10 @@ ${fullSystem.substringAfter("MEMORY:")}
         val foregroundFinancialPackage = launchedFinancialPackage
             ?: activeService?.activePackageNames()
                 ?.firstOrNull(BankingSafetyPolicy::isFinancialPackage)
-        val scopedActions = if (foregroundFinancialPackage == null) actions else actions.map { action ->
-            if (action.packageName.isNullOrBlank() &&
-                action.action in setOf(Action.CLICK, Action.TAP, Action.TYPE, Action.TYPE_TEXT)
-            ) action.copy(packageName = foregroundFinancialPackage) else action
-        }
+        val scopedActions = BankingSafetyPolicy.scopeActionsToFinancialForeground(
+            actions,
+            foregroundFinancialPackage
+        )
         val blockedBankingRule = BankingSafetyPolicy.failureRule("", scopedActions)
         if (blockedBankingRule != null) {
             val blockedAction = scopedActions.firstOrNull {
