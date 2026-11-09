@@ -104,9 +104,9 @@ object StepIntentParser {
         "kam", "kamm", "decrease", "down", "ghatao", "dheema", "कम", "घटाओ", "धीमा"
     )
 
-    private val SCREEN_WORDS = words("screen", "screenshot", "display", "स्क्रीन", "स्क्रीनशॉट", "पडदा")
+    private val SCREEN_WORDS = words("screen", "screencha", "screenchi", "screenshot", "display", "स्क्रीन", "स्क्रीनचा", "स्क्रीनची", "स्क्रीनशॉट", "पडदा", "पडद्याचा", "पडद्याची")
     private val SCREENSHOT_WORDS = words("screenshot", "स्क्रीनशॉट")
-    private val SCREEN_PHOTO_WORDS = words("photo", "picture", "pic", "image", "foto", "फोटो", "तस्वीर", "चित्र", "छवि", "shot", "काढ", "काढा", "खींचो")
+    private val SCREEN_PHOTO_WORDS = words("photo", "picture", "pic", "image", "foto", "फोटो", "तस्वीर", "तसवीर", "चित्र", "छवि", "छायाचित्र", "shot", "kadh", "kheecho", "kheench", "काढ", "काढा", "खींचो")
     private val SCREEN_ACTION_WORDS = words(
         "read", "scan", "analyze", "analyse", "check", "see",
         "what", "whats", "kya", "dikhta", "dikhao", "padho", "padh",
