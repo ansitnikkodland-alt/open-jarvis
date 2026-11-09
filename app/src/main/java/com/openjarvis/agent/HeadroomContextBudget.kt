@@ -82,7 +82,7 @@ internal object HeadroomContextBudget {
         var used = 0
         for (line in value.split('\n')) {
             val additional = line.length + if (included.isEmpty()) 0 else 1
-            if (used + additional > limit) break
+            if (used + additional > limit) continue
             included += line
             used += additional
         }
@@ -98,7 +98,7 @@ internal object HeadroomContextBudget {
         var used = 0
         for (item in value.split(delimiter)) {
             val additional = item.length + if (included.isEmpty()) 0 else delimiter.length
-            if (used + additional > limit) break
+            if (used + additional > limit) continue
             included += item
             used += additional
         }
