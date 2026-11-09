@@ -42,8 +42,8 @@ object HeadroomLite {
 
         val compacted = when (kind) {
             ContentKind.JSON -> compactJson(input) ?: input
-            ContentKind.TEXT, ContentKind.LOG -> compactLines(input, encodeRepeats = true)
-            ContentKind.UI_TEXT, ContentKind.POLICY -> compactLines(input, encodeRepeats = false)
+            ContentKind.TEXT, ContentKind.UI_TEXT, ContentKind.POLICY -> compactLines(input, encodeRepeats = false)
+            ContentKind.LOG -> compactLines(input, encodeRepeats = true)
             ContentKind.AUTO -> input
             ContentKind.CODE, ContentKind.DIFF, ContentKind.PRESERVE -> input
         }.let { candidate -> if (candidate.length < input.length) candidate else input }
@@ -59,7 +59,70 @@ object HeadroomLite {
         )
     }
 
-    fun estimateTokens(text: String): Int = (text.length + 3) / 4
+    /**
+     * Lightweight, conservative estimate: ASCII word runs average four characters/token;
+     * non-ASCII code points average two characters/token; emoji surrogate pairs count once.
+     * This is a metric, not a substitute for the model's tokenizer.
+     */
+    fun estimateTokens(text: String): Int {
+        if (text.isEmpty()) return 0
+        var total = 0
+        var asciiRun = 0
+        var unicodeRun = 0
+
+        fun flushAscii() {
+            if (asciiRun > 0) {
+                total += (asciiRun + 3) / 4
+                asciiRun = 0
+            }
+        }
+
+        fun flushUnicode() {
+            if (unicodeRun > 0) {
+                total += (unicodeRun + 1) / 2
+                unicodeRun = 0
+            }
+        }
+
+        var index = 0
+        while (index < text.length) {
+            val character = text[index]
+            when {
+                character.isWhitespace() -> {
+                    flushAscii()
+                    flushUnicode()
+                    index++
+                }
+                character.code < 0x80 && (character.isLetterOrDigit() || character == '_') -> {
+                    flushUnicode()
+                    asciiRun++
+                    index++
+                }
+                character.code < 0x80 -> {
+                    flushAscii()
+                    flushUnicode()
+                    total++
+                    index++
+                }
+                Character.isHighSurrogate(character) &&
+                    index + 1 < text.length && Character.isLowSurrogate(text[index + 1]) -> {
+                    flushAscii()
+                    flushUnicode()
+                    total++
+                    index += 2
+                }
+                Character.isLowSurrogate(character) -> index++
+                else -> {
+                    flushAscii()
+                    unicodeRun++
+                    index++
+                }
+            }
+        }
+        flushAscii()
+        flushUnicode()
+        return total
+    }
 
     private fun isJsonDocument(input: String): Boolean =
         StrictJsonValidator(input.trim()).isValid()
@@ -118,7 +181,7 @@ object HeadroomLite {
             if (line.isEmpty() && count > 1) {
                 output += ""
             } else if (encodeRepeats && count > 1) {
-                val marker = "$line ⟪x$count⟫"
+                val marker = "$line ⟪repeated $count times⟫"
                 val originalLength = count * line.length + (count - 1)
                 if (marker.length < originalLength) output += marker
                 else repeat(count) { output += line }
