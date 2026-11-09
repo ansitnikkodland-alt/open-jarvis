@@ -39,6 +39,8 @@ internal object SelfHealingRecoveryPolicy {
                 FailureArea.MODEL_UNAVAILABLE
             contains(value, "ollama", "11434", "connection refused", "failed to connect", "socket timeout") ->
                 FailureArea.OLLAMA_CONNECTIVITY
+            (isObservation && action.action in setOf(Action.WAIT, Action.WAIT_FOR) &&
+                contains(value, "timed out", "timeout", "timed-out")) -> FailureArea.ACCESSIBILITY
             contains(value, "accessibility", "visible text", "node not found", "no accessible text",
                 "could not read current screen", "could not extract text from current screen") -> FailureArea.ACCESSIBILITY
             isAppLaunch -> FailureArea.APP_LAUNCH
