@@ -1299,25 +1299,25 @@ ${fullSystem.substringAfter("MEMORY:")}
     }
 
     private suspend fun executeFastCommand(command: FastCommandParser.Command): String {
-        // An app launch is not safe to retry after startActivity succeeds: a failed
-        // foreground observation must never launch the same app a second time.
-        if (command is FastCommandParser.Command.OpenApp ||
-            command is FastCommandParser.Command.DialContact ||
-            command is FastCommandParser.Command.YoutubeSearch ||
-            command is FastCommandParser.Command.SetTimer) {
-            return executeFastCommandOnce(command)
-        }
+        // Fast commands can mutate memory, change navigation state, launch apps,
+        // or open system UI. An exception may occur after the side effect succeeded,
+        // so never replay a fast command without an explicit user request.
         var lastFailure = "Command could not be verified"
-        for (attempt in 1..2) {
+        val maxAttempts = FastCommandRetryPolicy.maxAttempts(command)
+        for (attempt in 1..maxAttempts) {
             try {
                 return executeFastCommandOnce(command)
             } catch (error: Exception) {
                 lastFailure = error.message?.takeIf { it.isNotBlank() } ?: error.javaClass.simpleName
-                Log.w(TAG, "Fast command attempt $attempt failed: $lastFailure")
-                if (attempt == 1) kotlinx.coroutines.delay(400)
+                Log.w(TAG, "Fast command attempt $attempt/$maxAttempts failed")
+                if (FastCommandRetryPolicy.shouldRetry(command, attempt)) {
+                    kotlinx.coroutines.delay(400)
+                } else {
+                    break
+                }
             }
         }
-        throw IllegalStateException("Command failed after one retry: $lastFailure")
+        throw IllegalStateException("Fast command failed without automatic replay: $lastFailure")
     }
 
     private suspend fun executeFastCommandOnce(command: FastCommandParser.Command): String {
