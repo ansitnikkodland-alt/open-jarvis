@@ -28,6 +28,19 @@ class SelfHealingRecoveryPolicyTest {
         }
     }
 
+    @Test fun onlyReadOnlyObservationMayBeMarkedForAutomaticRetry() {
+        val observation = SelfHealingRecoveryPolicy.classify(
+            Action(Action.READ_SCREEN), "visible text not found"
+        )
+        assertTrue(observation.mayRetryAutomatically)
+
+        val tap = SelfHealingRecoveryPolicy.classify(
+            Action(Action.TAP, text = "Continue"), "tap failed"
+        )
+        assertFalse(tap.mayRetryAutomatically)
+        assertTrue(tap.requiresUserConfirmation)
+    }
+
     @Test fun recurringPatternsStoreOnlyBoundedCategories() {
         var patterns = emptyList<SelfHealingPatternCodec.Pattern>()
         repeat(3) { index ->

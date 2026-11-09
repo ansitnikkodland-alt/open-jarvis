@@ -9,9 +9,12 @@ internal class SelfHealingPatternStore(context: Context) {
     private val prefs = context.applicationContext.getSharedPreferences("jarvis_self_healing_patterns", Context.MODE_PRIVATE)
 
     fun record(area: String, now: Long = System.currentTimeMillis()): SelfHealingPatternCodec.Pattern {
-        val updated = SelfHealingPatternCodec.record(read(), area, now).first()
+        // Read once and derive one canonical update so the returned value and persisted JSON
+        // cannot diverge if another write lands between separate reads.
+        val updatedPatterns = SelfHealingPatternCodec.record(read(), area, now)
+        val updated = updatedPatterns.first()
         val json = JSONArray()
-        SelfHealingPatternCodec.record(read(), area, now).forEach { item ->
+        updatedPatterns.forEach { item ->
             json.put(JSONObject().put("area", item.area).put("count", item.count).put("lastSeen", item.lastSeenMillis))
         }
         prefs.edit().putString(KEY_PATTERNS, json.toString()).apply()
