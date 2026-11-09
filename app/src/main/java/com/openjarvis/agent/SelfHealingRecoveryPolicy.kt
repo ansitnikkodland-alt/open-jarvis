@@ -1,5 +1,7 @@
 package com.openjarvis.agent
 
+import org.json.JSONArray
+
 /**
  * Deterministic recovery classification. This layer never executes an action.
  * It separates repeatable observations from actions whose completion may be ambiguous.
