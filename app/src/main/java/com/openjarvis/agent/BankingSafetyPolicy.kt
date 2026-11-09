@@ -22,7 +22,7 @@ internal object BankingSafetyPolicy {
             "send money|send cash|make payment|pay now|pay bill|pay karo|payment karo|" +
             "upi payment|upi transfer|bank transfer|money transfer|withdraw money|" +
             "paisa bhejo|paise bhejo|paisa transfer|paise transfer|paise bhej|paisa bhej|" +
-            "bhugtan karo|bhugtaan karo|bill bharo|" +
+            "bhugtan karo|bhugtaan karo|bill bharo|recharge karo|mobile recharge|top up karo|" +
             "पैसे भेजो|पैसा भेजो|पैसे ट्रांसफर|पैसा ट्रांसफर|भुगतान करो|भुगतान करें|" +
             "यूपीआई पेमेंट|यूपीआई ट्रांसफर|बिल भरो|" +
             "paise pathav|paise pathva|paise transfer kara|payment kara|" +
@@ -77,9 +77,14 @@ internal object BankingSafetyPolicy {
         RegexOption.IGNORE_CASE
     )
 
+    private val informationalRequest = Regex(
+        "^(how|what|why|explain|describe|meaning|kaise|kyun|kya|samjhao|samjha|क्यों|कैसे|क्या|समझाओ|काय|कसे)\\\\b",
+        RegexOption.IGNORE_CASE
+    )
+
     fun isBlockedCommand(command: String): Boolean {
         val s = normalize(command)
-        if (s.isBlank()) return false
+        if (s.isBlank() || informationalRequest.containsMatchIn(s)) return false
         if (explicitTransactionIntent.containsMatchIn(s)) return true
         if (transactionVerb.containsMatchIn(s) && amountOrRecipient.containsMatchIn(s)) return true
         return credentialTerms.containsMatchIn(s) && credentialSubmission.containsMatchIn(s)
