@@ -63,6 +63,14 @@ internal object BankingSafetyPolicy {
         "in.org.npci.upiapp",
     )
 
+    fun isFinancialPackage(packageName: String?): Boolean {
+        val pkg = packageName?.lowercase(Locale.ROOT).orEmpty()
+        return pkg in financialPackages ||
+            listOf("bank", "upi", "wallet", "paytm", "phonepe", "paisa").any(pkg::contains)
+    }
+
+    fun knownFinancialPackages(): Set<String> = financialPackages
+
     private val financialControl = Regex(
         "(?<![\\p{L}\\p{N}])(pay|payment|transfer|send|proceed|confirm|withdraw|" +
             "recharge|upi|भुगतान|भेजें|भेजो|ट्रांसफर|पैसे भेजो|पेमेंट|पाठवा)(?![\\p{L}\\p{N}])",
@@ -97,8 +105,7 @@ internal object BankingSafetyPolicy {
 
     private fun isBlockedFinancialAction(action: Action): Boolean {
         val pkg = action.packageName?.lowercase(Locale.ROOT).orEmpty()
-        val financialApp = pkg in financialPackages ||
-            listOf("bank", "upi", "wallet", "paytm", "phonepe", "paisa").any(pkg::contains)
+        val financialApp = isFinancialPackage(pkg)
         val text = listOfNotNull(action.text, action.hint, action.value, action.label)
             .joinToString(" ")
         val credentialMentioned = credentialTerms.containsMatchIn(normalize(text))
