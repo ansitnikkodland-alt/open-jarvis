@@ -69,7 +69,7 @@ class WakeWordDiagnosticsTest {
         )
 
         val snapshot = WakeWordDiagnostics.snapshot()
-        assertEquals(123_456L, snapshot.lastCandidateAtMs)
+        assertEquals(123_456L, snapshot.lastCandidateAtMs!!)
         assertEquals("Hey Jarvis", snapshot.lastCandidateKeyword)
         assertEquals(0.21f, snapshot.lastCandidateScore!!, 0.0001f)
         assertFalse(snapshot.lastCandidateAccepted)
@@ -85,7 +85,7 @@ class WakeWordDiagnosticsTest {
         assertEquals("RUNNING", snapshot.serviceState)
         assertFalse(snapshot.overlayAttached)
         assertFalse(snapshot.wakeWordRunning)
-        assertEquals(55_000L, snapshot.watchdogLastTickAtMs)
+        assertEquals(55_000L, snapshot.watchdogLastTickAtMs!!)
         assertEquals(1L, snapshot.watchdogTickCount)
         assertEquals(1L, snapshot.watchdogRecoveryCount)
         assertEquals(2, snapshot.wakeWordRestartAttempt)
