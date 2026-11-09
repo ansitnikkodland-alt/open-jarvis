@@ -24,16 +24,16 @@ class HeadroomContextBudgetTest {
     @Test
     fun allocatesInteractiveElementsBeforeMemoryOcrAndAppLabels() {
         val result = HeadroomContextBudget.allocate(
-            memory = "M".repeat(300),
+            memory = "M".repeat(400),
             screenText = "O".repeat(200),
             screenElements = "E".repeat(700),
             installedApps = "A".repeat(200)
         )
 
-        assertEquals(500, result.screenElements.length)
-        assertEquals(250, result.memory.length)
+        assertEquals(450, result.screenElements.length)
+        assertEquals(350, result.memory.length)
         assertEquals(150, result.screenText.length)
-        assertEquals(100, result.installedApps.length)
+        assertEquals(50, result.installedApps.length)
         assertTrue(result.outputChars <= HeadroomContextBudget.MAX_TOTAL_CHARS)
     }
 
