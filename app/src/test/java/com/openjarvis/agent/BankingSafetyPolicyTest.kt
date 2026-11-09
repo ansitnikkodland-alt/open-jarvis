@@ -52,6 +52,19 @@ class BankingSafetyPolicyTest {
         }
     }
 
+    @Test fun recognizesUnlistedIndianBankPackagesForForegroundProtection() {
+        listOf(
+            "com.hdfcbank.mobilebanking",
+            "com.icicibank.imobile",
+            "com.axis.mobile",
+            "com.paytm"
+        ).forEach { packageName ->
+            assertTrue("Should recognize financial package: $packageName",
+                BankingSafetyPolicy.isFinancialPackage(packageName))
+        }
+        assertFalse(BankingSafetyPolicy.isFinancialPackage("com.example.shopping"))
+    }
+
     @Test fun blocksFinancialAppTextEntryAndPaymentControls() {
         val typeIntoPhonePe = Action(
             action = Action.TYPE,
