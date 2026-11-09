@@ -107,6 +107,7 @@ internal object SelfHealingRecoveryPolicy {
 internal object SelfHealingPatternCodec {
     private const val MAX_PATTERNS = 12
     private const val MAX_COUNTER = 1_000_000
+    private const val MAX_JSON_CHARS = 8_192
 
     private fun boundedLimit(limit: Int): Int = limit.coerceIn(1, MAX_PATTERNS)
     private fun increment(value: Int): Int = value.coerceIn(0, MAX_COUNTER - 1) + 1
@@ -186,7 +187,9 @@ internal object SelfHealingPatternCodec {
      * Unknown fields are ignored; malformed rows are dropped independently.
      */
     fun decodeJson(raw: String?): List<Pattern> = runCatching {
-        val array = JSONArray(raw?.takeIf { it.isNotBlank() } ?: "[]")
+        val safeJson = raw?.takeIf { it.isNotBlank() && it.length <= MAX_JSON_CHARS }
+            ?: if (raw.isNullOrBlank()) "[]" else return@runCatching emptyList()
+        val array = JSONArray(safeJson)
         val validAreas = SelfHealingRecoveryPolicy.FailureArea.values().map { it.name }.toSet()
         (0 until array.length()).mapNotNull { index ->
             val item = array.optJSONObject(index) ?: return@mapNotNull null
