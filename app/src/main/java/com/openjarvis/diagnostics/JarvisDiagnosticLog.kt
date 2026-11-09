@@ -2,7 +2,6 @@ package com.openjarvis.diagnostics
 
 import android.content.Context
 import android.os.Build
-import android.util.Log
 import com.openjarvis.BuildConfig
 import com.openjarvis.voice.WakeWordDiagnosticSnapshot
 import com.openjarvis.voice.WakeWordDiagnostics
@@ -35,9 +34,7 @@ object JarvisDiagnosticLog {
             timestampMs = System.currentTimeMillis(),
             category = category.uppercase(Locale.US).filter { it.isLetterOrDigit() || it == '_' }.take(32),
             message = DiagnosticRedactor.redact(message).take(MAX_MESSAGE_CHARS),
-            stackTrace = error?.let {
-                DiagnosticRedactor.redact(Log.getStackTraceString(it)).take(MAX_STACK_CHARS)
-            }.orEmpty()
+            stackTrace = error?.let { DiagnosticRedactor.stackTrace(it).take(MAX_STACK_CHARS) }.orEmpty()
         )
         synchronized(lock) {
             val current = readEventsLocked(context)
@@ -82,6 +79,10 @@ object JarvisDiagnosticLog {
         synchronized(lock) {
             context.applicationContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
                 .edit().remove(EVENTS_KEY).apply()
+            context.applicationContext.getSharedPreferences("jarvis_agent_diagnostics", Context.MODE_PRIVATE)
+                .edit().clear().apply()
+            context.applicationContext.getSharedPreferences("ollama_diagnostics", Context.MODE_PRIVATE)
+                .edit().remove("recent_requests").apply()
             lastCandidateWrittenAt.clear()
         }
     }
@@ -218,6 +219,23 @@ internal object DiagnosticRedactor {
     private val email = Regex("""(?i)\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b""")
     private val indiaPhone = Regex("""(?<!\d)(?:\+?91[- ]?)?[6-9]\d{9}(?!\d)""")
     private val jwt = Regex("""\b[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\b""")
+
+    fun stackTrace(error: Throwable): String {
+        val output = StringBuilder()
+        val seen = HashSet<Throwable>()
+        var current: Throwable? = error
+        var depth = 0
+        while (current != null && depth < 8 && seen.add(current)) {
+            if (depth == 0) output.append(current.javaClass.name)
+            else output.append("\nCaused by: ").append(current.javaClass.name)
+            current.stackTrace.take(80).forEach { frame ->
+                output.append("\n at ").append(frame.toString())
+            }
+            current = current.cause
+            depth++
+        }
+        return redact(output.toString())
+    }
 
     fun redact(input: String): String {
         var safe = input.replace("\u0000", "")
