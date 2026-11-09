@@ -100,6 +100,12 @@ internal object SelfHealingRecoveryPolicy {
 
 /** Privacy-safe recurring-failure signature; never includes command, screen, or message text. */
 internal object SelfHealingPatternCodec {
+    private const val MAX_PATTERNS = 12
+    private const val MAX_COUNTER = 1_000_000
+
+    private fun boundedLimit(limit: Int): Int = limit.coerceIn(1, MAX_PATTERNS)
+    private fun increment(value: Int): Int = value.coerceIn(0, MAX_COUNTER - 1) + 1
+
     data class Pattern(
         val area: String,
         val count: Int,
@@ -116,16 +122,16 @@ internal object SelfHealingPatternCodec {
         val current = existing.firstOrNull { it.area == safeArea }
         val updated = Pattern(
             area = safeArea,
-            count = (current?.count ?: 0) + 1,
+            count = increment(current?.count ?: 0),
             lastSeenMillis = now,
-            verifiedRecoveries = current?.verifiedRecoveries ?: 0,
-            unresolvedFailures = (current?.unresolvedFailures ?: 0) + 1,
-            consecutiveFailures = (current?.consecutiveFailures ?: 0) + 1,
+            verifiedRecoveries = (current?.verifiedRecoveries ?: 0).coerceIn(0, MAX_COUNTER),
+            unresolvedFailures = increment(current?.unresolvedFailures ?: 0),
+            consecutiveFailures = increment(current?.consecutiveFailures ?: 0),
             lastOutcome = "UNRESOLVED"
         )
         return (listOf(updated) + existing.filterNot { it.area == safeArea })
             .sortedByDescending { it.lastSeenMillis }
-            .take(limit.coerceAtLeast(1))
+            .take(boundedLimit(limit))
     }
 
     /** Record only a verified, read-only recovery outcome; never stores command or screen data. */
@@ -139,7 +145,7 @@ internal object SelfHealingPatternCodec {
         val current = existing.firstOrNull { it.area == area }
         if (current == null) {
             if (!verified || area !in SelfHealingRecoveryPolicy.FailureArea.values().map { it.name }) {
-                return existing.take(limit.coerceAtLeast(1))
+                return existing.take(boundedLimit(limit))
             }
             // A transient failure may recover on its first bounded retry before an
             // unresolved pattern exists. Preserve that verified recovery as a baseline.
@@ -154,11 +160,11 @@ internal object SelfHealingPatternCodec {
             )
             return (listOf(recovered) + existing)
                 .sortedByDescending { it.lastSeenMillis }
-                .take(limit.coerceAtLeast(1))
+                .take(boundedLimit(limit))
         }
         val updated = current.copy(
             lastSeenMillis = now,
-            verifiedRecoveries = current.verifiedRecoveries + if (verified) 1 else 0,
+            verifiedRecoveries = if (verified) increment(current.verifiedRecoveries) else current.verifiedRecoveries.coerceIn(0, MAX_COUNTER),
             unresolvedFailures = if (verified) (current.unresolvedFailures - 1).coerceAtLeast(0)
                 else current.unresolvedFailures,
             consecutiveFailures = if (verified) 0 else current.consecutiveFailures,
@@ -166,7 +172,7 @@ internal object SelfHealingPatternCodec {
         )
         return (listOf(updated) + existing.filterNot { it.area == area })
             .sortedByDescending { it.lastSeenMillis }
-            .take(limit.coerceAtLeast(1))
+            .take(boundedLimit(limit))
     }
 
     /**
@@ -187,30 +193,30 @@ internal object SelfHealingPatternCodec {
                 area = area,
                 count = count,
                 lastSeenMillis = lastSeen,
-                verifiedRecoveries = item.optInt("verifiedRecoveries", 0).coerceAtLeast(0),
-                unresolvedFailures = item.optInt("unresolvedFailures", count).coerceAtLeast(0),
-                consecutiveFailures = item.optInt("consecutiveFailures", count).coerceAtLeast(0),
+                verifiedRecoveries = item.optInt("verifiedRecoveries", 0).coerceIn(0, MAX_COUNTER),
+                unresolvedFailures = item.optInt("unresolvedFailures", count).coerceIn(0, MAX_COUNTER),
+                consecutiveFailures = item.optInt("consecutiveFailures", count).coerceIn(0, MAX_COUNTER),
                 lastOutcome = item.optString("lastOutcome", "UNRESOLVED")
                     .takeIf { it in setOf("UNRESOLVED", "VERIFIED_READ_ONLY_RECOVERY") } ?: "UNRESOLVED"
             )
         }
             .sortedByDescending { it.lastSeenMillis }
             .distinctBy { it.area }
-            .take(12)
+            .take(MAX_PATTERNS)
     }.getOrDefault(emptyList())
 
     /** Persist only the explicit allow-listed counters; never serialize caller content. */
     fun encodeJson(patterns: List<Pattern>): String {
         val array = JSONArray()
-        patterns.take(12).forEach { item ->
+        patterns.take(MAX_PATTERNS).forEach { item ->
             if (item.area !in SelfHealingRecoveryPolicy.FailureArea.values().map { it.name }) return@forEach
             array.put(org.json.JSONObject()
                 .put("area", item.area)
-                .put("count", item.count.coerceAtLeast(0))
+                .put("count", item.count.coerceIn(0, MAX_COUNTER))
                 .put("lastSeen", item.lastSeenMillis.coerceAtLeast(0L))
-                .put("verifiedRecoveries", item.verifiedRecoveries.coerceAtLeast(0))
-                .put("unresolvedFailures", item.unresolvedFailures.coerceAtLeast(0))
-                .put("consecutiveFailures", item.consecutiveFailures.coerceAtLeast(0))
+                .put("verifiedRecoveries", item.verifiedRecoveries.coerceIn(0, MAX_COUNTER))
+                .put("unresolvedFailures", item.unresolvedFailures.coerceIn(0, MAX_COUNTER))
+                .put("consecutiveFailures", item.consecutiveFailures.coerceIn(0, MAX_COUNTER))
                 .put("lastOutcome", item.lastOutcome.takeIf {
                     it == "UNRESOLVED" || it == "VERIFIED_READ_ONLY_RECOVERY"
                 } ?: "UNRESOLVED"))
