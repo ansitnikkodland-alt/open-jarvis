@@ -70,13 +70,13 @@ object AgentDiagnostics {
             appendLine("Command: [redacted; ${command.length} chars]")
             appendLine("--- STEP ROUTE TRACE ---")
             traces.forEach { trace ->
-                appendLine("Step ${trace.index + 1}: ${trace.step.take(180)}")
+                appendLine("Step ${trace.index + 1}: ${summarizePipelineTraceText(trace.step)}")
                 appendLine("Route: ${trace.route} | ok=${trace.ok}")
-                appendLine("Reply: ${trace.reply.take(500)}")
+                appendLine("Reply: ${summarizePipelineTraceText(trace.reply)}")
             }
             if (skipped.isNotEmpty()) {
                 appendLine("--- SKIPPED STEPS ---")
-                skipped.forEachIndexed { index, step -> appendLine("${traces.size + index + 1}: ${step.take(180)}") }
+                skipped.forEachIndexed { index, step -> appendLine("${traces.size + index + 1}: ${summarizePipelineTraceText(step)}") }
             }
         }.trim()
         context.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
@@ -112,3 +112,8 @@ internal fun redactDiagnosticReason(reason: String, command: String): String {
     )
     return safe
 }
+
+
+/** Preserve diagnostic size metadata without persisting commands, replies, or UI text. */
+internal fun summarizePipelineTraceText(value: String): String =
+    "[redacted; ${value.length} chars]"
