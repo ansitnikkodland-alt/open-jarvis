@@ -101,6 +101,32 @@ class SelfHealingRecoveryPolicyTest {
         assertFalse(SelfHealingPatternCodec.recurring(learned))
     }
 
+    @Test fun learnedRecurrenceEscalatesTheRecoveryDecisionAtThreshold() {
+        val base = SelfHealingRecoveryPolicy.classify(
+            Action(Action.READ_SCREEN), "visible text not found"
+        )
+        val belowThreshold = SelfHealingRecoveryPolicy.applyLearning(base, 2)
+        assertEquals(SelfHealingRecoveryPolicy.RecoveryKind.REFRESH_OBSERVATION, belowThreshold.recovery)
+        assertTrue(belowThreshold.mayRetryAutomatically)
+        assertFalse(belowThreshold.requiresUserConfirmation)
+
+        val escalated = SelfHealingRecoveryPolicy.applyLearning(base, 3)
+        assertEquals(SelfHealingRecoveryPolicy.RecoveryKind.ESCALATE, escalated.recovery)
+        assertFalse(escalated.mayRetryAutomatically)
+        assertTrue(escalated.requiresUserConfirmation)
+        assertTrue(escalated.explanation.contains("3 occurrences"))
+    }
+
+    @Test fun learningNeverWeakensAnAlreadyUnsafeRecoveryDecision() {
+        val unsafe = SelfHealingRecoveryPolicy.classify(
+            Action(Action.TAP, text = "Send"), "tap failed"
+        )
+        val learned = SelfHealingRecoveryPolicy.applyLearning(unsafe, 0)
+        assertEquals(unsafe, learned)
+        assertFalse(learned.mayRetryAutomatically)
+        assertTrue(learned.requiresUserConfirmation)
+    }
+
     @Test fun failuresAfterVerifiedRecoveryStartANewConsecutiveSequence() {
         var patterns = emptyList<SelfHealingPatternCodec.Pattern>()
         repeat(2) { index ->
