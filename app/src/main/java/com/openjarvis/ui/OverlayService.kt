@@ -106,21 +106,40 @@ class OverlayService : Service() {
                     is VoiceManager.VoiceState.Result -> when (CommandListeningPolicy.classify(state.text, isMuted)) {
                         CommandListeningPolicy.Action.MUTE -> {
                             isMuted = true
-                            setVisualState("IDLE", "MUTED — tap Mic, then say “Ab bolo”")
-                            voiceManager.speak("ठीक है, Jarvis mute हो गया।")
+                            setVisualState("IDLE", "COMMAND MUTED — mic active only to hear “Unmute”")
+                            updateNotification("Mic active only to hear Unmute")
+                            voiceManager.speak("ठीक है, Jarvis command mute हो गया। Unmute बोलकर फिर से शुरू करें।") {
+                                voiceManager.resumeContinuousSession()
+                            }
                         }
                         CommandListeningPolicy.Action.UNMUTE -> {
                             isMuted = false
-                            setVisualState("IDLE", "JARVIS active — tap Mic to speak")
-                            voiceManager.speak("Jarvis is active. Tap Mic when you want to speak.")
+                            setVisualState("IDLE", "JARVIS ACTIVE — listening continuously")
+                            updateNotification("Continuous microphone listening active")
+                            voiceManager.speak("Jarvis is active. I am listening.") {
+                                voiceManager.resumeContinuousSession()
+                            }
                         }
                         CommandListeningPolicy.Action.IGNORE -> {
-                            statusText?.text = if (isMuted) "Muted — tap Mic, then say “Ab bolo”" else "No command detected — tap Mic to try again"
+                            statusText?.text = if (isMuted) {
+                                "COMMAND MUTED — mic active only to hear “Unmute”"
+                            } else {
+                                "No command detected — listening again"
+                            }
+                            voiceManager.resumeContinuousSession()
                         }
                         CommandListeningPolicy.Action.EXECUTE_COMMAND -> submitCommand(state.text)
                     }
-                    is VoiceManager.VoiceState.Error -> setVisualState("IDLE", state.message)
-                    is VoiceManager.VoiceState.Recording -> setVisualState("LISTENING", "Listening… speak now")
+                    is VoiceManager.VoiceState.Error -> {
+                        setVisualState("IDLE", state.message)
+                        if (!voiceManager.isContinuousSessionActive()) {
+                            updateNotification("Microphone off — tap Mic to start")
+                        }
+                    }
+                    is VoiceManager.VoiceState.Recording -> {
+                        if (isMuted) setVisualState("IDLE", "COMMAND MUTED — listening only for Unmute")
+                        else setVisualState("LISTENING", "Listening continuously… speak now")
+                    }
                     is VoiceManager.VoiceState.Transcribing -> setVisualState("THINKING", "Thinking…")
                     is VoiceManager.VoiceState.Speaking -> setVisualState("SPEAKING", "Speaking…")
                     is VoiceManager.VoiceState.Idle -> {
@@ -129,9 +148,11 @@ class OverlayService : Service() {
                         if (agentCore.state.value is com.openjarvis.agent.AgentState.Running) {
                             setVisualState("THINKING", "Jarvis is working…")
                         } else if (isMuted) {
-                            setVisualState("IDLE", "MUTED — tap Mic, then say “Ab bolo”")
+                            setVisualState("IDLE", "COMMAND MUTED — mic active only to hear “Unmute”")
+                        } else if (voiceManager.isContinuousSessionActive()) {
+                            setVisualState("IDLE", "Ready — listening continuously")
                         } else {
-                            setVisualState("IDLE", "Ready — type a command or use mic")
+                            setVisualState("IDLE", "Ready — tap Mic once to start continuous voice")
                         }
                     }
                 }
@@ -144,18 +165,22 @@ class OverlayService : Service() {
                     is com.openjarvis.agent.AgentState.Running -> setVisualState("THINKING", state.step)
                     is com.openjarvis.agent.AgentState.Done -> {
                         setVisualState("SPEAKING", state.result)
-                        voiceManager.speak(com.openjarvis.agent.AgentResultSpeech.textForDone(state.result))
+                        voiceManager.speak(com.openjarvis.agent.AgentResultSpeech.textForDone(state.result)) {
+                            voiceManager.resumeContinuousSession()
+                        }
                     }
                     is com.openjarvis.agent.AgentState.Error -> {
                         setVisualState("SPEAKING", "Jarvis error: ${state.message} • tap to copy debug log")
-                        voiceManager.speak(if (responseLanguage == "mr") "कमांड पूर्ण झाली नाही. ${state.message}" else "कमांड पूरी नहीं हुई। ${state.message}")
+                        voiceManager.speak(if (responseLanguage == "mr") "कमांड पूर्ण झाली नाही. ${state.message}" else "कमांड पूरी नहीं हुई। ${state.message}") {
+                            voiceManager.resumeContinuousSession()
+                        }
                     }
                 }
             }
         }
         serviceScope.launch(Dispatchers.IO) { recentTasks = graphifyRepo.getRecentTasks(10) }
-        if (!microphoneGranted) statusText?.text = "Allow microphone permission, then tap Mic to speak"
-        else statusText?.text = "Ready — tap Mic to speak or type a command"
+        if (!microphoneGranted) statusText?.text = "Allow microphone permission, then tap Mic to start"
+        else statusText?.text = "Ready — tap Mic once to start continuous voice"
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -303,10 +328,16 @@ class OverlayService : Service() {
                         status.text = "Allow microphone permission in Android app settings"
                     } else if (!voiceManager.isVoiceEnabled()) {
                         status.text = "Enable Voice Assistant in Jarvis Settings first"
-                    } else if (voiceManager.isSessionActive()) {
-                        status.text = "Already listening — wait for recognition to finish"
+                    } else if (voiceManager.isContinuousSessionActive()) {
+                        voiceManager.stopContinuousSession()
+                        isMuted = false
+                        status.text = "Voice session stopped — microphone off"
+                        updateNotification("Microphone off — tap Mic to start")
                     } else {
-                        voiceManager.startListening()
+                        isMuted = false
+                        voiceManager.startContinuousSession()
+                        status.text = "Listening continuously — say “Mute” to lock commands"
+                        updateNotification("Microphone active — say Mute to lock commands")
                     }
                 }
             }
@@ -382,19 +413,27 @@ class OverlayService : Service() {
 
     private fun enterMuteMode() {
         isMuted = true
-        statusText?.text = "Muted — tap Mic, then say “Ab bolo”"
-        voiceManager.speak("ठीक है, Jarvis mute हो गया।")
+        statusText?.text = "COMMAND MUTED — mic active only to hear “Unmute”"
+        updateNotification("Mic active only to hear Unmute")
+        voiceManager.speak("ठीक है, Jarvis command mute हो गया। Unmute बोलकर फिर से शुरू करें।") {
+            voiceManager.resumeContinuousSession()
+        }
     }
 
     private fun submitCommand(voiceCommand: String? = null) {
         val command = if (voiceCommand != null) voiceCommand.trim() else commandInput?.text?.toString()?.trim().orEmpty()
-        if (command.isBlank()) { statusText?.text = "No speech detected — try again"; return }
+        if (command.isBlank()) {
+            statusText?.text = "No speech detected — listening again"
+            voiceManager.resumeContinuousSession()
+            return
+        }
         if (command.any { it in '\u0900'..'\u097F' }) {
             val marathiMarkers = listOf("आहे", "आणि", "मला", "काय", "झाले", "झालं", "नाही", "दाखवा", "उघडा", "करायचे", "माझे", "तुम्ही", "सांगा", "नको")
             responseLanguage = if (marathiMarkers.any { command.contains(it) }) "mr" else "hi"
         }
         if (com.openjarvis.accessibility.JarvisAccessibilityService.instance == null) {
             statusText?.text = "Accessibility service is OFF. Enable Open Jarvis in Android Accessibility settings."
+            voiceManager.resumeContinuousSession()
             return
         }
         statusText?.text = "Jarvis is working…"
@@ -433,7 +472,14 @@ class OverlayService : Service() {
         setStroke(1, Color.rgb(125, 95, 190))
     }
 
-    private fun createNotification(): Notification {
+    private fun updateNotification(message: String) {
+        val manager = getSystemService(NotificationManager::class.java)
+        manager.notify(NOTIFICATION_ID, createNotification(message))
+    }
+
+    private fun createNotification(
+        message: String = "Assistant is running — tap the floating Jarvis button"
+    ): Notification {
         val channel = NotificationChannel(CHANNEL_ID, getString(R.string.notification_channel_name), NotificationManager.IMPORTANCE_LOW)
         getSystemService(NotificationManager::class.java).createNotificationChannel(channel)
         val pendingIntent = PendingIntent.getActivity(
@@ -442,7 +488,7 @@ class OverlayService : Service() {
         )
         return NotificationCompat.Builder(this, CHANNEL_ID)
             .setContentTitle("Open Jarvis")
-            .setContentText("Assistant is running — tap the floating Jarvis button")
+            .setContentText(message)
             .setSmallIcon(R.drawable.ic_notification)
             .setContentIntent(pendingIntent)
             .setOngoing(true)
