@@ -12,6 +12,22 @@ class SelfHealingExecutor(context: Context) {
     private val patternStore = SelfHealingPatternStore(context.applicationContext)
     private val ollamaHealthCheck = LocalOllamaHealthCheck()
 
+    /** Consult privacy-safe local history before permitting another read-only retry. */
+    fun shouldRetry(action: Action, reason: String): Boolean {
+        val decision = SelfHealingRecoveryPolicy.classify(action, reason)
+        val pattern = patternStore.patterns().firstOrNull { it.area == decision.area.name }
+        val consecutive = pattern?.consecutiveFailures ?: 0
+        val allowed = SelfHealingSafetyPolicy.shouldRetryAfterLearning(
+            action = action,
+            failureReason = reason,
+            consecutiveUnresolved = consecutive
+        )
+        if (!allowed && SelfHealingSafetyPolicy.shouldRetry(action, reason)) {
+            Log.w("JarvisSelfHealing", "retry_paused area=${decision.area} consecutiveUnresolved=$consecutive")
+        }
+        return allowed
+    }
+
     fun recordVerifiedReadOnlyRecovery(action: Action, originalFailure: String) {
         val decision = SelfHealingRecoveryPolicy.classify(action, originalFailure)
         if (!decision.mayRetryAutomatically) return

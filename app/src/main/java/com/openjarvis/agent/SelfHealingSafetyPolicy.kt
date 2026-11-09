@@ -22,6 +22,21 @@ internal object SelfHealingSafetyPolicy {
         else -> false
     }
 
+    /**
+     * A recurring category may still be observed, but automatic retries pause once
+     * its unresolved streak reaches the learning threshold. No side-effect action
+     * can become retryable through this gate.
+     */
+    fun shouldRetryAfterLearning(
+        action: Action,
+        failureReason: String,
+        consecutiveUnresolved: Int,
+        threshold: Int = 3
+    ): Boolean {
+        if (!shouldRetry(action, failureReason)) return false
+        return consecutiveUnresolved < threshold.coerceAtLeast(2)
+    }
+
     fun boundedWaitMs(action: Action): Long =
         action.timeoutMs.coerceIn(0L, MAX_WAIT_MS)
 

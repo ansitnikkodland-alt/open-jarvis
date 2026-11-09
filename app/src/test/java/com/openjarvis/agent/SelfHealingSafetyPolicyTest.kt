@@ -39,6 +39,33 @@ class SelfHealingSafetyPolicyTest {
         assertTrue(SelfHealingSafetyPolicy.shouldRetry(Action(Action.WAIT), "Timed out waiting for visible text"))
     }
 
+
+    @Test fun recurringUnresolvedObservationPausesAutomaticRetry() {
+        val action = Action(Action.READ_SCREEN)
+        val reason = "Could not read current screen (no accessible text)"
+        assertTrue(SelfHealingSafetyPolicy.shouldRetryAfterLearning(action, reason, 2))
+        assertFalse(SelfHealingSafetyPolicy.shouldRetryAfterLearning(action, reason, 3))
+        assertFalse(SelfHealingSafetyPolicy.shouldRetryAfterLearning(action, reason, 5))
+    }
+
+    @Test fun verifiedRecoveryAllowsSafeRetryAgainAfterLearningReset() {
+        val action = Action(Action.READ_SCREEN)
+        val reason = "Could not read current screen (no accessible text)"
+        assertTrue(SelfHealingSafetyPolicy.shouldRetryAfterLearning(action, reason, 0))
+        assertTrue(SelfHealingSafetyPolicy.shouldRetryAfterLearning(action, reason, 2))
+    }
+
+    @Test fun learningGateNeverEnablesSideEffectReplay() {
+        val action = Action(Action.TAP, text = "Send")
+        assertFalse(SelfHealingSafetyPolicy.shouldRetryAfterLearning(action, "tap failed", 0))
+        assertFalse(SelfHealingSafetyPolicy.shouldRetryAfterLearning(action, "tap failed", 2))
+    }
+
+    @Test fun unknownObservationFailureRemainsFailClosed() {
+        val action = Action(Action.READ_SCREEN)
+        assertFalse(SelfHealingSafetyPolicy.shouldRetryAfterLearning(action, "Unexpected internal failure", 0))
+    }
+
     @Test fun waitDurationIsBounded() {
         assertEquals(0L, SelfHealingSafetyPolicy.boundedWaitMs(Action(Action.WAIT, timeoutMs = -100L)))
         assertEquals(5_000L, SelfHealingSafetyPolicy.boundedWaitMs(Action(Action.WAIT, timeoutMs = 90_000L)))

@@ -1206,7 +1206,7 @@ ${fullSystem.substringAfter("MEMORY:")}
                 }
                 if (firstFailure == null) firstFailure = failure
                 Log.w(TAG, "Action ${index + 1} ${action.action} attempt $attempt/$maxAttempts failed: $failure")
-                if (attempt < maxAttempts && SelfHealingSafetyPolicy.shouldRetry(action, failure.orEmpty())) {
+                if (attempt < maxAttempts && selfHealingExecutor.shouldRetry(action, failure.orEmpty())) {
                     kotlinx.coroutines.delay(400)
                 } else {
                     break
