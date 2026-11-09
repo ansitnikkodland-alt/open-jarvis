@@ -196,7 +196,8 @@ class VoiceManager(private val context: Context) {
         listening = false
         stateMachine.stop()
         val text = sttEngine.stop()
-        _state.value = if (!text.isNullOrBlank()) VoiceState.Result(text) else VoiceState.Idle
+        // An explicit stop always discards any late/pending transcript.
+        _state.value = VoiceState.Idle
         return text
     }
 
