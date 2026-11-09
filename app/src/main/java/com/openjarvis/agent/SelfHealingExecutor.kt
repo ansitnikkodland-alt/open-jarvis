@@ -1,7 +1,11 @@
 package com.openjarvis.agent
 
 import android.content.Context
+import android.provider.Settings
 import android.util.Log
+import android.Manifest
+import android.content.pm.PackageManager
+import com.openjarvis.accessibility.JarvisAccessibilityService
 
 /**
  * Deterministic recovery planner. It classifies failures, verifies local dependencies
@@ -9,7 +13,8 @@ import android.util.Log
  * replays UI actions or silently changes the configured model/provider.
  */
 class SelfHealingExecutor(context: Context) {
-    private val patternStore = SelfHealingPatternStore(context.applicationContext)
+    private val appContext = context.applicationContext
+    private val patternStore = SelfHealingPatternStore(appContext)
     private val ollamaHealthCheck = LocalOllamaHealthCheck()
 
     /** Consult privacy-safe local history before permitting another read-only retry. */
@@ -59,6 +64,14 @@ class SelfHealingExecutor(context: Context) {
                 Log.i("JarvisSelfHealing", "recovery_outcome area=${decision.area} verified=$dependencyVerified unresolved=${outcome?.unresolvedFailures ?: -1}")
                 " Local dependency check: ${result.detail} The failed task was not replayed; retry it only after reviewing this result."
             }
+            SelfHealingRecoveryPolicy.FailureArea.ACCESSIBILITY,
+            SelfHealingRecoveryPolicy.FailureArea.OVERLAY,
+            SelfHealingRecoveryPolicy.FailureArea.SPEECH,
+            SelfHealingRecoveryPolicy.FailureArea.APP_LAUNCH -> {
+                val result = verifyAndroidConfiguration(action, decision.area)
+                Log.i("JarvisSelfHealing", "local_android_probe area=${decision.area} result=$result")
+                " Local read-only check: $result"
+            }
             else -> " Verification required: ${SelfHealingVerificationPolicy.instruction(decision.area)}"
         }
         // Re-read after the probe: a verified dependency recovery must clear the
@@ -69,5 +82,54 @@ class SelfHealingExecutor(context: Context) {
         } else ""
         Log.w("JarvisSelfHealing", "area=${decision.area} recovery=${decision.recovery} autoRetry=${decision.mayRetryAutomatically} consecutiveUnresolved=${pattern.consecutiveFailures} unresolved=${pattern.unresolvedFailures}")
         return "${decision.explanation}${verification}${recurrence}"
+    }
+
+    /**
+     * Read-only Android checks only. A granted permission is not treated as proof
+     * that the corresponding runtime engine or overlay is currently functioning.
+     */
+    private fun verifyAndroidConfiguration(
+        action: Action,
+        area: SelfHealingRecoveryPolicy.FailureArea
+    ): String = when (area) {
+        SelfHealingRecoveryPolicy.FailureArea.ACCESSIBILITY -> {
+            if (JarvisAccessibilityService.instance != null) {
+                "Jarvis Accessibility service is connected now; the earlier screen observation still failed. Request a fresh read-only observation."
+            } else {
+                "Jarvis Accessibility service is not connected. Enable it in Android Accessibility settings; Jarvis did not change the setting."
+            }
+        }
+        SelfHealingRecoveryPolicy.FailureArea.OVERLAY -> {
+            val granted = runCatching { Settings.canDrawOverlays(appContext) }.getOrDefault(false)
+            if (granted) {
+                "Display-over-other-apps permission is granted. This does not prove the floating overlay process is running; check/restart it manually."
+            } else {
+                "Display-over-other-apps permission is not granted. Enable it manually in Android app settings; Jarvis did not change the setting."
+            }
+        }
+        SelfHealingRecoveryPolicy.FailureArea.SPEECH -> {
+            val granted = appContext.checkSelfPermission(Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED
+            if (granted) {
+                "Microphone permission is granted. This does not prove Voicute wake-word detection; a live listening test is still required."
+            } else {
+                "Microphone permission is not granted. Enable it manually in Android app permissions; Jarvis did not request or change it."
+            }
+        }
+        SelfHealingRecoveryPolicy.FailureArea.APP_LAUNCH -> {
+            val packageName = action.packageName?.takeIf { it.isNotBlank() }
+            if (packageName == null) {
+                "The failed app target has no resolved package name, so installation/launcher availability could not be verified."
+            } else {
+                val launchable = runCatching {
+                    appContext.packageManager.getLaunchIntentForPackage(packageName) != null
+                }.getOrDefault(false)
+                if (launchable) {
+                    "The target app is installed and has a launcher activity. Jarvis did not launch it again."
+                } else {
+                    "The target app has no available launcher activity. Check whether it is installed or disabled."
+                }
+            }
+        }
+        else -> SelfHealingVerificationPolicy.instruction(area)
     }
 }

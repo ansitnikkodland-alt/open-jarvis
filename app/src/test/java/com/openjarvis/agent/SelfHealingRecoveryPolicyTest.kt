@@ -85,7 +85,6 @@ class SelfHealingRecoveryPolicyTest {
         assertTrue(result.requiresUserConfirmation)
     }
 
-
     @Test fun verifiedReadOnlyRecoveryResetsConsecutiveFailureLearning() {
         var patterns = emptyList<SelfHealingPatternCodec.Pattern>()
         repeat(3) { index ->
