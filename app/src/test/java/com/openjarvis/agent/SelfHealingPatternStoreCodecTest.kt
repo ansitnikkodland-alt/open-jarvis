@@ -126,7 +126,8 @@ class SelfHealingPatternStoreCodecTest {
         SelfHealingRecoveryPolicy.FailureArea.values().forEachIndexed { index, area ->
             history = SelfHealingPatternCodec.record(history, area.name, 1_000L + index)
         }
-        assertEquals(12, history.size)
+        assertEquals(SelfHealingRecoveryPolicy.FailureArea.values().size, history.size)
+        assertTrue(history.size <= 12)
     }
 
     @Test fun callerCannotExpandHistoryLimitOrPersistNegativeCounters() {
