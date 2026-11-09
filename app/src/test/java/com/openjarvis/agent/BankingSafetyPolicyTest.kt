@@ -75,6 +75,33 @@ class BankingSafetyPolicyTest {
         assertFalse(BankingSafetyPolicy.isFinancialPackage("com.example.shopping"))
     }
 
+    @Test fun foregroundBankingContextOverridesUntrustedActionPackage() {
+        val actions = listOf(
+            Action(action = Action.TYPE_TEXT, packageName = "com.example.shopping", value = "123"),
+            Action(action = Action.CLICK, packageName = "com.example.shopping", text = "Pay")
+        )
+        val scoped = BankingSafetyPolicy.scopeActionsToFinancialForeground(
+            actions,
+            "com.sbi.lotusintouch"
+        )
+        assertTrue(scoped.all { it.packageName == "com.sbi.lotusintouch" })
+        assertTrue(BankingSafetyPolicy.blocksFinancialActions(scoped))
+    }
+
+    @Test fun nonFinancialForegroundDoesNotRewriteExplicitTargets() {
+        val actions = listOf(
+            Action(action = Action.CLICK, packageName = "com.example.shopping", text = "Search")
+        )
+        assertEquals(
+            actions,
+            BankingSafetyPolicy.scopeActionsToFinancialForeground(actions, "com.example.shopping")
+        )
+        assertEquals(
+            actions,
+            BankingSafetyPolicy.scopeActionsToFinancialForeground(actions, null)
+        )
+    }
+
     @Test fun blocksFinancialAppTextEntryAndPaymentControls() {
         val typeIntoPhonePe = Action(
             action = Action.TYPE,
