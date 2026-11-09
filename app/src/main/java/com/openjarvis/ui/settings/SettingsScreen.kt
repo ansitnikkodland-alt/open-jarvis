@@ -550,7 +550,7 @@ fun SettingsScreen(
                         AlertDialog(
                             onDismissRequest = { showClearDiagnosticDialog = false },
                             title = { Text("Clear local diagnostics?") },
-                            text = { Text("This removes the saved diagnostic event history and candidate scores from this device. It does not change Jarvis settings or wake-word behavior.") },
+                            text = { Text("This removes saved diagnostic events, wake candidate history, and saved Agent/Ollama debug entries from this device. It does not change Jarvis settings or wake-word behavior.") },
                             confirmButton = {
                                 TextButton(onClick = {
                                     JarvisDiagnosticLog.clear(context)
