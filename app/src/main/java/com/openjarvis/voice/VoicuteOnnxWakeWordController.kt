@@ -10,6 +10,7 @@ import android.media.audiofx.NoiseSuppressor
 import android.os.Build
 import android.util.Log
 import androidx.core.content.ContextCompat
+import com.openjarvis.diagnostics.JarvisDiagnosticLog
 import com.openjarvis.voice.voicute.DetectionLogic
 import kotlin.math.sqrt
 
@@ -53,12 +54,13 @@ class VoicuteOnnxWakeWordController(
                 loaded.engine.close()
                 throw IllegalStateException("Android microphone buffer is unavailable")
             }
+            val requestedBufferBytes = maxOf(minBuffer * 2, sampleRate * 2)
             val audio = AudioRecord(
                 MediaRecorder.AudioSource.MIC,
                 sampleRate,
                 AudioFormat.CHANNEL_IN_MONO,
                 AudioFormat.ENCODING_PCM_16BIT,
-                maxOf(minBuffer * 2, sampleRate * 2)
+                requestedBufferBytes
             )
             if (audio.state != AudioRecord.STATE_INITIALIZED) {
                 audio.release()
@@ -102,8 +104,15 @@ class VoicuteOnnxWakeWordController(
                 noiseSuppressorAvailable = createdNs != null,
                 noiseSuppressorEnabled = nsEnabled,
                 audioSource = "MIC",
-                sampleRate = sampleRate
+                sampleRate = sampleRate,
+                channelConfig = "MONO",
+                encoding = "PCM_16BIT",
+                minBufferSizeBytes = minBuffer,
+                bufferSizeBytes = requestedBufferBytes,
+                recorderInitialized = audio.state == AudioRecord.STATE_INITIALIZED,
+                recordingState = if (audio.recordingState == AudioRecord.RECORDSTATE_RECORDING) "RECORDING" else "NOT_RECORDING"
             )
+            JarvisDiagnosticLog.record(appContext, "WAKEWORD", "Voicute ONNX listener started")
             worker = Thread(
                 { processAudio(loaded.engine.getAudioSamplesNeeded()) },
                 "JarvisVoicuteOnnx"
@@ -118,6 +127,7 @@ class VoicuteOnnxWakeWordController(
             val detail = error.message?.takeIf { it.isNotBlank() } ?: error.javaClass.simpleName
             Log.e(TAG, "Voicute ONNX wake-word initialization failed: $detail", error)
             WakeWordDiagnostics.failed(detail)
+            JarvisDiagnosticLog.record(appContext, "WAKEWORD_START", "Voicute ONNX initialization failed", error)
             val friendly = "Voicute offline wake-word start nahi hua: $detail. Automatic retry scheduled."
             onError(friendly)
             friendly
@@ -146,6 +156,7 @@ class VoicuteOnnxWakeWordController(
                             else -> "Microphone read failed (AudioRecord=$count)."
                         }
                         WakeWordDiagnostics.failed(message)
+                        JarvisDiagnosticLog.record(appContext, "AUDIO_READ", message)
                         onError(message)
                     }
                     running = false
@@ -175,7 +186,9 @@ class VoicuteOnnxWakeWordController(
                     audio.activeRecordingConfiguration?.isClientSilenced == true
                 ) {
                     val message = "Microphone is silenced by Android because another app has capture priority."
+                    WakeWordDiagnostics.microphoneSilenced(true)
                     WakeWordDiagnostics.failed(message)
+                    JarvisDiagnosticLog.record(appContext, "MICROPHONE", message)
                     onError(message)
                     running = false
                     break
@@ -191,18 +204,37 @@ class VoicuteOnnxWakeWordController(
                     val keyword = result?.wakeWord
                     val now = System.currentTimeMillis()
                     detector.record(probability, keyword, rawRms, now)
+                    val threshold = sensitivityThreshold()
                     val accepted = detector.evaluate(
                         keyword,
                         probability,
                         rawRms,
-                        sensitivityThreshold(),
+                        threshold,
                         result?.recommendedConsFrames ?: 2,
                         EXTRA_CONSECUTIVE_FRAMES,
                         now
                     )
-                    if (!accepted.isNullOrBlank() &&
-                        WakeWordDetectionPolicy.shouldAccept(now, lastAcceptedAtMs)
-                    ) {
+                    val detectorAccepted = !accepted.isNullOrBlank()
+                    val cooldownAccepted = detectorAccepted && WakeWordDetectionPolicy.shouldAccept(now, lastAcceptedAtMs)
+                    val finalAccepted = detectorAccepted && cooldownAccepted
+                    val rejectionReason = when {
+                        finalAccepted -> "accepted"
+                        detectorAccepted -> "app_cooldown"
+                        detector.debugFail == 1 -> "consecutive_frames"
+                        detector.debugFail == 2 -> "relative_peak_background"
+                        detector.debugFail == 3 -> "detector_cooldown"
+                        detector.debugFail == 4 -> "burst_guard"
+                        detector.debugFail == 5 -> "energy_guard"
+                        else -> "pending_confirmation"
+                    }
+                    if (!keyword.isNullOrBlank() || probability >= threshold * 0.5f) {
+                        WakeWordDiagnostics.candidate(keyword, probability, threshold, finalAccepted, rejectionReason, now)
+                        JarvisDiagnosticLog.recordCandidate(
+                            appContext, keyword, probability, threshold, finalAccepted, rejectionReason,
+                            detector.consecutiveFrames, detector.debugFail, now
+                        )
+                    }
+                    if (finalAccepted) {
                         lastAcceptedAtMs = now
                         WakeWordDiagnostics.detected(accepted, probability)
                         Log.i(TAG, "Voicute wake word detected: $accepted score=$probability")
@@ -214,6 +246,7 @@ class VoicuteOnnxWakeWordController(
             if (running) {
                 val detail = error.message ?: error.javaClass.simpleName
                 WakeWordDiagnostics.failed(detail)
+                JarvisDiagnosticLog.record(appContext, "WAKEWORD_PROCESS", "Voicute ONNX audio loop failed", error)
                 onError("Voicute ONNX processing failed: $detail")
             }
             Log.e(TAG, "Voicute ONNX audio loop failed", error)
