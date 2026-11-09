@@ -52,6 +52,14 @@ class SocketServerTest {
     }
 
     @Test
+    fun \`token comparison is exact and does not normalize whitespace case or unicode\`() {
+        assertTrue(SocketServer.isValidToken("jarvis-नमस्ते", "jarvis-नमस्ते"))
+        assertFalse(SocketServer.isValidToken("Secret-Token", "secret-token"))
+        assertFalse(SocketServer.isValidToken("secret-token ", "secret-token"))
+        assertFalse(SocketServer.isValidToken(" secret-token", "secret-token"))
+    }
+
+    @Test
     fun `token provider accepts only the exact content config URI`() {
         assertTrue(
             BridgeTokenProvider.isConfigUri(
@@ -80,6 +88,27 @@ class SocketServerTest {
     }
 
     @Test
+    fun \`token provider rejects URI authority and path confusion attempts\`() {
+        val authority = "com.openjarvis.bridgeconfig"
+        val invalidUris = listOf(
+            "content://com.openjarvis.bridgeconfig.evil/config",
+            "content://user@com.openjarvis.bridgeconfig/config",
+            "content://com.openjarvis.bridgeconfig:80/config",
+            "content://com.openjarvis.bridgeconfig/config?token=leak",
+            "content://com.openjarvis.bridgeconfig/config#fragment",
+            "content://com.openjarvis.bridgeconfig/config/",
+            "content://com.openjarvis.bridgeconfig//config",
+            "content://com.openjarvis.bridgeconfig/%63onfig",
+            "content://com.openjarvis.bridgeconfig/config/../config",
+            "CONTENT://com.openjarvis.bridgeconfig/config",
+            "not a uri"
+        )
+        invalidUris.forEach { uri ->
+            assertFalse("URI must be rejected: $uri", BridgeTokenProvider.isConfigUri(uri, authority))
+        }
+    }
+
+    @Test
     fun `token provider allows only app Termux and ADB shell UIDs`() {
         assertTrue(BridgeTokenProvider.isTrustedUid(10123, appUid = 10123, termuxUid = 10234))
         assertTrue(BridgeTokenProvider.isTrustedUid(10234, appUid = 10123, termuxUid = 10234))
@@ -87,6 +116,13 @@ class SocketServerTest {
         assertFalse(BridgeTokenProvider.isTrustedUid(10345, appUid = 10123, termuxUid = 10234))
         assertFalse(BridgeTokenProvider.isTrustedUid(10345, appUid = 10123, termuxUid = null))
         assertFalse(BridgeTokenProvider.isTrustedUid(10234, appUid = 10123, termuxUid = null))
+    }
+
+    @Test
+    fun \`token provider accepts only configured shell UID\`() {
+        assertTrue(BridgeTokenProvider.isTrustedUid(2100, appUid = 10123, termuxUid = null, shellUid = 2100))
+        assertFalse(BridgeTokenProvider.isTrustedUid(2100, appUid = 10123, termuxUid = null))
+        assertFalse(BridgeTokenProvider.isTrustedUid(-1, appUid = 10123, termuxUid = null))
     }
 
     @Test
