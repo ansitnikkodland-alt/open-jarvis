@@ -13,7 +13,7 @@ class ScreenshotMemoryCodecTest {
     }
 
     @Test fun keepsNewestEightUniqueScreens() {
-        val entries = (1..10).fold(emptyList()) { acc, n ->
+        val entries = (1..10).fold(emptyList<String>()) { acc, n ->
             ScreenshotMemoryCodec.remember(acc, "Screen content number $n")
         }
         assertEquals(8, entries.size)
