@@ -57,10 +57,13 @@ internal object SelfHealingRecoveryPolicy {
                 "Verify the installed local qwen3:1.7b model; do not download or change the default automatically.")
             FailureArea.ACCESSIBILITY -> {
                 // Empty screen content is a stale observation; permission/service failures require user action.
-                val missingObservation = isObservation &&
+                val missingObservation = isObservation && (
                     contains(value, "visible text not found", "node not found", "element not found",
                         "no accessible text", "could not read current screen",
-                        "could not extract text from current screen")
+                        "could not extract text from current screen") ||
+                    (action.action in setOf(Action.WAIT, Action.WAIT_FOR) &&
+                        contains(value, "timed out", "timeout", "timed-out"))
+                )
                 if (missingObservation) {
                     Decision(area, RecoveryKind.REFRESH_OBSERVATION, true, false, true,
                         "Refresh the read-only screen observation; do not repeat any UI action.")
