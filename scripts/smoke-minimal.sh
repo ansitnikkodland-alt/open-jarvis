@@ -18,11 +18,10 @@ SDK_ROOT="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-}}"
 AAPT_PATH="$(find "$SDK_ROOT/build-tools" -maxdepth 2 -type f -name aapt | sort -V | tail -n 1)"
 [[ -x "$AAPT_PATH" ]] || { echo "Android aapt tool was not found under $SDK_ROOT/build-tools." >&2; exit 17; }
 APK_BADGING="$("$AAPT_PATH" dump badging "$APK_PATH")"
-APP_ID="$(printf '%s\\n' "$APK_BADGING" | sed -n "s/^package: name='\\([^']*\\)'.*/\\1/p" | head -n 1)"
-LAUNCHER_ACTIVITY="$(printf '%s\\n' "$APK_BADGING" | sed -n "s/^launchable-activity: name='\\([^']*\\)'.*/\\1/p" | head -n 1)"
+APP_ID="$(printf '%s\n' "$APK_BADGING" | sed -n "s/^package: name='\\([^']*\\)'.*/\\1/p" | head -n 1)"
+LAUNCHER_ACTIVITY="$(printf '%s\n' "$APK_BADGING" | sed -n "s/^launchable-activity: name='\\([^']*\\)'.*/\\1/p" | head -n 1)"
 [[ -n "$APP_ID" && -n "$LAUNCHER_ACTIVITY" ]] || {
   echo "APK metadata is missing its application ID or launcher activity." >&2
-  printf '%s\\n' "$APK_BADGING" | grep -E "^(package|launchable-activity):" >&2 || true
   exit 17
 }
 case "$LAUNCHER_ACTIVITY" in
@@ -81,7 +80,7 @@ for ((attempt=1; attempt<=3; attempt++)); do
   if adb install --no-streaming -r "$APK_PATH"; then
     # adb can report a completed install while Package Manager is restarting;
     # require the package path to be visible before accepting the attempt.
-    if adb shell pm path "$APP_ID" 2>/dev/null | tr -d '\\r' | grep -q '^package:'; then
+    if adb shell pm path "$APP_ID" 2>/dev/null | tr -d '\r' | grep -q '^package:'; then
       INSTALL_OK=1
       echo "APK install and Package Manager visibility succeeded on attempt $attempt."
       break
@@ -136,12 +135,12 @@ if [[ "$(adb shell getprop ro.build.version.sdk | tr -d '\r')" -ge 33 ]]; then
 fi
 
 echo "Verifying installed package and resolving the APK-declared launcher."
-INSTALLED_PATHS="$(adb shell pm path "$APP_ID" | tr -d '\\r')"
+INSTALLED_PATHS="$(adb shell pm path "$APP_ID" | tr -d '\r')"
 [[ "$INSTALLED_PATHS" == *"package:"* ]] || {
   echo "Installed package $APP_ID is not visible to Package Manager: $INSTALLED_PATHS" >&2
   exit 17
 }
-RESOLVED_ACTIVITY="$(adb shell cmd package resolve-activity --brief -a android.intent.action.MAIN -c android.intent.category.LAUNCHER -p "$APP_ID" | tr -d '\\r' | tail -n 1)"
+RESOLVED_ACTIVITY="$(adb shell cmd package resolve-activity --brief -a android.intent.action.MAIN -c android.intent.category.LAUNCHER -p "$APP_ID" | tr -d '\r' | tail -n 1)"
 [[ "$RESOLVED_ACTIVITY" == "$MAIN_ACTIVITY" ]] || {
   echo "APK launcher mismatch. Expected $MAIN_ACTIVITY; Package Manager resolved: $RESOLVED_ACTIVITY" >&2
   exit 17
