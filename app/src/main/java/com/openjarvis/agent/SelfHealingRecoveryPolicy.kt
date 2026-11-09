@@ -26,9 +26,10 @@ internal object SelfHealingRecoveryPolicy {
         val isAppLaunch = action.action == Action.OPEN_APP ||
             contains(value, "app not installed", "package not found", "launch activity", "could not launch")
         val isSideEffect = action.action in setOf(
-            Action.TAP, Action.CLICK, Action.TYPE, Action.TYPE_TEXT, Action.OPEN_APP,
+            Action.TAP, Action.TAP_COORDS, Action.CLICK, Action.TYPE, Action.TYPE_TEXT,
+            Action.CLEAR_TYPE, Action.LONG_PRESS, Action.SWIPE, Action.SCROLL, Action.OPEN_APP,
             Action.BACK, Action.PRESS_BACK, Action.HOME, Action.PRESS_HOME,
-            Action.PRESS_RECENTS, Action.SCROLL, Action.AI_PROMPT
+            Action.PRESS_RECENTS, Action.AI_PROMPT
         )
         val area = when {
             // Explicit model-missing signals take precedence even when the diagnostic
