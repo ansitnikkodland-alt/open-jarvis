@@ -10,10 +10,10 @@ package com.openjarvis.agent
 internal object HeadroomContextBudget {
     const val MAX_TOTAL_CHARS = 1_000
 
-    private const val MAX_SCREEN_ELEMENTS = 500
-    private const val MAX_MEMORY = 250
+    private const val MAX_SCREEN_ELEMENTS = 450
+    private const val MAX_MEMORY = 350
     private const val MAX_SCREEN_TEXT = 150
-    private const val MAX_INSTALLED_APPS = 100
+    private const val MAX_INSTALLED_APPS = 50
 
     data class Allocation(
         val memory: String,
