@@ -45,7 +45,7 @@ class SocketServerTest {
 
 
     @Test
-    fun \`parseRequest enforces 2000 character limit with Unicode commands\`() {
+    fun `parseRequest enforces 2000 character limit with Unicode commands`() {
         val command = "न".repeat(SocketServer.MAX_COMMAND_LENGTH)
         val accepted = SocketServer.parseRequest(
             """{"cmd":"$command","requestId":"unicode-limit","token":"secret"}"""
@@ -62,7 +62,7 @@ class SocketServerTest {
     }
 
     @Test
-    fun \`bounded line reader enforces 8 KiB using UTF8 bytes not character count\`() {
+    fun `bounded line reader enforces 8 KiB using UTF8 bytes not character count`() {
         val exactlyLimit = "न".repeat(2_730) + "ab"
         assertEquals(SocketServer.MAX_REQUEST_BYTES, exactlyLimit.toByteArray(Charsets.UTF_8).size)
         assertEquals(
