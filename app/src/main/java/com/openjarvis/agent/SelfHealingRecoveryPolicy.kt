@@ -29,8 +29,11 @@ internal object SelfHealingRecoveryPolicy {
             Action.PRESS_RECENTS, Action.SCROLL, Action.AI_PROMPT
         )
         val area = when {
+            // Explicit model-missing signals take precedence even when the diagnostic
+            // also names Ollama; otherwise "Ollama model qwen3:1.7b not found" is
+            // incorrectly reported as a server-connectivity failure.
+            contains(value, "model not found", "unknown model", "model unavailable", "no such model") -> FailureArea.MODEL_UNAVAILABLE
             contains(value, "ollama", "11434", "connection refused", "failed to connect", "socket timeout") -> FailureArea.OLLAMA_CONNECTIVITY
-            contains(value, "model not found", "unknown model", "qwen3:1.7b") -> FailureArea.MODEL_UNAVAILABLE
             contains(value, "accessibility", "visible text", "node not found", "no accessible text",
                 "could not read current screen", "could not extract text from current screen") -> FailureArea.ACCESSIBILITY
             isAppLaunch -> FailureArea.APP_LAUNCH
