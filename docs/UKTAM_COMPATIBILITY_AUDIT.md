@@ -2,8 +2,8 @@
 
 ## License and model rights
 - Application repository is GPL-3.0. Copying its application source into Jarvis would introduce GPL-3.0 distribution obligations; do not copy or vendor Uktam application code in this proprietary/independently maintained Jarvis branch.
-- The IndicConformer ONNX weights are a separate work. Their exact model-card license and redistribution terms were not verified in this audit; do not bundle or redistribute those weights until verified.
-- Sherpa-ONNX is a separate dependency with its own license and native-binary obligations; re-check the exact artifact license and notices before adding it.
+- AI4Bharat's official IndicConformer project and its model card declare MIT for the source model family. Uktam's Hindi/Marathi ONNX assets are Git LFS objects of 140,451,596 bytes each (about 134 MiB), with a shared 67,605-byte tokens file. Preserve AI4Bharat attribution and verify the exact quantized export's notice before redistribution.
+- Sherpa-ONNX is Apache-2.0; Uktam pins 1.13.3. It has native Android/C++ binaries and must retain its license/notices and ABI checks.
 
 ## Dependency and platform comparison
 - Uktam app: Kotlin/C++, Jetpack Compose, Sherpa-ONNX 1.13.3, CMake/JNI, Play Asset Delivery install-time asset pack, WorkManager, Firebase Analytics/Crashlytics.
@@ -13,7 +13,7 @@
 
 ## Language and offline fit
 - Uktam advertises offline ASR for Hindi, Marathi, Kannada, Malayalam, Tamil and Telugu, using IndicConformer through Sherpa-ONNX.
-- The repo includes per-language model assets, but exact peak resident memory, decode latency and model license for the model files were not proven by repository metadata alone.
+- The repo includes per-language model assets (each ONNX model is about 134 MiB); exact peak resident memory, decode latency and the quantized export's full attribution/notice chain were not proven by repository metadata alone. The official AI4Bharat source model family is MIT.
 - Therefore no model binaries or Sherpa dependency are added in this slice. A conservative compatibility gate is added first; it refuses to enable a profile when model size, peak-memory estimate or license metadata is unknown.
 
 ## Isolated implementation
