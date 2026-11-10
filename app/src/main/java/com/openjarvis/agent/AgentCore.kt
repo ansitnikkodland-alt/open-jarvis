@@ -216,6 +216,26 @@ ${rawResponse.take(1000)}
                         return@withLock
                     }
 
+                    if (CommandRouter.isContinueCommand(safeCommand) && actionStepContext.pendingSteps.isNotEmpty()) {
+                        val pending = actionStepContext.pendingSteps
+                        _state.value = AgentState.Running("resuming ${pending.size} pending steps...")
+                        skillEngine.loadSkills()
+                        val resumed = createStepPipeline().run(pending, actionStepContext)
+                        actionStepContext = resumed.finalContext
+                        AgentDiagnostics.recordPipeline(context, safeCommand, resumed.traces, resumed.skipped)
+                        val resumeResult = resumed.failureMessage(pending.size)
+                            ?: resumed.traces.joinToString(". ") { it.reply }
+                        graphifyRepo.logTask(
+                            safeCommand,
+                            if (resumed.allOk) "success (resumed pending actions): $resumeResult"
+                            else "failed (resumed pending actions): $resumeResult",
+                            "AgentCore StepPipeline",
+                            0
+                        )
+                        _state.value = if (resumed.allOk) AgentState.Done(resumeResult) else AgentState.Error(resumeResult)
+                        return@withLock
+                    }
+
                     _state.value = AgentState.Running("checking direct command...")
 
                     // Consume the next utterance as a contact name only during the 10s pending window.
