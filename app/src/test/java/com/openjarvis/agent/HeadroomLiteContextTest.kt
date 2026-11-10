@@ -143,7 +143,7 @@ ACTION SCHEMA: tap(id), type(id, value)"""
 
     @Test
     fun leavesMemoryAndPreviousStepContextOutsideTheScreenCompactionBoundary() {
-        val memory = "- User prefers Marathi\\n- Never send messages without review"
+        val memory = "- User prefers Marathi\n- Never send messages without review"
         val previousStepContext = "app=WhatsApp; contact=Anil; messageText=Please call me"
         val request = "Send this exact message only after I review it"
         val template = """MEMORY: $memory
@@ -153,11 +153,11 @@ SCREEN: {SCREEN_OCR}
 ELEMENTS: {SCREEN_ELEMENTS}
 PREVIOUS STEP CONTEXT: $previousStepContext
 ACTION CONTRACT: never send messages"""
-        val elements = "id=send_101 label=Send\\nid=send_102 label=Send"
+        val elements = "id=send_101 label=Send\nid=send_102 label=Send"
 
         val result = HeadroomLiteContext.applyScreenContext(
             promptTemplate = template,
-            ocrText = "WhatsApp\\nWhatsApp",
+            ocrText = "WhatsApp\nWhatsApp",
             interactiveElements = elements
         )
 
