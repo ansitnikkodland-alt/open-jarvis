@@ -154,6 +154,15 @@ class StepPipelineTest {
     }
 
     @Test
+    fun recognizesContinuationCommandsInEnglishHindiAndMarathi() {
+        listOf("continue", "Continue karo", "aage badho", "next", "retry", "phir se karo",
+            "आगे करो", "जारी रखो", "पुढे चला", "पुन्हा करा")
+            .forEach { assertTrue("$it should resume pending work", CommandRouter.isContinueCommand(it)) }
+        listOf("WhatsApp kholo", "Pune Service group kholo", "Hi type karo", "time kya hua")
+            .forEach { assertFalse("$it is not a continuation command", CommandRouter.isContinueCommand(it)) }
+    }
+
+    @Test
     fun successfulRunHasNoFailureMessage() = runBlocking {
         val handler = object : StepHandler {
             override val name = "skill"
