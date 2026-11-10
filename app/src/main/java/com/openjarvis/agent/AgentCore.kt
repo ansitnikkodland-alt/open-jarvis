@@ -2154,12 +2154,13 @@ ${fullSystem.substringAfter("MEMORY:")}
                 if (name.isNotBlank() && number.isNotBlank()) matches += name to number
             }
         } ?: throw IllegalStateException("Could not read contacts. Check Contacts permission and try again.")
-        val preferredMatches = ContactNameMatcher.bestMatches(requestedName, matches)
+        val exactMatches = ContactNameMatcher.exactMatches(requestedName, matches)
+        val preferredMatches = if (exactMatches.isNotEmpty()) exactMatches else ContactNameMatcher.bestMatches(requestedName, matches)
         val unique = preferredMatches.distinctBy {
             it.first.trim().lowercase(java.util.Locale.ROOT) + "|" + it.second.replace(Regex("[^+0-9]"), "")
         }
         if (unique.isEmpty()) throw IllegalStateException("No contact matched '$requestedName'. Check the name in Contacts.")
-        if (unique.size > 1) {
+        if (exactMatches.isEmpty() || unique.size > 1) {
             val names = unique.take(6).joinToString(", ") { match ->
                 val lastDigits = match.second.filter { it.isDigit() }.takeLast(4)
                 if (lastDigits.isBlank()) match.first else "${match.first} (ending $lastDigits)"
