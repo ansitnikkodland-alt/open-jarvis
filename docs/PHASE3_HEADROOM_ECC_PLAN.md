@@ -96,4 +96,7 @@ Do not install ECC into the Jarvis APK. Do not add paid integrations or cloud cr
 - Added unit tests for repeated lines, important-line preservation, ordering, Unicode, empty input, and newline behavior.
 - No Python/Node sidecar, model, network call, telemetry, cloud provider, or new Android dependency was added.
 - Android CI run #969 is the first validation gate for this slice. Do not call it passed until the workflow finishes successfully.
+
+- Added a production prompt-boundary helper used at all five AgentCore screen-context call sites. It compacts only the SCREEN_OCR slot and applies the existing cap; SCREEN_ELEMENTS is capped but passed through byte-for-byte, preserving duplicate labels and distinct IDs. Other template content—including the current request, confirmation text, and action schema—is outside the compaction boundary.
+- Added prompt-boundary unit fixtures for request/confirmation/schema preservation, repeated actionable controls, independent caps, and element identity. These verify deterministic prompt construction, not model-level task equivalence; real Ollama A/B task accuracy and latency still require the final device benchmark.
 - Added a deterministic OCR benchmark fixture that verifies character savings, collapsed-line counts, exact unique-fact retention, and idempotence. These are character-level unit measurements, not model-token or latency claims. Interactive element records are passed through unchanged. Next: add prompt-level equivalence fixtures and measure real Ollama token/latency impact before considering Hybrid.
