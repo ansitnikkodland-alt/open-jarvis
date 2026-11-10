@@ -1097,18 +1097,25 @@ ${fullSystem.substringAfter("MEMORY:")}
                         conversationHistory.addExchange(cleanCommand, completedState.result)
                         val parsedFast = FastCommandParser.parse(cleanCommand)
                         val parsedMessage = MessageCommandParser.parse(cleanCommand)
+                        val parsedIntent = StepIntentParser.parse(cleanCommand)
                         actionStepContext = actionStepContext.copy(
                             app = when {
                                 parsedFast is FastCommandParser.Command.OpenApp -> parsedFast.target
                                 parsedMessage?.channel == MessageRequest.Channel.WHATSAPP -> "whatsapp"
                                 parsedMessage?.channel == MessageRequest.Channel.SMS -> "sms"
+                                parsedIntent is StepIntent.AppLaunch -> parsedIntent.label
+                                parsedIntent is StepIntent.Message -> selectedMessageApp(parsedIntent.app)
                                 else -> actionStepContext.app
                             },
                             contact = when (parsedFast) {
                                 is FastCommandParser.Command.DialContact -> parsedFast.name
-                                else -> parsedMessage?.contactName ?: actionStepContext.contact
+                                else -> parsedMessage?.contactName
+                                    ?: (parsedIntent as? StepIntent.Message)?.contact
+                                    ?: actionStepContext.contact
                             },
-                            messageText = parsedMessage?.message ?: actionStepContext.messageText,
+                            messageText = parsedMessage?.message
+                                ?: (parsedIntent as? StepIntent.Message)?.text
+                                ?: actionStepContext.messageText,
                             lastCommand = cleanCommand.take(180),
                             lastResult = completedState.result.take(240)
                         )
