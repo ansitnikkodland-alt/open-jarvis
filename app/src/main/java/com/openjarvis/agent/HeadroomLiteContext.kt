@@ -18,7 +18,7 @@ internal object HeadroomLiteContext {
     }
 
     private val importantLine = Regex(
-        """(?i)^\\s*(error|warning|fatal|exception|failed|failure)\\b"""
+        """(?i)^\s*(error|warning|fatal|exception|failed|failure)\b"""
     )
 
     fun compressRepeatedLines(input: String): Result {
@@ -28,7 +28,7 @@ internal object HeadroomLiteContext {
         val lines = ArrayList<String>()
         var start = 0
         for (index in input.indices) {
-            if (input[index] == '\\n') {
+            if (input[index] == '\n') {
                 lines.add(input.substring(start, index))
                 start = index + 1
             }
@@ -51,7 +51,7 @@ internal object HeadroomLiteContext {
                 output.append(" [repeated ").append(count).append(" consecutive times]")
                 collapsed += count - 1
             }
-            if (end < lines.size || input.endsWith('\\n')) output.append('\\n')
+            if (end < lines.size) output.append('\n')
             index = end
         }
 
