@@ -2065,10 +2065,21 @@ ${fullSystem.substringAfter("MEMORY:")}
             if (!capture.startCapture()) {
                 throw IllegalStateException("Screenshot not captured: Android screen-capture permission prompt could not be opened.")
             }
-            throw IllegalStateException("Screenshot NOT captured or saved yet. Allow Android screen-capture permission, then repeat the screenshot command.")
+            // Keep the original voice command alive while Android shows its one-time
+            // MediaProjection consent dialog. Once the user approves, the foreground
+            // service initializes the projection and this same command continues.
+            val becameReady = withTimeoutOrNull(45_000L) {
+                while (!capture.isReady()) kotlinx.coroutines.delay(100)
+                true
+            } ?: false
+            if (!becameReady) {
+                throw IllegalStateException(
+                    "Screenshot permission was not granted or capture did not start in 45 seconds. Nothing was saved; say the screenshot command again after allowing screen capture."
+                )
+            }
         }
         var bitmap: Bitmap? = null
-        repeat(12) {
+        repeat(20) {
             if (bitmap == null) {
                 bitmap = withContext(Dispatchers.IO) { capture.capture() }
                 if (bitmap == null) kotlinx.coroutines.delay(100)
