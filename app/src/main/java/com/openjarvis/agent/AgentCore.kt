@@ -1537,6 +1537,25 @@ ${fullSystem.substringAfter("MEMORY:")}
                     // StepIntentParser remains the compatibility parser for richer Hindi/Marathi forms.
                     val skillRequest = SkillRegistry.parse(step)
                     if (skillRequest != null) {
+                        // Contact calls must use the same exact-match + runtime-permission
+                        // path as single-step calls. The generic skill executor intentionally
+                        // opens only the dialer and would bypass the direct-call contract.
+                        if (skillRequest.kind == SkillRegistry.Kind.CALL) {
+                            val callName = ContactCommandParser.parse(skillRequest.args["text"].orEmpty())?.name
+                                ?: skillRequest.args["contact"]?.takeIf { it.isNotBlank() }
+                            if (callName != null) {
+                                return try {
+                                    val reply = executeFastCommand(FastCommandParser.Command.DialContact(callName))
+                                    StepOutcome(true, reply, ctx.copy(contact = callName))
+                                } catch (error: Exception) {
+                                    StepOutcome(
+                                        false,
+                                        error.message?.takeIf { it.isNotBlank() } ?: error.javaClass.simpleName,
+                                        ctx
+                                    )
+                                }
+                            }
+                        }
                         val result = AndroidSkillExecutor(context).execute(skillRequest)
                         return result.fold(
                             onSuccess = {
