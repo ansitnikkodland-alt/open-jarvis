@@ -22,20 +22,12 @@ internal object WhatsAppGroupCommandParser {
             .trim()
             .replace(Regex("[\\\\p{Punct}।॥]+$"), "")
             .trim()
-        val tokens = cleaned.split(Regex("\\s+")).filter { it.isNotBlank() }
-        if (tokens.size < 3) return null
-        val action = tokens.last().lowercase(Locale.ROOT)
-        if (action !in setOf("kholo", "khol", "open", "खोलो", "खोल", "उघडा", "उघड")) return null
-        val groupToken = tokens[tokens.lastIndex - 1].lowercase(Locale.ROOT)
-        if (groupToken !in setOf("group", "ग्रुप", "समूह")) return null
-        val nameTokens = tokens.dropLast(2).toMutableList()
-        if (nameTokens.lastOrNull()?.equals("whatsapp", ignoreCase = true) == true) {
-            nameTokens.removeAt(nameTokens.lastIndex)
-        }
-        val name = nameTokens.joinToString(" ").trim()
+        val match = groupSuffix.matchEntire(cleaned) ?: return null
+        val name = match.groupValues[1].trim()
+            .replace(Regex("(?i)\\\\s+whatsapp$"), "")
+            .trim()
         return name.takeIf { it.length in 2..80 }
     }
-
     fun parseFollowUpText(command: String, app: String?, groupName: String?): String? {
         if (app?.contains("whatsapp", ignoreCase = true) != true || groupName.isNullOrBlank()) return null
         val cleaned = Normalizer.normalize(command, Normalizer.Form.NFKC).trim()
