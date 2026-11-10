@@ -9,7 +9,7 @@ import java.util.Locale
  */
 internal object WhatsAppGroupCommandParser {
     private val groupSuffix = Regex(
-        "^(.+?)\\s+(?:whatsapp\\s+)?(?:group|ग्रुप|समूह)\\s+(?:kholo|khol|open| खोलो|खोलो|खोल|उघडा|उघड)$",
+        "^(.+?)\\s+(?:whatsapp\\s+)?(?:group|ग्रुप|समूह)\\s+(?:kholo|khol|open|खोलो|खोल|उघडा|उघड)$",
         RegexOption.IGNORE_CASE
     )
     private val typeSuffix = Regex(
@@ -18,7 +18,7 @@ internal object WhatsAppGroupCommandParser {
     )
 
     fun parseGroupName(command: String): String? {
-        val cleaned = Normalizer.normalize(command, Normalizer.Form.NFKC).trim()
+        val cleaned = Normalizer.normalize(command, Normalizer.Form.NFKC).trim().replace(Regex("[\\\\p{Punct}।॥]+$"), "").trim()
         val match = groupSuffix.matchEntire(cleaned) ?: return null
         return match.groupValues[1].trim().takeIf { it.length in 2..80 }
     }
