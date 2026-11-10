@@ -1113,8 +1113,10 @@ ${fullSystem.substringAfter("MEMORY:")}
                         val parsedFast = FastCommandParser.parse(cleanCommand)
                         val parsedMessage = MessageCommandParser.parse(cleanCommand)
                         val parsedIntent = StepIntentParser.parse(cleanCommand)
+                        val parsedGroupName = WhatsAppGroupCommandParser.parseGroupName(cleanCommand)
                         actionStepContext = actionStepContext.copy(
                             app = when {
+                                parsedGroupName != null -> "whatsapp"
                                 parsedFast is FastCommandParser.Command.OpenApp -> parsedFast.target
                                 parsedMessage?.channel == MessageRequest.Channel.WHATSAPP -> "whatsapp"
                                 parsedMessage?.channel == MessageRequest.Channel.SMS -> "sms"
@@ -1128,8 +1130,7 @@ ${fullSystem.substringAfter("MEMORY:")}
                                     ?: (parsedIntent as? StepIntent.Message)?.contact
                                     ?: actionStepContext.contact
                             },
-                            groupName = WhatsAppGroupCommandParser.parseGroupName(cleanCommand)
-                                ?: actionStepContext.groupName,
+                            groupName = parsedGroupName ?: actionStepContext.groupName,
                             messageText = parsedMessage?.message
                                 ?: (parsedIntent as? StepIntent.Message)?.text
                                 ?: WhatsAppGroupCommandParser.parseFollowUpText(
