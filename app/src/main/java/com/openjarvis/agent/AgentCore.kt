@@ -2190,6 +2190,19 @@ ${fullSystem.substringAfter("MEMORY:")}
             "whatsapp" to "com.whatsapp",
             "facebook" to "com.facebook.katana"
         )
+        if (normalized in setOf("youtube", "you tube", "yt", "यूट्यूब")) {
+            val youtubeApps = AppTargetResolver.youtubeCandidates(getInstalledLauncherApps())
+            val modApps = youtubeApps.filter { it.packageName != "com.google.android.youtube" }
+            if (modApps.size > 1) {
+                throw IllegalStateException(
+                    "Multiple YouTube variants are installed: ${modApps.joinToString(", ") { it.label }}. Which one should I open?"
+                )
+            }
+            modApps.singleOrNull()?.let { return it.packageName }
+            if (context.packageManager.getLaunchIntentForPackage("com.google.android.youtube") != null) {
+                return "com.google.android.youtube"
+            }
+        }
         val knownPackage = knownPackages[normalized]
         if (knownPackage != null && context.packageManager.getLaunchIntentForPackage(knownPackage) != null) {
             return knownPackage
