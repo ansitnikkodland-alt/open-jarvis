@@ -133,7 +133,7 @@ jobs:
           profile: pixel_2
           emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -memory 2048 -cores 2 -no-metrics
           disable-animations: true
-          emulator-boot-timeout: 180
+          emulator-boot-timeout: 360
           script: bash scripts/smoke-quick.sh
 
       - name: Upload minimal smoke logcat
