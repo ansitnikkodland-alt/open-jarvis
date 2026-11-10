@@ -1841,16 +1841,32 @@ ${fullSystem.substringAfter("MEMORY:")}
             object : StepHandler {
                 override val name: String = "llm"
 
-                override suspend fun handle(step: String, ctx: StepContext): StepOutcome =
-                    try {
-                        executePipelineLlmStep(step, ctx)
+                override suspend fun handle(step: String, ctx: StepContext): StepOutcome {
+                    val groupName = WhatsAppGroupCommandParser.parseGroupName(step)
+                    val followUpText = WhatsAppGroupCommandParser.parseFollowUpText(step, ctx.app, ctx.groupName)
+                    val enrichedContext = ctx.copy(
+                        app = if (groupName != null) "whatsapp" else ctx.app,
+                        groupName = groupName ?: ctx.groupName,
+                        messageText = followUpText ?: ctx.messageText
+                    )
+                    return try {
+                        val outcome = executePipelineLlmStep(step, enrichedContext)
+                        if (!outcome.ok) outcome
+                        else outcome.copy(
+                            ctx = (outcome.ctx ?: enrichedContext).copy(
+                                app = enrichedContext.app,
+                                groupName = enrichedContext.groupName,
+                                messageText = enrichedContext.messageText
+                            )
+                        )
                     } catch (error: Exception) {
                         StepOutcome(
                             false,
                             error.message?.takeIf { it.isNotBlank() } ?: error.javaClass.simpleName,
-                            ctx
+                            enrichedContext
                         )
                     }
+                }
             }
         )
     )
