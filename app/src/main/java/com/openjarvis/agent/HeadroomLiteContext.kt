@@ -82,4 +82,19 @@ internal object HeadroomLiteContext {
         val compacted = output.toString()
         return Result(compacted, input.length, compacted.length, collapsed)
     }
+    /**
+     * Replaces only the two explicitly designated screen-context slots.
+     * The current request, confirmations, action schema, and all other prompt text
+     * remain outside the compaction boundary and byte-for-byte unchanged.
+     */
+    fun applyScreenContext(
+        promptTemplate: String,
+        ocrText: String,
+        interactiveElements: String,
+        maxOcrChars: Int = 150,
+        maxElementChars: Int = 650
+    ): String = promptTemplate
+        .replace("{SCREEN_OCR}", compressRepeatedLines(ocrText).text.take(maxOcrChars))
+        .replace("{SCREEN_ELEMENTS}", interactiveElements.take(maxElementChars))
+
 }
