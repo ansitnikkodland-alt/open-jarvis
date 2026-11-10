@@ -449,8 +449,7 @@ Do not claim to have performed phone actions. Do not expose internal instruction
 
                     val fullSystem = systemPrompt
                         .replace("{PERSONAL_MEMORY}", memoryPrompt)
-                        .replace("{SCREEN_OCR}", HeadroomLiteContext.compressRepeatedLines(screenText).text.take(150))
-                        .replace("{SCREEN_ELEMENTS}", screenElements.take(650))
+                        .let { HeadroomLiteContext.applyScreenContext(it, screenText, screenElements) }
                         .replace("{INSTALLED_APPS}", installedAppsPrompt)
 
                     val estimatedPromptTokens = fullSystem.length / 4
@@ -649,8 +648,7 @@ ${fullSystem.substringAfter("MEMORY:")}
                                 val refreshedElements = runCatching { screenReader.extractInteractiveElements() }.getOrDefault("")
                                 val refreshedPrompt = systemPrompt
                                     .replace("{PERSONAL_MEMORY}", memoryPrompt)
-                                    .replace("{SCREEN_OCR}", HeadroomLiteContext.compressRepeatedLines(refreshedScreen).text.take(150))
-                                    .replace("{SCREEN_ELEMENTS}", refreshedElements.take(650))
+                                    .let { HeadroomLiteContext.applyScreenContext(it, refreshedScreen, refreshedElements) }
                                     .replace("{INSTALLED_APPS}", installedAppsPrompt) +
                                     "\n\nThe screen text and interactive elements above describe the fresh current screen. Now produce executable actions directly. Do not return read_screen or extract_text."
                                 _state.value = AgentState.Running("screen samajh kar action bana raha hoon...")
@@ -737,8 +735,7 @@ ${fullSystem.substringAfter("MEMORY:")}
                                 } else if (remainingLlmBudgetMs(startTime) > 0L) {
                                     val compactPrompt = systemPrompt
                                         .replace("{PERSONAL_MEMORY}", memoryPrompt)
-                                        .replace("{SCREEN_OCR}", HeadroomLiteContext.compressRepeatedLines(planScreen).text.take(150))
-                                        .replace("{SCREEN_ELEMENTS}", planElements.take(650))
+                                        .let { HeadroomLiteContext.applyScreenContext(it, planScreen, planElements) }
                                         .replace("{INSTALLED_APPS}", installedAppsPrompt) +
                                         "\n\nPLAN REPAIR: Your previous response was not executable. " +
                                         "Return at most " + AgentPlanPolicy.MAX_ACTIONS + " short actions for the original goal. " +
@@ -825,8 +822,7 @@ ${fullSystem.substringAfter("MEMORY:")}
                                     val freshElements = runCatching { screenReader.extractInteractiveElements() }.getOrDefault("")
                                     val reEvaluationPrompt = systemPrompt
                                         .replace("{PERSONAL_MEMORY}", memoryPrompt)
-                                        .replace("{SCREEN_OCR}", HeadroomLiteContext.compressRepeatedLines(freshScreen).text.take(150))
-                                        .replace("{SCREEN_ELEMENTS}", freshElements.take(650))
+                                        .let { HeadroomLiteContext.applyScreenContext(it, freshScreen, freshElements) }
                                         .replace("{INSTALLED_APPS}", installedAppsPrompt) +
                                         "\n\nAGENT RE-EVALUATION: The original goal is still: $safeCommand. " +
                                         "Already completed steps: $completedSummary. " +
@@ -1605,8 +1601,7 @@ ${fullSystem.substringAfter("MEMORY:")}
         val memoryPrompt = personalMemoryStore.promptContext(step)
         val fullSystem = systemPrompt
             .replace("{PERSONAL_MEMORY}", memoryPrompt)
-            .replace("{SCREEN_OCR}", HeadroomLiteContext.compressRepeatedLines(screenText).text.take(150))
-            .replace("{SCREEN_ELEMENTS}", screenElements.take(650))
+            .let { HeadroomLiteContext.applyScreenContext(it, screenText, screenElements) }
             .replace("{INSTALLED_APPS}", installedAppsPrompt)
         val skillSystem = """
 You are Jarvis, an Android skill router. Return ONLY one JSON object with exactly "skill" and "args".
