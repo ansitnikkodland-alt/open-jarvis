@@ -777,12 +777,15 @@ ${fullSystem.substringAfter("MEMORY:")}
                                     HeadroomLite.ContentKind.UI_TEXT
                                 )
                                 val refreshedAppsCompression = HeadroomLite.compress(installedAppsPrompt, HeadroomLite.ContentKind.UI_TEXT)
-                                val refreshedPrompt = systemPrompt
-                                    .replace("{PERSONAL_MEMORY}", UntrustedContextFormatter.block(UntrustedContextFormatter.Source.MEMORY, refreshedMemoryCompression.content))
-                                    .replace("{SCREEN_OCR}", UntrustedContextFormatter.block(UntrustedContextFormatter.Source.SCREEN_OCR, refreshedScreenCompression.content))
-                                    .replace("{SCREEN_ELEMENTS}", UntrustedContextFormatter.block(UntrustedContextFormatter.Source.SCREEN_ELEMENTS, refreshedElementsCompression.content))
-                                    .replace("{INSTALLED_APPS}", UntrustedContextFormatter.block(UntrustedContextFormatter.Source.INSTALLED_APPS, refreshedAppsCompression.content)) +
-                                    "\n\nThe screen text and interactive elements above describe the fresh current screen. Now produce executable actions directly. Do not return read_screen or extract_text."
+                                val refreshedPrompt = conversationHistory.appendToSystemPrompt(
+                                    systemPrompt
+                                        .replace("{PERSONAL_MEMORY}", UntrustedContextFormatter.block(UntrustedContextFormatter.Source.MEMORY, refreshedMemoryCompression.content))
+                                        .replace("{SCREEN_OCR}", UntrustedContextFormatter.block(UntrustedContextFormatter.Source.SCREEN_OCR, refreshedScreenCompression.content))
+                                        .replace("{SCREEN_ELEMENTS}", UntrustedContextFormatter.block(UntrustedContextFormatter.Source.SCREEN_ELEMENTS, refreshedElementsCompression.content))
+                                        .replace("{INSTALLED_APPS}", UntrustedContextFormatter.block(UntrustedContextFormatter.Source.INSTALLED_APPS, refreshedAppsCompression.content)) +
+                                        activeSessionPrompt +
+                                        "\n\nThe screen text and interactive elements above describe the fresh current screen. Now produce executable actions directly. Do not return read_screen or extract_text."
+                                )
                                 _state.value = AgentState.Running("screen samajh kar action bana raha hoon...")
                                 val refreshedRaw = completeWithinBudget(refreshedPrompt, safeCommand, startTime).getOrElse { throw it }
                                 val refreshedValidation = validateWithOneRepair(refreshedPrompt, safeCommand, refreshedRaw, startTime)
@@ -973,17 +976,20 @@ ${fullSystem.substringAfter("MEMORY:")}
                                         HeadroomLite.ContentKind.UI_TEXT
                                     )
                                     val reEvalAppsCompression = HeadroomLite.compress(installedAppsPrompt, HeadroomLite.ContentKind.UI_TEXT)
-                                    val reEvaluationPrompt = systemPrompt
-                                        .replace("{PERSONAL_MEMORY}", reEvalMemoryCompression.content)
-                                        .replace("{SCREEN_OCR}", reEvalScreenCompression.content)
-                                        .replace("{SCREEN_ELEMENTS}", reEvalElementsCompression.content)
-                                        .replace("{INSTALLED_APPS}", reEvalAppsCompression.content) +
-                                        "\n\nAGENT RE-EVALUATION: The original goal is still: $safeCommand. " +
-                                        "Already completed steps: $completedSummary. " +
-                                        "The last safe navigation/observation step failed: ${failedActionForReplan.action}. " +
-                                        "Failure: ${execution.failure ?: "verification failed"}. " +
-                                        "Re-plan ONLY the remaining work from the fresh screen above. " +
-                                        "Do not repeat completed steps or repeat the failed step. Return only a non-empty JSON action array."
+                                    val reEvaluationPrompt = conversationHistory.appendToSystemPrompt(
+                                        systemPrompt
+                                            .replace("{PERSONAL_MEMORY}", reEvalMemoryCompression.content)
+                                            .replace("{SCREEN_OCR}", reEvalScreenCompression.content)
+                                            .replace("{SCREEN_ELEMENTS}", reEvalElementsCompression.content)
+                                            .replace("{INSTALLED_APPS}", reEvalAppsCompression.content) +
+                                            activeSessionPrompt +
+                                            "\n\nAGENT RE-EVALUATION: The original goal is still: $safeCommand. " +
+                                            "Already completed steps: $completedSummary. " +
+                                            "The last safe navigation/observation step failed: ${failedActionForReplan.action}. " +
+                                            "Failure: ${execution.failure ?: "verification failed"}. " +
+                                            "Re-plan ONLY the remaining work from the fresh screen above. " +
+                                            "Do not repeat completed steps or repeat the failed step. Return only a non-empty JSON action array."
+                                    )
                                     _state.value = AgentState.Running("re-planning remaining steps...")
                                     val rawReEvaluation = completeWithinBudget(reEvaluationPrompt, safeCommand, startTime)
                                         .getOrElse { throw it }
