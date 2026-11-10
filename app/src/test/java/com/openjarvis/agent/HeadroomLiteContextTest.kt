@@ -141,4 +141,33 @@ ACTION SCHEMA: tap(id), type(id, value)"""
         assertEquals("OCR=Unique O;ELEMENTS=$elements;REQUEST=Do not alter", result)
     }
 
+    @Test
+    fun leavesMemoryAndPreviousStepContextOutsideTheScreenCompactionBoundary() {
+        val memory = "- User prefers Marathi\\n- Never send messages without review"
+        val previousStepContext = "app=WhatsApp; contact=Anil; messageText=Please call me"
+        val request = "Send this exact message only after I review it"
+        val template = """MEMORY: $memory
+CURRENT REQUEST: $request
+CONFIRMATION: not granted
+SCREEN: {SCREEN_OCR}
+ELEMENTS: {SCREEN_ELEMENTS}
+PREVIOUS STEP CONTEXT: $previousStepContext
+ACTION CONTRACT: never send messages"""
+        val elements = "id=send_101 label=Send\\nid=send_102 label=Send"
+
+        val result = HeadroomLiteContext.applyScreenContext(
+            promptTemplate = template,
+            ocrText = "WhatsApp\\nWhatsApp",
+            interactiveElements = elements
+        )
+
+        assertTrue(result.contains("MEMORY: $memory"))
+        assertTrue(result.contains("CURRENT REQUEST: $request"))
+        assertTrue(result.contains("CONFIRMATION: not granted"))
+        assertTrue(result.contains("PREVIOUS STEP CONTEXT: $previousStepContext"))
+        assertTrue(result.contains("ACTION CONTRACT: never send messages"))
+        assertTrue(result.contains("SCREEN: WhatsApp ×2"))
+        assertTrue(result.contains("ELEMENTS: $elements"))
+    }
+
 }
