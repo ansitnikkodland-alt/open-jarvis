@@ -2069,12 +2069,12 @@ ${fullSystem.substringAfter("MEMORY:")}
             // MediaProjection consent dialog. Once the user approves, the foreground
             // service initializes the projection and this same command continues.
             val becameReady = withTimeoutOrNull(45_000L) {
-                while (!capture.isReady()) kotlinx.coroutines.delay(100)
-                true
+                while (!capture.isReady() && !capture.wasPermissionDenied()) kotlinx.coroutines.delay(100)
+                capture.isReady()
             } ?: false
             if (!becameReady) {
                 throw IllegalStateException(
-                    "Screenshot permission was not granted or capture did not start in 45 seconds. Nothing was saved; say the screenshot command again after allowing screen capture."
+                    "Screenshot permission was denied or capture did not start in 45 seconds. Nothing was saved; allow screen capture and retry."
                 )
             }
         }
