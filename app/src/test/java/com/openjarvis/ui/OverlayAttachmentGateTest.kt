@@ -40,12 +40,12 @@ class OverlayAttachmentGateTest {
                 ready.countDown()
                 start.await()
                 val ownsAttach = gate.begin(isAlreadyAttached = false)
+                attempted.countDown()
                 if (ownsAttach) {
                     acquired.incrementAndGet()
                     releaseWinner.await()
                     gate.finish()
                 }
-                attempted.countDown()
             }
         }
 
