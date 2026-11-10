@@ -88,7 +88,7 @@ class HeadroomLiteTest {
     fun rejectsLenientButInvalidJsonAndKeepsItVerbatim() {
         val inputs = listOf(
             """{ unquoted: "value" }""",
-            """{"value": "bad\\q"}""",
+            """{"value": "bad\q"}""",
             """[1, 2,]""",
             """{"value": 01}"""
         )
