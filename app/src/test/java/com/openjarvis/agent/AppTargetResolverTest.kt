@@ -49,6 +49,19 @@ class AppTargetResolverTest {
         assertEquals("app.revanced.android.youtube", result?.singleOrNull()?.packageName)
     }
 
+    @Test fun excludesYouTubeCompanionAndDownloaderAppsFromModCandidates() {
+        val installed = listOf(
+            InstalledAppTarget("YouTube Music", "com.google.android.apps.youtube.music"),
+            InstalledAppTarget("YouTube Studio", "com.google.android.apps.youtube.creator"),
+            InstalledAppTarget("YouTube Downloader", "com.example.youtube.downloader"),
+            InstalledAppTarget("YouTube ReVanced", "app.revanced.android.youtube")
+        )
+        assertEquals(
+            listOf("app.revanced.android.youtube"),
+            AppTargetResolver.youtubeCandidates(installed).map { it.packageName }
+        )
+    }
+
     @Test fun fallsBackToOfficialYouTubeWhenNoModIsInstalled() {
         val installed = listOf(InstalledAppTarget("YouTube", "com.google.android.youtube"))
         val result = AppTargetResolver.findMentionedApps("open youtube", installed)
