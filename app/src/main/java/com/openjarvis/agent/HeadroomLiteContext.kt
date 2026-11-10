@@ -1,8 +1,7 @@
 package com.openjarvis.agent
 
 /**
- * Android-native, lossless structural compaction for repeated screen/OCR lines.
- *
+ * Android-native structural compaction for repeated screen/OCR lines.
  * Only adjacent, byte-identical, non-empty lines are candidates. A group is
  * collapsed only when its compact representation is shorter than the source.
  * Warning/error lines and all unique lines remain untouched.
@@ -18,17 +17,17 @@ internal object HeadroomLiteContext {
     }
 
     private val importantLine = Regex(
-        """(?i)^\\s*(error|warning|fatal|exception|failed|failure)\\b"""
+        """(?i)^\s*(error|warning|fatal|exception|failed|failure)\b"""
     )
 
     fun compressRepeatedLines(input: String): Result {
         if (input.isEmpty()) return Result(input, 0, 0, 0)
 
-        // Retain the trailing empty element so a final newline is preserved.
+        // Keep the trailing empty element so a final newline is preserved.
         val lines = ArrayList<String>()
         var start = 0
         for (position in input.indices) {
-            if (input[position] == '\\n') {
+            if (input[position] == '\n') {
                 lines.add(input.substring(start, position))
                 start = position + 1
             }
@@ -60,7 +59,7 @@ internal object HeadroomLiteContext {
                 output.append(line)
                 index++
             }
-            if (index < lines.size) output.append('\\n')
+            if (index < lines.size) output.append('\n')
         }
 
         val compacted = output.toString()
