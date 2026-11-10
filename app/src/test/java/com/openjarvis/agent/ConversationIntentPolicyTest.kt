@@ -14,7 +14,16 @@ class ConversationIntentPolicyTest {
             "Ollama kya hai?",
             "Java aur Kotlin mein difference?",
             "What is Android?",
-            "काय चाललंय?"
+            "काय चाललंय?",
+            "Aaj kasa ahes?",
+            "Aaj kay zala?",
+            "Kay zala?",
+            "Kaay chalu aahe?",
+            "Tu kashi ahes?",
+            "He kuthe aahe?",
+            "Kadhi yenar?",
+            "Kiti vel lagel?",
+            "Mala sang, Ollama kay aahe?"
         ).forEach { assertTrue("$it should use chat", ConversationIntentPolicy.isChatRequest(it)) }
     }
 
