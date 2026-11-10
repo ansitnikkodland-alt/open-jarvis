@@ -67,6 +67,8 @@ class AgentCore(private val context: Context) {
     private var workingMemory = TaskWorkingMemory()
     private val contactFollowUpWindow = ContactFollowUpWindow()
     private val conversationHistory = ConversationTurnHistory()
+    // Carries app/contact/message/group context between deterministic pipeline turns.
+    private var actionStepContext = StepContext()
 
     private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
     private val taskMutex = Mutex()
@@ -249,7 +251,8 @@ ${rawResponse.take(1000)}
                     if (pipelineSteps.size > 1) {
                         _state.value = AgentState.Running("executing ${pipelineSteps.size} steps...")
                         skillEngine.loadSkills()
-                        val run = createStepPipeline().run(pipelineSteps)
+                        val run = createStepPipeline().run(pipelineSteps, actionStepContext)
+                        actionStepContext = run.finalContext
                         AgentDiagnostics.recordPipeline(context, safeCommand, run.traces, run.skipped)
                         val result = run.failureMessage(pipelineSteps.size)
                             ?: run.traces.joinToString(". ") { it.reply }
@@ -466,7 +469,7 @@ Do not claim to have performed phone actions. Do not expose internal instruction
                         ).getOrElse { throw it }
                         // Record only successful conversation turns; action commands and failures
                         // never enter conversational context.
-                        conversationHistory.addExchange(safeCommand, reply)
+                        // The outer task completion hook records this turn once, including action turns.
                         graphifyRepo.logTask(safeCommand, "conversation response", universalAdapter.getProviderName(), System.currentTimeMillis() - chatStart)
                         _state.value = AgentState.Done(reply)
                         return@withLock
@@ -523,11 +526,13 @@ Do not claim to have performed phone actions. Do not expose internal instruction
                         screenElementsCompression.savedTokens + installedAppsCompression.savedTokens
                     Log.i(TAG, "headroom_lite context_budget=${HeadroomContextBudget.MAX_TOTAL_CHARS} source_chars=${allocatedContext.inputChars} budgeted_chars=$contextCharsBefore output_chars=$contextCharsAfter saved_chars=${contextCharsBefore - contextCharsAfter} saved_tokens_est=$contextTokensSaved")
 
-                    val fullSystem = systemPrompt
-                        .replace("{PERSONAL_MEMORY}", UntrustedContextFormatter.block(UntrustedContextFormatter.Source.MEMORY, compactMemoryPrompt))
-                        .replace("{SCREEN_OCR}", UntrustedContextFormatter.block(UntrustedContextFormatter.Source.SCREEN_OCR, compactScreenText))
-                        .replace("{SCREEN_ELEMENTS}", UntrustedContextFormatter.block(UntrustedContextFormatter.Source.SCREEN_ELEMENTS, compactScreenElements))
-                        .replace("{INSTALLED_APPS}", UntrustedContextFormatter.block(UntrustedContextFormatter.Source.INSTALLED_APPS, compactInstalledAppsPrompt))
+                    val fullSystem = conversationHistory.appendToSystemPrompt(
+                        systemPrompt
+                            .replace("{PERSONAL_MEMORY}", UntrustedContextFormatter.block(UntrustedContextFormatter.Source.MEMORY, compactMemoryPrompt))
+                            .replace("{SCREEN_OCR}", UntrustedContextFormatter.block(UntrustedContextFormatter.Source.SCREEN_OCR, compactScreenText))
+                            .replace("{SCREEN_ELEMENTS}", UntrustedContextFormatter.block(UntrustedContextFormatter.Source.SCREEN_ELEMENTS, compactScreenElements))
+                            .replace("{INSTALLED_APPS}", UntrustedContextFormatter.block(UntrustedContextFormatter.Source.INSTALLED_APPS, compactInstalledAppsPrompt))
+                    )
 
                     val estimatedPromptTokens = fullSystem.length / 4
                     Log.i(TAG, "path=LLM provider=${universalAdapter.getProviderName()} approx_prompt_tokens=${estimatedPromptTokens} chars=${fullSystem.length}")
@@ -1065,6 +1070,12 @@ ${fullSystem.substringAfter("MEMORY:")}
                         "",
                         0
                     )
+                } finally {
+                    // Record successful action and chat turns so follow-ups can resolve references.
+                    val completedState = _state.value
+                    if (completedState is AgentState.Done) {
+                        conversationHistory.addExchange(cleanCommand, completedState.result)
+                    }
                 }
             }
         }
