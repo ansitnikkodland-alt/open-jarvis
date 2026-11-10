@@ -115,21 +115,21 @@ ACTION SCHEMA: tap(id), type(id, value)"""
 
         val result = HeadroomLiteContext.applyScreenContext(
             promptTemplate = template,
-            ocrText = "Settings\\nSettings\\nWi-Fi\\nWi-Fi",
+            ocrText = "Settings\nSettings\nWi-Fi\nWi-Fi",
             interactiveElements = elements
         )
 
         assertTrue(result.contains("CURRENT REQUEST: Open Wi-Fi settings"))
         assertTrue(result.contains("CONFIRMATION: User approved"))
         assertTrue(result.contains("ACTION SCHEMA: tap(id), type(id, value)"))
-        assertTrue(result.contains("SCREEN OCR: Settings ×2\\nWi-Fi ×2"))
+        assertTrue(result.contains("SCREEN OCR: Settings ×2\nWi-Fi ×2"))
         assertTrue(result.contains(elements))
-        assertEquals(3, result.substringAfter("INTERACTIVE ELEMENTS:\\n").substringBefore("\\nACTION SCHEMA:").lines().size)
+        assertEquals(3, result.substringAfter("INTERACTIVE ELEMENTS:\n").substringBefore("\nACTION SCHEMA:").lines().size)
     }
 
     @Test
     fun promptBoundaryAppliesIndependentLimitsWithoutMutatingElementIdentity() {
-        val elements = "id=button_101 label=Open\\nid=button_102 label=Open\\nid=button_103 label=Open"
+        val elements = "id=button_101 label=Open\nid=button_102 label=Open\nid=button_103 label=Open"
         val result = HeadroomLiteContext.applyScreenContext(
             promptTemplate = "OCR={SCREEN_OCR};ELEMENTS={SCREEN_ELEMENTS};REQUEST=Do not alter",
             ocrText = "Unique OCR fact",
