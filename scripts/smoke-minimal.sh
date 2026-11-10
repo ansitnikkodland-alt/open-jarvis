@@ -9,6 +9,17 @@ MAIN_ACTIVITY="$APP_ID/com.openjarvis.ui.MainActivity"
 
 mkdir -p "$ARTIFACT_DIR"
 : > "$LOGCAT_PATH"
+
+# Always preserve useful diagnostics, including when a readiness/resume assertion fails.
+capture_failure_diagnostics() {
+  local exit_code=$?
+  if [[ "$exit_code" -ne 0 ]]; then
+    echo "Smoke test exited with code $exit_code; collecting failure logcat." >&2
+    adb logcat -b all -d -t 3000 > "$LOGCAT_PATH" 2>/dev/null || true
+  fi
+}
+trap capture_failure_diagnostics EXIT
+
 [[ -f "$APK_PATH" ]] || { echo "Debug APK not found: $APK_PATH" >&2; exit 10; }
 
 echo "Waiting for Android boot and stable system-provider readiness."
@@ -91,8 +102,14 @@ if [[ "$INSTALL_OK" -ne 1 ]]; then
   exit 16
 fi
 
-echo "Pre-granting microphone permission so the first-run dialog cannot block the startup smoke test."
+echo "Pre-granting runtime permissions so first-run system dialogs cannot block the startup smoke test."
 adb shell pm grant "$APP_ID" android.permission.RECORD_AUDIO
+# MainActivity requests POST_NOTIFICATIONS on Android 13+ after microphone permission.
+# Without this grant, the notification dialog steals foreground focus and the
+# resume assertion times out waiting for MainActivity.
+if [[ "$(adb shell getprop ro.build.version.sdk | tr -d '\r')" -ge 33 ]]; then
+  adb shell pm grant "$APP_ID" android.permission.POST_NOTIFICATIONS
+fi
 
 echo "Clearing logcat before app launch."
 adb logcat -c
