@@ -170,10 +170,11 @@ ${rawResponse.take(1000)}
     }
 
     fun executeTask(cleanCommand: String) {
-        workingMemory = TaskWorkingMemory()
-
         scope.launch {
             taskMutex.withLock {
+                // Task-scoped memory must be initialized only after acquiring the mutex.
+                // Otherwise two rapidly submitted voice turns can overwrite each other's state.
+                workingMemory = TaskWorkingMemory()
                 try {
                     val sanitized = PromptSanitizer.sanitize(cleanCommand)
 
