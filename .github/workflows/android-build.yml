@@ -18,6 +18,12 @@ on:
       - "settings.gradle"
       - ".github/workflows/android-build.yml"
   workflow_dispatch:
+    inputs:
+      run_full_smoke:
+        description: 'Also run the slower full Android smoke test'
+        required: false
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -127,14 +133,49 @@ jobs:
           profile: pixel_2
           emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -memory 2048 -cores 2 -no-metrics
           disable-animations: true
-          emulator-boot-timeout: 900
-          script: bash scripts/smoke-minimal.sh
+          emulator-boot-timeout: 180
+          script: bash scripts/smoke-quick.sh
 
       - name: Upload minimal smoke logcat
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: minimal-smoke-logcat
+          name: quick-smoke-logcat
+          path: artifacts/quick-smoke-logcat.txt
+          if-no-files-found: error
+
+
+  full-smoke-test:
+    name: full-smoke-test (manual)
+    if: github.event_name == 'workflow_dispatch' && inputs.run_full_smoke == true
+    needs: apk-build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download debug APK
+        uses: actions/download-artifact@v4
+        with:
+          name: jarvis-preview-debug-apk
+          path: app/build/outputs/apk/debug
+
+      - name: Run full Android smoke test
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 34
+          arch: x86_64
+          profile: pixel_2
+          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -memory 2048 -cores 2 -no-metrics
+          disable-animations: true
+          emulator-boot-timeout: 900
+          script: bash scripts/smoke-minimal.sh
+
+      - name: Upload full smoke logcat
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: full-smoke-logcat
           path: artifacts/minimal-smoke-logcat.txt
           if-no-files-found: error
 
