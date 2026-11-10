@@ -34,7 +34,7 @@ class AndroidSTTEngine(private val context: Context) : STTEngine {
     private var currentErrorCallback: ((String) -> Unit)? = null
     private var pendingResult: String? = null
     // Partial hypotheses are diagnostic only; they are never executed as commands.
-    private var latestPartialTranscript: String? = null
+    @Volatile private var latestPartialTranscript: String? = null
     private val mainHandler = Handler(Looper.getMainLooper())
     private var sessionActive = false
     private var silenceStartTime = -1L
