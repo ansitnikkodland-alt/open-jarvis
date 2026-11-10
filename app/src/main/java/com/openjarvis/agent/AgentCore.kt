@@ -1272,7 +1272,7 @@ ${fullSystem.substringAfter("MEMORY:")}
                         }
                         kotlinx.coroutines.delay(250)
                     }
-                    if (!AgentPlanPolicy.isAppLaunchVerified(foregroundConfirmed)) {
+                    if (!AgentPlanPolicy.isAppLaunchVerified(launchAccepted = true, foregroundConfirmed = foregroundConfirmed)) {
                         Log.w(TAG, "Native app launch accepted for $packageName, but foreground confirmation was unavailable; refusing to count it as completed")
                         "App launch was requested, but Android foreground confirmation was unavailable; action is not verified."
                     } else {
