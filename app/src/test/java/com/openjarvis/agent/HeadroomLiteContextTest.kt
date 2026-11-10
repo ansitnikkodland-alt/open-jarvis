@@ -94,7 +94,7 @@ class HeadroomLiteContextTest {
         val result = HeadroomLiteContext.compressRepeatedLines(repeatedOcrFixture)
 
         assertEquals(
-            "Settings ×2\\nWi-Fi ×3\\nBattery ×2\\nBluetooth",
+            "Settings ×2\nWi-Fi ×3\nBattery ×2\nBluetooth",
             result.text
         )
         assertEquals(repeatedOcrFixture.length, result.originalChars)
