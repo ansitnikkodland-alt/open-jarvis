@@ -79,7 +79,7 @@ class StepPipelineTest {
         )
 
         assertFalse(result.allOk)
-        assertEquals(listOf("type Pune Service", "open result"), result.finalContext.pendingSteps)
+        assertEquals(listOf("open group search", "type Pune Service", "open result"), result.finalContext.pendingSteps)
         assertEquals("whatsapp", result.finalContext.app)
         assertEquals("search control not found", result.finalContext.lastResult)
     }
