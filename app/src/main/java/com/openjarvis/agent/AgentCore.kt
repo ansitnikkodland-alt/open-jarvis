@@ -473,9 +473,13 @@ Do not claim to have performed phone actions. Do not expose internal instruction
                         .getOrDefault("")
 
                     val installedAppTargets = getInstalledLauncherApps()
-                    val installedAppsPrompt = installedAppTargets
-                        .filter { safeCommand.contains(it.label, ignoreCase = true) }
-                        .joinToString(", ") { it.label }.take(150)
+                    val installedAppsPrompt = HeadroomContextBudget.fitDelimitedItems(
+                        installedAppTargets
+                            .filter { safeCommand.contains(it.label, ignoreCase = true) }
+                            .joinToString(", ") { it.label },
+                        ", ",
+                        150
+                    )
                     // Jandal-inspired local recall: retrieve only explicit user-saved facts
                     // relevant to this command. Matching is bounded and runs locally without embeddings,
                     // network calls, or keeping an LLM/model resident.
@@ -712,8 +716,14 @@ ${fullSystem.substringAfter("MEMORY:")}
 
                                 val refreshedElements = runCatching { screenReader.extractInteractiveElements() }.getOrDefault("")
                                 val refreshedMemoryCompression = HeadroomLite.compress(memoryPrompt, HeadroomLite.ContentKind.TEXT)
-                                val refreshedScreenCompression = HeadroomLite.compress(refreshedScreen.take(150), HeadroomLite.ContentKind.UI_TEXT)
-                                val refreshedElementsCompression = HeadroomLite.compress(refreshedElements.take(650), HeadroomLite.ContentKind.UI_TEXT)
+                                val refreshedScreenCompression = HeadroomLite.compress(
+                                    HeadroomContextBudget.fitTextAtWordBoundary(refreshedScreen, 150),
+                                    HeadroomLite.ContentKind.UI_TEXT
+                                )
+                                val refreshedElementsCompression = HeadroomLite.compress(
+                                    HeadroomContextBudget.fitCompleteLines(refreshedElements, 650),
+                                    HeadroomLite.ContentKind.UI_TEXT
+                                )
                                 val refreshedAppsCompression = HeadroomLite.compress(installedAppsPrompt, HeadroomLite.ContentKind.UI_TEXT)
                                 val refreshedPrompt = systemPrompt
                                     .replace("{PERSONAL_MEMORY}", UntrustedContextFormatter.block(UntrustedContextFormatter.Source.MEMORY, refreshedMemoryCompression.content))
@@ -804,8 +814,14 @@ ${fullSystem.substringAfter("MEMORY:")}
                                     }
                                 } else if (remainingLlmBudgetMs(startTime) > 0L) {
                                     val planMemoryCompression = HeadroomLite.compress(memoryPrompt, HeadroomLite.ContentKind.TEXT)
-                                    val planScreenCompression = HeadroomLite.compress(planScreen.take(150), HeadroomLite.ContentKind.UI_TEXT)
-                                    val planElementsCompression = HeadroomLite.compress(planElements.take(650), HeadroomLite.ContentKind.UI_TEXT)
+                                    val planScreenCompression = HeadroomLite.compress(
+                                        HeadroomContextBudget.fitTextAtWordBoundary(planScreen, 150),
+                                        HeadroomLite.ContentKind.UI_TEXT
+                                    )
+                                    val planElementsCompression = HeadroomLite.compress(
+                                        HeadroomContextBudget.fitCompleteLines(planElements, 650),
+                                        HeadroomLite.ContentKind.UI_TEXT
+                                    )
                                     val planAppsCompression = HeadroomLite.compress(installedAppsPrompt, HeadroomLite.ContentKind.UI_TEXT)
                                     val compactPrompt = systemPrompt
                                         .replace("{PERSONAL_MEMORY}", planMemoryCompression.content)
@@ -896,8 +912,14 @@ ${fullSystem.substringAfter("MEMORY:")}
                                         .ifBlank { "none" }
                                     val freshElements = runCatching { screenReader.extractInteractiveElements() }.getOrDefault("")
                                     val reEvalMemoryCompression = HeadroomLite.compress(memoryPrompt, HeadroomLite.ContentKind.TEXT)
-                                    val reEvalScreenCompression = HeadroomLite.compress(freshScreen.take(150), HeadroomLite.ContentKind.UI_TEXT)
-                                    val reEvalElementsCompression = HeadroomLite.compress(freshElements.take(650), HeadroomLite.ContentKind.UI_TEXT)
+                                    val reEvalScreenCompression = HeadroomLite.compress(
+                                        HeadroomContextBudget.fitTextAtWordBoundary(freshScreen, 150),
+                                        HeadroomLite.ContentKind.UI_TEXT
+                                    )
+                                    val reEvalElementsCompression = HeadroomLite.compress(
+                                        HeadroomContextBudget.fitCompleteLines(freshElements, 650),
+                                        HeadroomLite.ContentKind.UI_TEXT
+                                    )
                                     val reEvalAppsCompression = HeadroomLite.compress(installedAppsPrompt, HeadroomLite.ContentKind.UI_TEXT)
                                     val reEvaluationPrompt = systemPrompt
                                         .replace("{PERSONAL_MEMORY}", reEvalMemoryCompression.content)
@@ -1716,14 +1738,23 @@ ${fullSystem.substringAfter("MEMORY:")}
             .onFailure { Log.w(TAG, "Pipeline LLM element extraction failed", it) }
             .getOrDefault("")
         val installedApps = getInstalledLauncherApps()
-        val installedAppsPrompt = installedApps
-            .filter { step.contains(it.label, ignoreCase = true) }
-            .joinToString(", ") { it.label }
-            .take(150)
+        val installedAppsPrompt = HeadroomContextBudget.fitDelimitedItems(
+            installedApps
+                .filter { step.contains(it.label, ignoreCase = true) }
+                .joinToString(", ") { it.label },
+            ", ",
+            150
+        )
         val memoryPrompt = personalMemoryStore.promptContext(step)
         val skillMemoryCompression = HeadroomLite.compress(memoryPrompt, HeadroomLite.ContentKind.TEXT)
-        val skillScreenCompression = HeadroomLite.compress(screenText.take(150), HeadroomLite.ContentKind.UI_TEXT)
-        val skillElementsCompression = HeadroomLite.compress(screenElements.take(650), HeadroomLite.ContentKind.UI_TEXT)
+        val skillScreenCompression = HeadroomLite.compress(
+            HeadroomContextBudget.fitTextAtWordBoundary(screenText, 150),
+            HeadroomLite.ContentKind.UI_TEXT
+        )
+        val skillElementsCompression = HeadroomLite.compress(
+            HeadroomContextBudget.fitCompleteLines(screenElements, 650),
+            HeadroomLite.ContentKind.UI_TEXT
+        )
         val skillAppsCompression = HeadroomLite.compress(installedAppsPrompt, HeadroomLite.ContentKind.UI_TEXT)
         val fullSystem = systemPrompt
             .replace("{PERSONAL_MEMORY}", skillMemoryCompression.content)
