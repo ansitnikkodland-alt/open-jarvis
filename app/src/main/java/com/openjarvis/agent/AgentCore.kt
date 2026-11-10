@@ -1075,6 +1075,24 @@ ${fullSystem.substringAfter("MEMORY:")}
                     val completedState = _state.value
                     if (completedState is AgentState.Done) {
                         conversationHistory.addExchange(cleanCommand, completedState.result)
+                        val parsedFast = FastCommandParser.parse(cleanCommand)
+                        val parsedMessage = MessageCommandParser.parse(cleanCommand)
+                        actionStepContext = actionStepContext.copy(
+                            app = when {
+                                parsedFast is FastCommandParser.Command.OpenApp -> parsedFast.target
+                                parsedMessage?.channel == MessageRequest.Channel.WHATSAPP -> "whatsapp"
+                                parsedMessage?.channel == MessageRequest.Channel.SMS -> "sms"
+                                else -> actionStepContext.app
+                            },
+                            contact = when (parsedFast) {
+                                is FastCommandParser.Command.DialContact -> parsedFast.name
+                                else -> parsedMessage?.contactName ?: actionStepContext.contact
+                            },
+                            messageText = parsedMessage?.message ?: actionStepContext.messageText,
+                            lastCommand = cleanCommand.take(180),
+                            lastResult = completedState.result.take(240),
+                            pendingSteps = emptyList()
+                        )
                     }
                 }
             }
