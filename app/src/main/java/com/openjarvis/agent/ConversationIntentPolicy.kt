@@ -7,7 +7,7 @@ package com.openjarvis.agent
  */
 internal object ConversationIntentPolicy {
     private val actionIntent = Regex(
-        """\b(open|launch|start|close|exit|click|tap|press|type|write|send|reply|call|dial|scroll|back|home|play|pause|stop|search|find|install|uninstall|mute|unmute|खोलो|खोल|उघडा|उघड|दाबा|लिहा|पाठवा|कॉल|मागे|घरी|चलाओ|बंद करो|चालू करो)\b""",
+        """(?<![\p{L}\p{N}_])(open|launch|start|close|exit|click|tap|press|type|write|send|reply|call|dial|scroll|back|home|play|pause|stop|search|find|install|uninstall|mute|unmute|खोलो|खोल|उघडा|उघड|दाबा|लिहा|पाठवा|कॉल|मागे|घरी|चलाओ|बंद करो|चालू करो)(?![\p{L}\p{N}_])""",
         RegexOption.IGNORE_CASE
     )
 
@@ -19,7 +19,7 @@ internal object ConversationIntentPolicy {
     // Educational "how do I..." questions may mention an action verb but must
     // stay in chat; direct requests such as "open YouTube" still go to the action path.
     private val instructionalQuestionIntent = Regex(
-        """\b(how to|how do i|how can i|what happens if|where do i find|kasa karaycha|kashi karaychi|kase karayche|kasa .{0,40} karaycha|kashi .{0,40} karaychi|kase .{0,40} karayche|kasa karu|kashi karu|kase karu|kasa .{0,40} karu|kashi .{0,40} karu|kase .{0,40} karu|kaise karu|kaise kare|kaise khole)\b""",
+        """(?<![\p{L}\p{N}_])(how to|how do i|how can i|what happens if|where do i find|kasa karaycha|kashi karaychi|kase karayche|kasa .{0,40} karaycha|kashi .{0,40} karaychi|kase .{0,40} karayche|kasa karu|kashi karu|kase karu|kasa .{0,40} karu|kashi .{0,40} karu|kase .{0,40} karu|kaise karu|kaise kare|kaise khole)(?![\p{L}\p{N}_])""",
         RegexOption.IGNORE_CASE
     )
 
