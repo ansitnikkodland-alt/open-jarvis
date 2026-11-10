@@ -1110,8 +1110,7 @@ ${fullSystem.substringAfter("MEMORY:")}
                             },
                             messageText = parsedMessage?.message ?: actionStepContext.messageText,
                             lastCommand = cleanCommand.take(180),
-                            lastResult = completedState.result.take(240),
-                            pendingSteps = emptyList()
+                            lastResult = completedState.result.take(240)
                         )
                     }
                 }
