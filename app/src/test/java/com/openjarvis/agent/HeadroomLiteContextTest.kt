@@ -103,4 +103,42 @@ class HeadroomLiteContextTest {
         assertEquals(4, result.collapsedLines)
         assertEquals(result.text, HeadroomLiteContext.compressRepeatedLines(result.text).text)
     }
+    @Test
+    fun promptBoundaryCompactsOnlyOcrAndPreservesRequestsConfirmationsAndActionableElements() {
+        val template = """CURRENT REQUEST: Open Wi-Fi settings
+CONFIRMATION: User approved
+SCREEN OCR: {SCREEN_OCR}
+INTERACTIVE ELEMENTS:
+{SCREEN_ELEMENTS}
+ACTION SCHEMA: tap(id), type(id, value)"""
+        val elements = "button id=wifi_on label=Wi-Fi\nbutton id=wifi_on label=Wi-Fi\nbutton id=wifi_off label=Wi-Fi"
+
+        val result = HeadroomLiteContext.applyScreenContext(
+            promptTemplate = template,
+            ocrText = "Settings\\nSettings\\nWi-Fi\\nWi-Fi",
+            interactiveElements = elements
+        )
+
+        assertTrue(result.contains("CURRENT REQUEST: Open Wi-Fi settings"))
+        assertTrue(result.contains("CONFIRMATION: User approved"))
+        assertTrue(result.contains("ACTION SCHEMA: tap(id), type(id, value)"))
+        assertTrue(result.contains("SCREEN OCR: Settings ×2\\nWi-Fi ×2"))
+        assertTrue(result.contains(elements))
+        assertEquals(3, result.substringAfter("INTERACTIVE ELEMENTS:\\n").substringBefore("\\nACTION SCHEMA:").lines().size)
+    }
+
+    @Test
+    fun promptBoundaryAppliesIndependentLimitsWithoutMutatingElementIdentity() {
+        val elements = "id=button_101 label=Open\\nid=button_102 label=Open\\nid=button_103 label=Open"
+        val result = HeadroomLiteContext.applyScreenContext(
+            promptTemplate = "OCR={SCREEN_OCR};ELEMENTS={SCREEN_ELEMENTS};REQUEST=Do not alter",
+            ocrText = "Unique OCR fact",
+            interactiveElements = elements,
+            maxOcrChars = 8,
+            maxElementChars = elements.length
+        )
+
+        assertEquals("OCR=Unique O;ELEMENTS=$elements;REQUEST=Do not alter", result)
+    }
+
 }
