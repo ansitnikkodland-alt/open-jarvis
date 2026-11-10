@@ -89,7 +89,7 @@ class HeadroomLiteContextTest {
         val repeatedOcrFixture = listOf(
             "Settings", "Settings", "Wi-Fi", "Wi-Fi", "Wi-Fi",
             "Battery", "Battery", "Bluetooth"
-        ).joinToString("\\n")
+        ).joinToString("\n")
 
         val result = HeadroomLiteContext.compressRepeatedLines(repeatedOcrFixture)
 
