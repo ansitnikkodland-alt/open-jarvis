@@ -62,7 +62,7 @@ class StepPipeline(private val handlers: List<StepHandler>) {
                 val updated = (outcome.ctx ?: beforeStep).copy(
                     lastCommand = step,
                     lastResult = outcome.reply,
-                    pendingSteps = if (outcome.ok) steps.drop(i + 1) else steps.drop(i + 1)
+                    pendingSteps = if (outcome.ok) steps.drop(i + 1) else steps.drop(i)
                 )
                 traces.add(StepTrace(i, step, handler.name, outcome.ok, outcome.reply))
                 ctx = updated
@@ -72,7 +72,7 @@ class StepPipeline(private val handlers: List<StepHandler>) {
             }
             if (!handled) {
                 val reply = "Samajh nahi aaya: $step"
-                ctx = beforeStep.copy(lastResult = reply, pendingSteps = steps.drop(i + 1))
+                ctx = beforeStep.copy(lastResult = reply, pendingSteps = steps.drop(i))
                 traces.add(StepTrace(i, step, "unhandled", false, reply))
                 return RunResult(traces, false, steps.drop(i + 1), ctx)
             }
