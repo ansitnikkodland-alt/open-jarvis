@@ -1479,8 +1479,12 @@ ${fullSystem.substringAfter("MEMORY:")}
             }
             is FastCommandParser.Command.DialContact -> {
                 val number = resolveContactNumber(command.name)
-                context.startActivity(Intent(Intent.ACTION_DIAL, Uri.fromParts("tel", number, null)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
-                "Dialer launch requested for ${command.name} (call not placed)"
+                ensureCallPhonePermission()
+                context.startActivity(
+                    Intent(Intent.ACTION_CALL, Uri.fromParts("tel", number, null))
+                        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                )
+                "Calling ${command.name}"
             }
             is FastCommandParser.Command.YoutubeSearch -> {
                 val encoded = java.net.URLEncoder.encode(command.query, "UTF-8")
@@ -2089,6 +2093,36 @@ ${fullSystem.substringAfter("MEMORY:")}
         }
     }
 
+    private suspend fun ensureCallPhonePermission() {
+        if (context.checkSelfPermission(android.Manifest.permission.CALL_PHONE) == PackageManager.PERMISSION_GRANTED) return
+        val prefs = context.getSharedPreferences("jarvis_contact_permission", Context.MODE_PRIVATE)
+        prefs.edit().putBoolean("call_completed", false).putBoolean("call_granted", false).apply()
+        try {
+            context.startActivity(
+                Intent(context, com.openjarvis.ui.ContactPermissionActivity::class.java)
+                    .putExtra(com.openjarvis.ui.ContactPermissionActivity.EXTRA_REQUEST_CALL_PHONE, true)
+                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            )
+        } catch (error: Exception) {
+            throw IllegalStateException("Phone permission is required for direct calling. Open Jarvis and allow Phone permission.", error)
+        }
+        var completed = false
+        for (attempt in 0 until 60) {
+            kotlinx.coroutines.delay(500)
+            if (prefs.getBoolean("call_completed", false)) {
+                completed = true
+                break
+            }
+            if (context.checkSelfPermission(android.Manifest.permission.CALL_PHONE) == PackageManager.PERMISSION_GRANTED) {
+                completed = true
+                break
+            }
+        }
+        if (!completed || context.checkSelfPermission(android.Manifest.permission.CALL_PHONE) != PackageManager.PERMISSION_GRANTED) {
+            throw IllegalStateException("Phone permission not granted. Enable it in Android Settings > Apps > Open Jarvis > Permissions > Phone.")
+        }
+    }
+
     private suspend fun resolveContactNumber(requestedName: String, purpose: String = "dial"): String {
         if (context.checkSelfPermission(android.Manifest.permission.READ_CONTACTS) != PackageManager.PERMISSION_GRANTED) {
             val prefs = context.getSharedPreferences("jarvis_contact_permission", Context.MODE_PRIVATE)
@@ -2117,10 +2151,11 @@ ${fullSystem.substringAfter("MEMORY:")}
             while (cursor.moveToNext()) {
                 val name = cursor.getString(ni).orEmpty()
                 val number = cursor.getString(pi).orEmpty()
-                if (name.isNotBlank() && number.isNotBlank() && contactNameMatches(requestedName, name)) matches += name to number
+                if (name.isNotBlank() && number.isNotBlank()) matches += name to number
             }
         } ?: throw IllegalStateException("Could not read contacts. Check Contacts permission and try again.")
-        val unique = matches.distinctBy {
+        val preferredMatches = ContactNameMatcher.bestMatches(requestedName, matches)
+        val unique = preferredMatches.distinctBy {
             it.first.trim().lowercase(java.util.Locale.ROOT) + "|" + it.second.replace(Regex("[^+0-9]"), "")
         }
         if (unique.isEmpty()) throw IllegalStateException("No contact matched '$requestedName'. Check the name in Contacts.")
