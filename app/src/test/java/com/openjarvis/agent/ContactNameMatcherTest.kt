@@ -17,4 +17,23 @@ class ContactNameMatcherTest {
         assertFalse(ContactNameMatcher.matches("Rahu", "Rahul"))
         assertFalse(ContactNameMatcher.matches("Amit", "Rahul"))
     }
+
+    @Test fun exactNameWinsOverContactsThatShareItsPrefix() {
+        val candidates = listOf(
+            "Tejas Patil" to "111",
+            "Tejas" to "222",
+            "Tejas More" to "333"
+        )
+        assertEquals(listOf("Tejas" to "222"), ContactNameMatcher.bestMatches("Tejas", candidates))
+    }
+
+    @Test fun multipleExactNumbersRemainAmbiguous() {
+        val candidates = listOf("Tejas" to "111", "Tejas" to "222", "Tejas Patil" to "333")
+        assertEquals(listOf("Tejas" to "111", "Tejas" to "222"), ContactNameMatcher.bestMatches("Tejas", candidates))
+    }
+
+    @Test fun prefixCandidatesRemainAvailableWhenNoExactNameExists() {
+        val candidates = listOf("Tejas Patil" to "111", "Tejas More" to "222")
+        assertEquals(candidates, ContactNameMatcher.bestMatches("Tejas", candidates))
+    }
 }
