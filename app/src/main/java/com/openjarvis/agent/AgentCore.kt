@@ -1837,7 +1837,11 @@ ${fullSystem.substringAfter("MEMORY:")}
         val contextDetails = listOfNotNull(
             ctx.app?.takeIf { it.isNotBlank() }?.let { "app=$it" },
             ctx.contact?.takeIf { it.isNotBlank() }?.let { "contact=$it" },
-            ctx.messageText?.takeIf { it.isNotBlank() }?.let { "messageText=$it" }
+            ctx.groupName?.takeIf { it.isNotBlank() }?.let { "groupName=$it" },
+            ctx.messageText?.takeIf { it.isNotBlank() }?.let { "messageText=$it" },
+            ctx.lastCommand?.takeIf { it.isNotBlank() }?.let { "lastCommand=$it" },
+            ctx.lastResult?.takeIf { it.isNotBlank() }?.let { "lastResult=$it" },
+            ctx.pendingSteps.takeIf { it.isNotEmpty() }?.joinToString(" -> ")?.let { "pendingSteps=$it" }
         )
         val contextualCommand = if (contextDetails.isEmpty()) {
             step
