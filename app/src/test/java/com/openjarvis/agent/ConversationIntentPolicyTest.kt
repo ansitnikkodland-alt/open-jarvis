@@ -15,6 +15,10 @@ class ConversationIntentPolicyTest {
             "Java aur Kotlin mein difference?",
             "What is Android?",
             "काय चाललंय?",
+            "काय चाललंय",
+            "कुठे आहे",
+            "मला सांग काय झालं",
+            "आज कसा आहेस",
             "Aaj kasa ahes?",
             "Aaj kay zala?",
             "Kay zala?",
@@ -39,7 +43,10 @@ class ConversationIntentPolicyTest {
             "click Search",
             "WhatsApp mein message likho",
             "go back",
-            "mute ho jao"
+            "mute ho jao",
+            "यूट्यूब उघडा",
+            "फोन बंद करो",
+            "YouTube खोलो"
         ).forEach { assertFalse("$it should use action pipeline", ConversationIntentPolicy.isChatRequest(it)) }
     }
 
