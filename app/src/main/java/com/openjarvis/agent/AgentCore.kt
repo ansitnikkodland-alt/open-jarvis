@@ -629,8 +629,9 @@ volume args: up boolean.
 navigate args: place string.
 app_launch args: label string.
 message args: optional app ("whatsapp" or "sms"), contact string, text string. Open composer only; never send.
+If ACTIVE ACTION SESSION DATA contains app=whatsapp and groupName, then a follow-up like "Hi likho" means type that exact text in the already-open group UI; choose "none" so the UI planner handles it. Do not open a new contact composer.
 Never invent contact names or app labels. Understand Hindi, Marathi, Hinglish and English. No markdown.
-""".trimIndent())
+""".trimIndent() + activeSessionPrompt)
                     val nativeIntentCompression = HeadroomLite.compress(nativeIntentSystem, HeadroomLite.ContentKind.POLICY)
                     if (nativeIntentCompression.savedChars > 0) {
                         Log.i(TAG, "headroom_lite stage=native_intent_policy saved_chars=${nativeIntentCompression.savedChars} saved_tokens_est=${nativeIntentCompression.savedTokens}")
