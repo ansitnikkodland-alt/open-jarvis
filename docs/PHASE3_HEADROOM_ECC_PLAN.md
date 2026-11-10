@@ -100,3 +100,29 @@ Do not install ECC into the Jarvis APK. Do not add paid integrations or cloud cr
 - Added a production prompt-boundary helper used at all five AgentCore screen-context call sites. It compacts only the SCREEN_OCR slot and applies the existing cap; SCREEN_ELEMENTS is capped but passed through byte-for-byte, preserving duplicate labels and distinct IDs. Other template content—including the current request, confirmation text, and action schema—is outside the compaction boundary.
 - Added prompt-boundary unit fixtures for request/confirmation/schema preservation, repeated actionable controls, independent caps, and element identity. These verify deterministic prompt construction, not model-level task equivalence; real Ollama A/B task accuracy and latency still require the final device benchmark.
 - Added a deterministic OCR benchmark fixture that verifies character savings, collapsed-line counts, exact unique-fact retention, and idempotence. These are character-level unit measurements, not model-token or latency claims. Interactive element records are passed through unchanged. Next: add prompt-level equivalence fixtures and measure real Ollama token/latency impact before considering Hybrid.
+
+
+## Phase 3A — prompt source/risk inventory (code audit)
+
+Audited the active AgentCore planner and pipeline prompt assembly at the current branch head:
+
+| Input | Source / current bound | Risk treatment |
+|---|---|---|
+| System instructions and action contract | Static systemPrompt / skillSystem templates | Never passed to the compactor |
+| Latest user command | Sanitized safeCommand, passed as the separate LLM user message | Never rewritten or compacted |
+| Retrieved personal memory | Explicit encrypted notes; max 20 stored, max 3 retrieved, prompt context capped at 360 characters | Passed as reference context; not compacted |
+| Screen OCR | ScreenReader.extractAllText(); OCR slot capped at 150 characters | Only current lossy compaction input |
+| Interactive screen elements | ScreenReader.extractInteractiveElements(); capped at 650 characters | Never compacted; duplicate controls and IDs preserved |
+| Installed app labels | Only command-matching labels; capped at 150 characters | Not compacted |
+| Pipeline previous-step context | App/contact/message text passed alongside the step as a separate user message | Not compacted; may contain user-authored content |
+| Execution and diagnostic traces | Recorded locally for diagnostics/reporting; not generally fed back as a tool transcript | No general tool-output compressor is currently wired |
+| Re-evaluation feedback | Completed action names and execution failure detail are inserted into a later planner prompt | Not compacted; failure detail has no independent explicit character cap yet and is a follow-up hardening item |
+
+The prompt-construction regression fixture now verifies that memory, current request, confirmation state, previous-step context, message text, action contract, and duplicate actionable element IDs remain unchanged when OCR is compacted. This is a deterministic boundary test, not proof of model-level behavior.
+
+### Next audit slice
+
+- Add a dedicated bounded representation for re-evaluation failure feedback without changing action identity or hiding the original failure reason.
+- Add fixtures for long/multiline failure text, identifiers, URLs, Unicode, and preservation of the completed-action list.
+- Keep memory and pipeline context outside lossy compaction unless a separate source-specific policy and tests justify changing them.
+- Measure real token counts and task equivalence on the target phone only in the final device stage.
