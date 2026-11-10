@@ -462,6 +462,16 @@ class OverlayService : Service() {
             return
         }
         statusText?.text = "Jarvis is working…"
+        // Give voice users immediate feedback while the task continues asynchronously.
+        // The final verified result still replaces this acknowledgement when ready.
+        if (voiceCommand != null && voiceManager.isContinuousSessionActive()) {
+            val acknowledgement = when (responseLanguage) {
+                "mr" -> "ठीक आहे, मी काम सुरू करतो."
+                "hi" -> "ठीक है, मैं अभी करता हूँ।"
+                else -> "Okay, I'm on it."
+            }
+            voiceManager.speak(acknowledgement)
+        }
         voiceManager.markThinking()
         agentCore.executeTask(command)
         commandInput?.text?.clear()
