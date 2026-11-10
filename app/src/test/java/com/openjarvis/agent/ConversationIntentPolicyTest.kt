@@ -23,7 +23,12 @@ class ConversationIntentPolicyTest {
             "He kuthe aahe?",
             "Kadhi yenar?",
             "Kiti vel lagel?",
-            "Mala sang, Ollama kay aahe?"
+            "Mala sang, Ollama kay aahe?",
+            "How do I open YouTube?",
+            "How can I mute the phone?",
+            "WhatsApp kasa open karu?",
+            "Volume kasa kami karaycha?",
+            "Kaise khole settings?"
         ).forEach { assertTrue("$it should use chat", ConversationIntentPolicy.isChatRequest(it)) }
     }
 
