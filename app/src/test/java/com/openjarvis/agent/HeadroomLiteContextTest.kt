@@ -83,4 +83,24 @@ class HeadroomLiteContextTest {
             assertEquals(0, result.collapsedLines)
         }
     }
+
+    @Test
+    fun benchmarkFixtureReportsSavingsWithoutChangingUniqueScreenFacts() {
+        val repeatedOcrFixture = listOf(
+            "Settings", "Settings", "Wi-Fi", "Wi-Fi", "Wi-Fi",
+            "Battery", "Battery", "Bluetooth"
+        ).joinToString("\\n")
+
+        val result = HeadroomLiteContext.compressRepeatedLines(repeatedOcrFixture)
+
+        assertEquals(
+            "Settings ×2\\nWi-Fi ×3\\nBattery ×2\\nBluetooth",
+            result.text
+        )
+        assertEquals(repeatedOcrFixture.length, result.originalChars)
+        assertEquals(result.text.length, result.compactedChars)
+        assertEquals(result.originalChars - result.compactedChars, result.charsSaved)
+        assertEquals(4, result.collapsedLines)
+        assertEquals(result.text, HeadroomLiteContext.compressRepeatedLines(result.text).text)
+    }
 }
