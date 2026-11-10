@@ -43,7 +43,7 @@ jobs:
         with:
           ref: ${{ inputs.base_ref }}
           fetch-depth: 0
-          persist-credentials: true
+          persist-credentials: false
 
       - name: Set up JDK 17
         uses: actions/setup-java@v4
@@ -138,5 +138,17 @@ jobs:
           git config user.email "open-jarvis-repair[bot]@users.noreply.github.com"
           BRANCH="autonomous-repair/${GH_RUN_ID}"
           git switch -c "$BRANCH"
-          git commit -m "Autonomous repair: validated Kotlin patch"
-          git push origin "$BRANCH"
+          git -c core.hooksPath=/dev/null commit -m "Autonomous repair: validated Kotlin patch"
+
+      - name: Push validated repair branch
+        env:
+          GH_RUN_ID: ${{ github.run_id }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GIT_CONFIG_GLOBAL: /dev/null
+          GIT_CONFIG_NOSYSTEM: "1"
+        run: |
+          BRANCH="autonomous-repair/${GH_RUN_ID}"
+          AUTH_HEADER="$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)"
+          git -c core.hooksPath=/dev/null \
+              -c http.extraheader="AUTHORIZATION: basic $AUTH_HEADER" \
+              push "https://github.com/sandipsonawane73618-coder/open-jarvis.git" "$BRANCH"
