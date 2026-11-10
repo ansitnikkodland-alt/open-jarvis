@@ -85,3 +85,15 @@ Do not install ECC into the Jarvis APK. Do not add paid integrations or cloud cr
 5. Integrate only at a proven tool-output/context boundary.
 6. Benchmark Lite on the 6 GB target device before considering Hybrid.
 7. Evaluate the Headroom sidecar only if Lite leaves a measurable gap and resource tests pass.
+
+
+## Phase 3A progress — first isolated implementation slice
+
+- Added `HeadroomLiteContext`, a pure Kotlin run-length compactor for adjacent identical non-empty screen/OCR lines.
+- Error, warning, fatal, exception, and failure lines are deliberately never collapsed.
+- Unique lines, ordering, blank lines, Hindi/Marathi Unicode, and final-newline boundaries are preserved.
+- Wired the compactor into all 10 screen/OCR context insertion sites in `AgentCore`; current prompt character caps remain unchanged.
+- Added unit tests for repeated lines, important-line preservation, ordering, Unicode, empty input, and newline behavior.
+- No Python/Node sidecar, model, network call, telemetry, cloud provider, or new Android dependency was added.
+- Android CI run #969 is the first validation gate for this slice. Do not call it passed until the workflow finishes successfully.
+- No measured token savings, latency improvement, or phone resource results are claimed yet. The next slice must add instrumentation/benchmark fixtures and verify that the model still grounds actions correctly from compacted screen context.
