@@ -19,7 +19,7 @@ internal object ConversationIntentPolicy {
     // Educational "how do I..." questions may mention an action verb but must
     // stay in chat; direct requests such as "open YouTube" still go to the action path.
     private val instructionalQuestionIntent = Regex(
-        """\\b(how to|how do i|how can i|what happens if|where do i find|kasa karaycha|kashi karaychi|kase karayche|kasa karu|kashi karu|kase karu|kaise karu|kaise kare|kaise khole)\\b""",
+        """\b(how to|how do i|how can i|what happens if|where do i find|kasa karaycha|kashi karaychi|kase karayche|kasa karu|kashi karu|kase karu|kaise karu|kaise kare|kaise khole)\b""",
         RegexOption.IGNORE_CASE
     )
 
