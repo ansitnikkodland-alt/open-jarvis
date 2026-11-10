@@ -98,6 +98,7 @@ class StepPipelineTest {
         assertFalse(result.allOk)
         assertEquals(listOf("first", "fail"), result.traces.map { it.step })
         assertEquals(listOf("third"), result.skipped)
+        assertEquals(listOf("fail", "third"), result.finalContext.pendingSteps)
         assertFalse(result.traces.last().ok)
     }
 
