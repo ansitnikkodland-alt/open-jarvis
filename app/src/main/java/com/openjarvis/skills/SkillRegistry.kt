@@ -31,9 +31,9 @@ object SkillRegistry {
         if (Regex("^(?:torch|flashlight|टॉर्च)\\s+(?:off|बंद|बुझा दो|बंद करो)$").matches(s) ||
             Regex("^(?:turn off|switch off) (?:the )?(?:torch|flashlight)$").matches(s))
             return Request(Kind.TORCH, mapOf("enabled" to "false"))
-        if (Regex("^(?:(?:volume|आवाज़|आवाज|aawaz|awaaz|aawaj|awaz)(?:\\s+(?:thoda|thodi))?\\s*(?:up|बढ़ाओ|बढ़ाओ|बढ़ा दो|बढ़ा दो|vadhav|वाढवा|वाढव)|(?:increase|raise) volume)$").matches(s))
+        if (Regex("^(?:(?:volume|आवाज़|आवाज|aawaz|awaaz|aawaj|awaz)(?:\\s+(?:thoda|thodi))?\\s*(?:up|बढ़ाओ|बढ़ाओ|बढ़ा दो|बढ़ा दो|badha do|bada do|badhao|vadhav|vadhva|वाढवा|वाढव)|(?:increase|raise) volume)$").matches(s))
             return Request(Kind.VOLUME, mapOf("direction" to "up"))
-        if (Regex("^(?:(?:volume|आवाज़|आवाज|aawaz|awaaz|aawaj|awaz)(?:\\s+(?:thoda|thodi))?\\s*(?:down|कम करो|कम कर दो|kami kara|kami kar|कमी करा|कमी कर)|(?:decrease|lower) volume)$").matches(s))
+        if (Regex("^(?:(?:volume|आवाज़|आवाज|aawaz|awaaz|aawaj|awaz)(?:\\s+(?:thoda|thodi))?\\s*(?:down|कम करो|कम कर दो|kam karo|kam kar do|kami karo|kami kara|kami kar|कमी करा|कमी कर)|(?:decrease|lower) volume)$").matches(s))
             return Request(Kind.VOLUME, mapOf("direction" to "down"))
 
         val setting = mapOf(
