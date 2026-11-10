@@ -16,16 +16,16 @@ internal object HeadroomLiteContext {
     }
 
     private val importantLine = Regex(
-        """(?i)^\\s*(error|warning|fatal|exception|failed|failure)\\b"""
+        """(?i)^\s*(error|warning|fatal|exception|failed|failure)\b"""
     )
-    private val urlLine = Regex("""(?i).*(https?://|www\\.).*""")
+    private val urlLine = Regex("""(?i).*(https?://|www\.).*""")
     private val uuidLine = Regex(
-        """(?i).*\\b[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\\b.*"""
+        """(?i).*\b[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\b.*"""
     )
-    private val identifierLine = Regex("""(?i).*\\b[a-z][a-z0-9_-]*[0-9][a-z0-9_-]*\\b.*""")
-    private val numericIdLine = Regex(""".*\\b[0-9]{5,}\\b.*""")
+    private val identifierLine = Regex("""(?i).*\b[a-z][a-z0-9_-]*[0-9][a-z0-9_-]*\b.*""")
+    private val numericIdLine = Regex(""".*\b[0-9]{5,}\b.*""")
     private val structuredLine = Regex(
-        """(?i)^\\s*(package|import|class|interface|object|fun|val|var|const|return)\\b.*|.*[{};].*|^[a-z_][a-z0-9_.-]*\\s*[:=]\\s*\\S+.*"""
+        """(?i)^\s*(package|import|class|interface|object|fun|val|var|const|return)\b.*|.*[{};].*|^[a-z_][a-z0-9_.-]*\s*[:=]\s*\S+.*"""
     )
 
     private fun isSafeDisplayText(line: String): Boolean =
@@ -44,7 +44,7 @@ internal object HeadroomLiteContext {
         val lines = ArrayList<String>()
         var start = 0
         for (position in input.indices) {
-            if (input[position] == '\\n') {
+            if (input[position] == '\n') {
                 lines.add(input.substring(start, position))
                 start = position + 1
             }
@@ -76,7 +76,7 @@ internal object HeadroomLiteContext {
                 output.append(line)
                 index++
             }
-            if (index < lines.size) output.append('\\n')
+            if (index < lines.size) output.append('\n')
         }
 
         val compacted = output.toString()
