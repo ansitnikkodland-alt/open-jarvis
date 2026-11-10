@@ -56,7 +56,7 @@ class StepPipeline(private val handlers: List<StepHandler>) {
         val traces = ArrayList<StepTrace>()
         for ((i, step) in steps.withIndex()) {
             var handled = false
-            val beforeStep = ctx.copy(lastCommand = step, pendingSteps = steps.drop(i))
+            val beforeStep = ctx.copy(pendingSteps = steps.drop(i))
             for (handler in handlers) {
                 val outcome = handler.handle(step, beforeStep) ?: continue
                 val updated = (outcome.ctx ?: beforeStep).copy(
