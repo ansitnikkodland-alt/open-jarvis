@@ -1855,11 +1855,13 @@ ${fullSystem.substringAfter("MEMORY:")}
             HeadroomLite.ContentKind.UI_TEXT
         )
         val skillAppsCompression = HeadroomLite.compress(installedAppsPrompt, HeadroomLite.ContentKind.UI_TEXT)
-        val fullSystem = systemPrompt
-            .replace("{PERSONAL_MEMORY}", skillMemoryCompression.content)
-            .replace("{SCREEN_OCR}", skillScreenCompression.content)
-            .replace("{SCREEN_ELEMENTS}", skillElementsCompression.content)
-            .replace("{INSTALLED_APPS}", skillAppsCompression.content)
+        val fullSystem = conversationHistory.appendToSystemPrompt(
+            systemPrompt
+                .replace("{PERSONAL_MEMORY}", skillMemoryCompression.content)
+                .replace("{SCREEN_OCR}", skillScreenCompression.content)
+                .replace("{SCREEN_ELEMENTS}", skillElementsCompression.content)
+                .replace("{INSTALLED_APPS}", skillAppsCompression.content)
+        )
         val skillSystem = """
 You are Jarvis, an Android skill router. Return ONLY one JSON object with exactly "skill" and "args".
 Allowed skills: OPEN_APP, SETTINGS, CALL, SEARCH, WHATSAPP_MESSAGE, SMS_MESSAGE, ALARM, TIMER, TORCH, VOLUME, MAPS, TIME, ANDROID_UI_ACTIONS.
