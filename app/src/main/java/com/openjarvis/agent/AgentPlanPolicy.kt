@@ -58,7 +58,8 @@ internal object AgentPlanPolicy {
         plannedCount > 0 && verifiedCount == plannedCount
 
     /** App launch is complete only when Android confirms the target package is foreground. */
-    fun isAppLaunchVerified(foregroundConfirmed: Boolean): Boolean = foregroundConfirmed
+    fun isAppLaunchVerified(launchAccepted: Boolean, foregroundConfirmed: Boolean): Boolean =
+        launchAccepted && foregroundConfirmed
 
     fun isExecutablePlan(actions: List<Action>): Boolean =
         actions.isNotEmpty() &&
