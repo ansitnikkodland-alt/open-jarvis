@@ -2,9 +2,8 @@ package com.openjarvis.agent
 
 /**
  * Android-native structural compaction for repeated screen/OCR lines.
- * Only adjacent, byte-identical, non-empty lines are candidates. A group is
- * collapsed only when its compact representation is shorter than the source.
- * Warning/error lines and all unique lines remain untouched.
+ * Only adjacent, byte-identical, non-empty, plain display-text lines are candidates.
+ * Structured values and diagnostic lines remain byte-for-byte unchanged.
  */
 internal object HeadroomLiteContext {
     data class Result(
@@ -17,8 +16,26 @@ internal object HeadroomLiteContext {
     }
 
     private val importantLine = Regex(
-        """(?i)^\s*(error|warning|fatal|exception|failed|failure)\b"""
+        """(?i)^\\s*(error|warning|fatal|exception|failed|failure)\\b"""
     )
+    private val urlLine = Regex("""(?i).*(https?://|www\\.).*""")
+    private val uuidLine = Regex(
+        """(?i).*\\b[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\\b.*"""
+    )
+    private val identifierLine = Regex("""(?i).*\\b[a-z][a-z0-9_-]*[0-9][a-z0-9_-]*\\b.*""")
+    private val numericIdLine = Regex(""".*\\b[0-9]{5,}\\b.*""")
+    private val structuredLine = Regex(
+        """(?i)^\\s*(package|import|class|interface|object|fun|val|var|const|return)\\b.*|.*[{};].*|^[a-z_][a-z0-9_.-]*\\s*[:=]\\s*\\S+.*"""
+    )
+
+    private fun isSafeDisplayText(line: String): Boolean =
+        line.isNotBlank() &&
+            !importantLine.containsMatchIn(line) &&
+            !urlLine.matches(line) &&
+            !uuidLine.matches(line) &&
+            !identifierLine.matches(line) &&
+            !numericIdLine.matches(line) &&
+            !structuredLine.matches(line)
 
     fun compressRepeatedLines(input: String): Result {
         if (input.isEmpty()) return Result(input, 0, 0, 0)
@@ -27,7 +44,7 @@ internal object HeadroomLiteContext {
         val lines = ArrayList<String>()
         var start = 0
         for (position in input.indices) {
-            if (input[position] == '\n') {
+            if (input[position] == '\\n') {
                 lines.add(input.substring(start, position))
                 start = position + 1
             }
@@ -40,7 +57,7 @@ internal object HeadroomLiteContext {
         while (index < lines.size) {
             val line = lines[index]
             var end = index + 1
-            val candidate = line.isNotBlank() && !importantLine.containsMatchIn(line)
+            val candidate = isSafeDisplayText(line)
             if (candidate) {
                 while (end < lines.size && lines[end] == line) end++
             }
@@ -59,7 +76,7 @@ internal object HeadroomLiteContext {
                 output.append(line)
                 index++
             }
-            if (index < lines.size) output.append('\n')
+            if (index < lines.size) output.append('\\n')
         }
 
         val compacted = output.toString()
