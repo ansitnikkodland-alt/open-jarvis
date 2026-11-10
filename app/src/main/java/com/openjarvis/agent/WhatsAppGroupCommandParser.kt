@@ -14,8 +14,8 @@ internal object WhatsAppGroupCommandParser {
         "^(.+?)\\s+(?:likho|likh do|type karo|type|write|लिखो|लिख दो|लिहा|लिहून टाका)$",
         RegexOption.IGNORE_CASE
     )
-    private val trailingPunctuation = Regex("""[\\p{Punct}।॥]+$""")
-    private val whitespace = Regex("""\\s+""")
+    private val trailingPunctuation = Regex("[\\p{Punct}।॥]+$")
+    private val whitespace = Regex("\\s+")
 
     fun parseGroupName(command: String): String? {
         val cleaned = Normalizer.normalize(command, Normalizer.Form.NFKC)
