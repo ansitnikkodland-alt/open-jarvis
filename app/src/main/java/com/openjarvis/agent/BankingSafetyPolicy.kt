@@ -55,12 +55,33 @@ internal object BankingSafetyPolicy {
         RegexOption.IGNORE_CASE
     )
 
+    // Verified Indian UPI/banking app package IDs. Keep this exact set in addition
+    // to conservative package-name heuristics below; app IDs vary by publisher.
     private val financialPackages = setOf(
         "com.google.android.apps.wallet",
         "com.google.android.apps.nbu.paisa.user",
         "com.paytm",
+        "net.one97.paytm",
         "com.phonepe",
+        "com.phonepe.app",
         "in.org.npci.upiapp",
+        "com.sbi.lotusintouch",
+        "com.sbi.upi",
+        "com.csam.icici.bank.imobile",
+        "com.icicibank.pockets",
+        "com.snapwork.hdfc",
+        "com.enstage.wibmo.hdfc",
+        "com.axis.mobile",
+        "com.upi.axispay",
+        "com.fss.pnbpsp",
+        "com.fss.unbipsp",
+        "com.mobikwik_new",
+        "com.freecharge.android",
+        "com.dreamplug.androidapp",
+        "com.bankofbaroda.upi",
+        "com.myairtelapp",
+        "com.samsung.android.spaymini",
+        "com.samsung.android.spay",
     )
 
     fun isFinancialPackage(packageName: String?): Boolean {
@@ -70,6 +91,23 @@ internal object BankingSafetyPolicy {
     }
 
     fun knownFinancialPackages(): Set<String> = financialPackages
+
+    /**
+     * Accessibility execution searches all visible windows and cannot enforce a model-
+     * supplied package target. When a financial app is visible, bind every UI action
+     * to that foreground context so a forged non-financial package cannot bypass policy.
+     */
+    fun scopeActionsToFinancialForeground(
+        actions: List<Action>,
+        foregroundPackage: String?
+    ): List<Action> {
+        if (!isFinancialPackage(foregroundPackage)) return actions
+        return actions.map { action ->
+            if (action.action in setOf(Action.CLICK, Action.TAP, Action.TYPE, Action.TYPE_TEXT)) {
+                action.copy(packageName = foregroundPackage)
+            } else action
+        }
+    }
 
     private val financialControl = Regex(
         "(?<![\\p{L}\\p{N}])(pay|payment|transfer|send|proceed|confirm|withdraw|" +

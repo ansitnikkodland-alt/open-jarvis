@@ -52,6 +52,56 @@ class BankingSafetyPolicyTest {
         }
     }
 
+    @Test fun recognizesUnlistedIndianBankPackagesForForegroundProtection() {
+        listOf(
+            "com.example.bank.app",
+            "com.example.wallet.client",
+            "com.paytm",
+            "net.one97.paytm",
+            "com.phonepe.app",
+            "com.sbi.lotusintouch",
+            "com.csam.icici.bank.imobile",
+            "com.axis.mobile",
+            "com.snapwork.hdfc",
+            "com.fss.pnbpsp",
+            "com.mobikwik_new",
+            "com.dreamplug.androidapp",
+            "com.bankofbaroda.upi",
+            "com.samsung.android.spay"
+        ).forEach { packageName ->
+            assertTrue("Should recognize financial package: $packageName",
+                BankingSafetyPolicy.isFinancialPackage(packageName))
+        }
+        assertFalse(BankingSafetyPolicy.isFinancialPackage("com.example.shopping"))
+    }
+
+    @Test fun foregroundBankingContextOverridesUntrustedActionPackage() {
+        val actions = listOf(
+            Action(action = Action.TYPE_TEXT, packageName = "com.example.shopping", value = "123"),
+            Action(action = Action.CLICK, packageName = "com.example.shopping", text = "Pay")
+        )
+        val scoped = BankingSafetyPolicy.scopeActionsToFinancialForeground(
+            actions,
+            "com.sbi.lotusintouch"
+        )
+        assertTrue(scoped.all { it.packageName == "com.sbi.lotusintouch" })
+        assertTrue(BankingSafetyPolicy.blocksFinancialActions(scoped))
+    }
+
+    @Test fun nonFinancialForegroundDoesNotRewriteExplicitTargets() {
+        val actions = listOf(
+            Action(action = Action.CLICK, packageName = "com.example.shopping", text = "Search")
+        )
+        assertEquals(
+            actions,
+            BankingSafetyPolicy.scopeActionsToFinancialForeground(actions, "com.example.shopping")
+        )
+        assertEquals(
+            actions,
+            BankingSafetyPolicy.scopeActionsToFinancialForeground(actions, null)
+        )
+    }
+
     @Test fun blocksFinancialAppTextEntryAndPaymentControls() {
         val typeIntoPhonePe = Action(
             action = Action.TYPE,
