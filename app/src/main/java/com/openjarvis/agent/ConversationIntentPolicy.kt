@@ -16,9 +16,17 @@ internal object ConversationIntentPolicy {
         RegexOption.IGNORE_CASE
     )
 
+    // Educational "how do I..." questions may mention an action verb but must
+    // stay in chat; direct requests such as "open YouTube" still go to the action path.
+    private val instructionalQuestionIntent = Regex(
+        """\\b(how to|how do i|how can i|what happens if|where do i find|kasa karaycha|kashi karaychi|kase karayche|kasa karu|kashi karu|kase karu|kaise karu|kaise kare|kaise khole)\\b""",
+        RegexOption.IGNORE_CASE
+    )
+
     fun isChatRequest(command: String): Boolean {
         val text = command.trim()
         if (text.isEmpty() || text.length > 1200) return false
+        if (instructionalQuestionIntent.containsMatchIn(text)) return true
         if (actionIntent.containsMatchIn(text)) return false
         if (text.matches(Regex("^(hi|hello|hey|hello jarvis|hi jarvis|how are you|what's up|नमस्ते|नमस्कार|हाय|कसे आहात|काय चाललंय)[.!? ]*$", RegexOption.IGNORE_CASE))) return true
         return questionIntent.containsMatchIn(text)
