@@ -3,9 +3,9 @@ package com.openjarvis.agent
 /**
  * Android-native, lossless structural compaction for repeated screen/OCR lines.
  *
- * This is the first lightweight Headroom-style stage: no model, network, or
- * external process is used. Only adjacent, byte-identical, non-empty lines
- * are collapsed. Warning/error lines and all unique lines remain untouched.
+ * Only adjacent, byte-identical, non-empty lines are candidates. A group is
+ * collapsed only when its compact representation is shorter than the source.
+ * Warning/error lines and all unique lines remain untouched.
  */
 internal object HeadroomLiteContext {
     data class Result(
@@ -18,19 +18,19 @@ internal object HeadroomLiteContext {
     }
 
     private val importantLine = Regex(
-        """(?i)^\s*(error|warning|fatal|exception|failed|failure)\b"""
+        """(?i)^\\s*(error|warning|fatal|exception|failed|failure)\\b"""
     )
 
     fun compressRepeatedLines(input: String): Result {
         if (input.isEmpty()) return Result(input, 0, 0, 0)
 
-        // Keep exact line boundaries, including a final newline.
+        // Retain the trailing empty element so a final newline is preserved.
         val lines = ArrayList<String>()
         var start = 0
-        for (index in input.indices) {
-            if (input[index] == '\n') {
-                lines.add(input.substring(start, index))
-                start = index + 1
+        for (position in input.indices) {
+            if (input[position] == '\\n') {
+                lines.add(input.substring(start, position))
+                start = position + 1
             }
         }
         lines.add(input.substring(start))
@@ -41,18 +41,26 @@ internal object HeadroomLiteContext {
         while (index < lines.size) {
             val line = lines[index]
             var end = index + 1
-            val canCollapse = line.isNotBlank() && !importantLine.containsMatchIn(line)
-            if (canCollapse) {
+            val candidate = line.isNotBlank() && !importantLine.containsMatchIn(line)
+            if (candidate) {
                 while (end < lines.size && lines[end] == line) end++
             }
+
             val count = end - index
-            output.append(line)
-            if (count > 1) {
-                output.append(" [repeated ").append(count).append(" consecutive times]")
+            val marker = " ×$count"
+            val sourceLength = count * line.length + (count - 1)
+            val compactLength = line.length + marker.length
+            val shouldCollapse = candidate && count > 1 && compactLength < sourceLength
+
+            if (shouldCollapse) {
+                output.append(line).append(marker)
                 collapsed += count - 1
+                index = end
+            } else {
+                output.append(line)
+                index++
             }
-            if (end < lines.size) output.append('\n')
-            index = end
+            if (index < lines.size) output.append('\\n')
         }
 
         val compacted = output.toString()
