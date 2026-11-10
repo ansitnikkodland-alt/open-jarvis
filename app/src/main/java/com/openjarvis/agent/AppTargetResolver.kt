@@ -117,10 +117,14 @@ internal object AppTargetResolver {
     private fun isYouTubeVariant(app: InstalledAppTarget): Boolean {
         if (app.packageName == OFFICIAL_YOUTUBE_PACKAGE) return true
         val label = normalize(app.label)
-        val packageName = app.packageName.lowercase(Locale.ROOT)
-        val excluded = listOf("youtube music", "youtube kids", "youtube tv")
+        // Resolve only the actual YouTube app family. Package-name substring matches
+        // can incorrectly capture downloaders and unrelated companion apps.
+        val excluded = listOf(
+            "youtube music", "youtube kids", "youtube tv", "youtube studio",
+            "youtube create", "youtube downloader", "youtube go"
+        )
         if (excluded.any { label == it || label.startsWith("$it ") }) return false
-        return label == "youtube" || label.startsWith("youtube ") || packageName.contains("youtube")
+        return label == "youtube" || label.startsWith("youtube ")
     }
 
     private fun isYouTubeAlias(alias: String): Boolean =
