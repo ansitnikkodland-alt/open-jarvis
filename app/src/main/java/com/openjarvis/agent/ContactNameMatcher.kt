@@ -19,10 +19,13 @@ internal object ContactNameMatcher {
      * If no exact match exists, return all conservative prefix matches so the
      * caller can ask the user to disambiguate instead of guessing.
      */
-    fun bestMatches(requested: String, candidates: List<Pair<String, String>>): List<Pair<String, String>> {
+    fun exactMatches(requested: String, candidates: List<Pair<String, String>>): List<Pair<String, String>> {
         val query = normalize(requested)
-        if (query.isBlank()) return emptyList()
-        val exact = candidates.filter { normalize(it.first) == query }
+        return if (query.isBlank()) emptyList() else candidates.filter { normalize(it.first) == query }
+    }
+
+    fun bestMatches(requested: String, candidates: List<Pair<String, String>>): List<Pair<String, String>> {
+        val exact = exactMatches(requested, candidates)
         return if (exact.isNotEmpty()) exact else candidates.filter { matches(requested, it.first) }
     }
 
