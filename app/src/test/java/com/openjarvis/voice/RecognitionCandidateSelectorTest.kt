@@ -69,6 +69,17 @@ class RecognitionCandidateSelectorTest {
         )
     }
 
+    @Test fun treatsNullAndEmptyConfidenceArraysAsUnavailable() {
+        assertEquals(
+            "time kya hua",
+            RecognitionCandidateSelector.select(listOf("time kya hua"), null)
+        )
+        assertEquals(
+            "time kya hua",
+            RecognitionCandidateSelector.select(listOf("time kya hua"), floatArrayOf())
+        )
+    }
+
     @Test fun treatsNegativeOneConfidenceAsUnavailableNotLowConfidence() {
         assertEquals(
             "पहला विकल्प",
