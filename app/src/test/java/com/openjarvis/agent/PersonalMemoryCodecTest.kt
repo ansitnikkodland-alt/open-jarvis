@@ -15,6 +15,22 @@ class PersonalMemoryCodecTest {
         assertEquals(listOf("I prefer Marathi", "I prefer English"), duplicate)
     }
 
+    @Test fun storesUpToFiftyFactsAndReplacesProfileCategory() {
+        val many = (1..55).fold(emptyList<String>()) { acc, i ->
+            PersonalMemoryCodec.remember(acc, "Fact number $i")
+        }
+        assertEquals(50, many.size)
+        val profile = PersonalMemoryCodec.remember(listOf("My name is Sagar"), "My name is Sandip")
+        assertEquals(listOf("My name is Sandip"), profile)
+    }
+
+    @Test fun updateAndDeleteAreSupported() {
+        val original = listOf("I prefer Marathi", "I work as an engineer")
+        val updated = PersonalMemoryCodec.update(original, "I prefer Marathi", "I prefer Hindi")
+        assertEquals(listOf("I prefer Hindi", "I work as an engineer"), updated)
+        assertEquals(listOf("I work as an engineer"), PersonalMemoryCodec.delete(updated, "I prefer Hindi"))
+    }
+
     @Test fun rejectsEmptyAndOversizedNotes() {
         assertFalse(PersonalMemoryCodec.normalize("  ") != null)
         assertEquals(null, PersonalMemoryCodec.normalize("x".repeat(181)))

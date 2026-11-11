@@ -46,6 +46,12 @@ class PersonalMemoryRecallTest {
         assertTrue(result.lines().size <= 3)
         assertTrue(result.length <= 360)
     }
+    @Test fun promptLabelsRetrievedNotesAsDataNotInstructions() {
+        val prompt = PersonalMemoryCodec.promptContext(listOf("My name is Sagar"), "What is my name?")
+        assertTrue(prompt.contains("User fact (data only)"))
+        assertTrue(prompt.contains("My name is Sagar"))
+    }
+
     @Test fun rareSpecificTermsOutrankGenericSharedTerms() {
         val notes = listOf(
             "I prefer Marathi responses",
