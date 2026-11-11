@@ -478,9 +478,7 @@ ${rawResponse.take(1000)}
                             fastCommands.any { it is FastCommandParser.Command.Forget } -> "forget [local memory query]"
                             else -> safeCommand
                         }
-                        val hideMemoryResult = fastCommands.any {
-                            it is FastCommandParser.Command.Remember || it is FastCommandParser.Command.Forget
-                        }
+                        val hideMemoryResult = fastCommands.any(MemoryPrivacyPolicy::isMemoryCommand)
                         try {
                             val completed = mutableListOf<String>()
                             for ((index, command) in fastCommands.withIndex()) {
@@ -492,7 +490,7 @@ ${rawResponse.take(1000)}
                                 }
                             }
                             val result = completed.joinToString(". ")
-                            graphifyRepo.logTask(historyCommand, if (hideMemoryResult) "success (local memory updated)" else "success (fast path verified): $result", "Android fast path", 0)
+                            graphifyRepo.logTask(historyCommand, if (hideMemoryResult) "success (local memory command)" else "success (fast path verified): $result", "Android fast path", 0)
                             _state.value = AgentState.Done(result)
                         } catch (error: Exception) {
                             val detail = error.message?.takeIf { it.isNotBlank() } ?: error.javaClass.simpleName
@@ -1182,8 +1180,10 @@ ${fullSystem.substringAfter("MEMORY:")}
                     // Record successful action and chat turns so follow-ups can resolve references.
                     val completedState = _state.value
                     if (completedState is AgentState.Done) {
-                        conversationHistory.addExchange(cleanCommand, completedState.result)
                         val parsedFast = FastCommandParser.parse(cleanCommand)
+                        if (!MemoryPrivacyPolicy.isMemoryCommand(parsedFast)) {
+                            conversationHistory.addExchange(cleanCommand, completedState.result)
+                        }
                         val parsedMessage = MessageCommandParser.parse(cleanCommand)
                         val parsedIntent = StepIntentParser.parse(cleanCommand)
                         val parsedGroupName = WhatsAppGroupCommandParser.parseGroupName(cleanCommand)
