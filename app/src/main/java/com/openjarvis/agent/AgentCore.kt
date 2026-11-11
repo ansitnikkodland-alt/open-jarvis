@@ -70,6 +70,7 @@ class AgentCore(private val context: Context) {
     private var workingMemory = TaskWorkingMemory()
     private val contactFollowUpWindow = ContactFollowUpWindow()
     private val conversationHistory = ConversationTurnHistory()
+    private var pendingMemoryFact: String? = null
     // Carries app/contact/message/group context between deterministic pipeline turns.
     private var actionStepContext = StepContext()
 
@@ -232,6 +233,34 @@ ${rawResponse.take(1000)}
                         Log.i(TAG, "path=rule skill=${dateTimeRequest.kind.name.lowercase()}")
                         graphifyRepo.logTask(safeCommand, "success (date/time rule): $reply", "DateTimeReplyFormatter", 0)
                         _state.value = AgentState.Done(reply)
+                        return@withLock
+                    }
+
+                    val pendingFact = pendingMemoryFact
+                    if (pendingFact != null) {
+                        when (PersonalFactCandidatePolicy.consent(safeCommand)) {
+                            PersonalFactCandidatePolicy.Consent.YES -> {
+                                pendingMemoryFact = null
+                                if (!personalMemoryStore.remember(pendingFact)) {
+                                    _state.value = AgentState.Done("Ye fact save nahi ho paya; 3–180 characters ka note hona chahiye.")
+                                } else {
+                                    _state.value = AgentState.Done("Theek hai, maine ise privately yaad rakh liya.")
+                                }
+                                return@withLock
+                            }
+                            PersonalFactCandidatePolicy.Consent.NO -> {
+                                pendingMemoryFact = null
+                                _state.value = AgentState.Done("Theek hai, ise save nahi kiya.")
+                                return@withLock
+                            }
+                            PersonalFactCandidatePolicy.Consent.OTHER -> pendingMemoryFact = null
+                        }
+                    }
+
+                    val candidateFact = PersonalFactCandidatePolicy.extract(safeCommand)
+                    if (candidateFact != null && ConversationIntentPolicy.isChatRequest(safeCommand)) {
+                        pendingMemoryFact = candidateFact
+                        _state.value = AgentState.Done("Mujhe laga ye aapke baare mein ek fact hai. Kya yaad rakhun? (Haan / Nahi)")
                         return@withLock
                     }
 
