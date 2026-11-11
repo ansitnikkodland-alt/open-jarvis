@@ -22,8 +22,8 @@ internal object PersonalMemoryCodec {
         return when {
             text.startsWith("my name is ") || text.startsWith("name is ") || text.startsWith("call me ") || text.startsWith("mera naam ") || text.startsWith("मेरा नाम ") || text.startsWith("माझे नाव ") -> "name"
             text.startsWith("my preferred language ") || text.startsWith("reply in ") || text.startsWith("मेरी भाषा ") || text.startsWith("माझी भाषा ") || (text.startsWith("i prefer ") && Regex("\\b(hindi|marathi|english|gujarati|tamil|telugu|kannada|bengali|punjabi)\\b").containsMatchIn(text)) -> "language"
-            text.startsWith("i like ") || text.startsWith("i love ") || text.startsWith("my preference ") || text.contains(" pasand ") || text.contains(" पसंद ") || text.contains(" आवडते") -> "preference"
-            text.startsWith("i work ") || text.startsWith("my work ") || text.startsWith("my job ") || text.startsWith("मेरा काम ") || text.startsWith("माझे काम ") -> "work"
+            text.startsWith("i like ") || text.startsWith("i love ") || text.startsWith("i prefer ") || text.startsWith("my preference ") || text.contains(" pasand ") || text.contains(" पसंद ") || text.contains(" आवडते") -> "preference"
+            text.startsWith("i work ") || text.startsWith("my work ") || text.startsWith("my job ") || text.startsWith("i am an ") || text.startsWith("i am a ") || text.startsWith("मेरा काम ") || text.startsWith("माझे काम ") -> "work"
             else -> null
         }
     }

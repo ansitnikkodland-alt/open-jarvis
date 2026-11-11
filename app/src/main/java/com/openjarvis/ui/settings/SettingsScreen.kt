@@ -79,7 +79,7 @@ fun SettingsScreen(
     }
     val savedProvider = "Ollama (Local)"
     val savedModel = providerPrefs.getString("provider_model", OllamaProvider.DEFAULT_MODEL)
-        .orEmpty().let(OllamaProvider::supportedChatModel)
+        .orEmpty().let { OllamaProvider.supportedChatModel(it) }
     val migratedModel = OllamaProvider.DEFAULT_MODEL
     var selectedProvider by remember { mutableStateOf(savedProvider) }
     var baseUrl by remember { mutableStateOf(OllamaProvider.DEFAULT_BASE_URL) }

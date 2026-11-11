@@ -22,6 +22,7 @@ internal object PersonalFactCandidatePolicy {
             Regex("^मला .+ आवडते$"),
             Regex("^i work as .+", RegexOption.IGNORE_CASE),
             Regex("^my (?:job|work) is .+", RegexOption.IGNORE_CASE),
+            Regex("^i am (?:an? )?(?:engineer|technician|developer|teacher|doctor|student|mechanic|electrician)\\b.*$", RegexOption.IGNORE_CASE),
             Regex("^main .+ kaam karta hoon$", RegexOption.IGNORE_CASE),
             Regex("^मेरा काम .+$"),
             Regex("^माझे काम .+$")

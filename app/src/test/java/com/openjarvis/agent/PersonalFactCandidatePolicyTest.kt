@@ -10,6 +10,7 @@ class PersonalFactCandidatePolicyTest {
         assertEquals("mujhe chai pasand hai", PersonalFactCandidatePolicy.extract("mujhe chai pasand hai"))
         assertEquals("मला चहा आवडते", PersonalFactCandidatePolicy.extract("मला चहा आवडते"))
         assertEquals("mera naam Sagar hai", PersonalFactCandidatePolicy.extract("mera naam Sagar hai"))
+        assertEquals("I am an engineer", PersonalFactCandidatePolicy.extract("I am an engineer"))
     }
 
     @Test fun doesNotTreatQuestionsOrCommandsAsFacts() {
