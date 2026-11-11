@@ -186,11 +186,8 @@ internal fun HybridChatSettingsSection() {
                                 testing = false
                                 status = result.fold(
                                     onSuccess = { "Connected successfully in ${it}ms." },
-                                    onFailure = { failure ->
-                                        val safeMessage = failure.message.orEmpty()
-                                            .replace(Regex("(?i)(key|token|authorization)\\s*[:=]\\s*[^\\s,;]+"), "$1=[redacted]")
-                                            .take(120)
-                                        "Connection failed: ${safeMessage.ifBlank { "request error" }}"
+                                    onFailure = {
+                                        "Connection failed. Verify the API key and internet connection."
                                     }
                                 )
                             }
