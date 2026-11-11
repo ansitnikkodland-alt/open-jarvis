@@ -14,6 +14,8 @@ class ConversationIntentPolicyTest {
             "joke sunao",
             "story sunao",
             "ek kahani sunao",
+            "kahani sunao",
+            "ek katha sunao",
             "Ollama kya hai?",
             "Java aur Kotlin mein difference?",
             "What is Android?",
