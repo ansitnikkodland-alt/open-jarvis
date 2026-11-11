@@ -192,10 +192,17 @@ object StepIntentParser {
             normed.any { it in SMS_WORDS } -> "sms"
             else -> null
         }
-        val delim = normed.indexOfFirst { it in TEXT_DELIMS }
+        val colon = step.indexOf(':')
         val contactTokens: List<String>
         val text: String?
-        if (delim >= 0) {
+        if (colon >= 0) {
+            val beforeColon = step.substring(0, colon).trim().split(SPACES)
+                .map { norm(it).replace(PUNCT_STRIP, "") }.filter { it.isNotEmpty() }
+            contactTokens = stripEdges(beforeColon, MESSAGE_NOISE)
+            text = step.substring(colon + 1).trim().ifEmpty { null }
+        } else {
+            val delim = normed.indexOfFirst { it in TEXT_DELIMS }
+            if (delim >= 0) {
             contactTokens = stripEdges(normed.subList(0, delim), MESSAGE_NOISE)
             text = raw.subList(delim + 1, raw.size).joinToString(" ").trim().ifEmpty { null }
         } else {
@@ -210,6 +217,7 @@ object StepIntentParser {
             } else {
                 contactTokens = stripEdges(normed, MESSAGE_NOISE)
                 text = null
+            }
             }
         }
         val contact = contactTokens.joinToString(" ").trim().ifEmpty { null }
