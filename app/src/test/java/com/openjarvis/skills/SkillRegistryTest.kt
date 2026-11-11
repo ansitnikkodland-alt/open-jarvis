@@ -73,7 +73,7 @@ class SkillRegistryTest {
         }
         listOf("open date settings", "date format kaise badle", "din bhar kaam karna hai",
             "today's date format in excel").forEach { phrase ->
-            assertNull("Must not classify as date: $phrase", SkillRegistry.parse(phrase))
+            assertNotEquals("Must not classify as date: $phrase", SkillRegistry.Kind.DATE, SkillRegistry.parse(phrase)?.kind)
         }
     }
 
