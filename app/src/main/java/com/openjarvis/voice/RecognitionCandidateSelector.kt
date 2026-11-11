@@ -18,7 +18,7 @@ internal object RecognitionCandidateSelector {
             if (text.isNotEmpty()) {
                 val score = confidenceScores
                     ?.getOrNull(index)
-                    ?.takeIf { it.isFinite() }
+                    ?.takeIf { it.isFinite() && it >= 0f }
                     ?: Float.NEGATIVE_INFINITY
                 if (bestText == null || score > bestScore) {
                     bestText = text

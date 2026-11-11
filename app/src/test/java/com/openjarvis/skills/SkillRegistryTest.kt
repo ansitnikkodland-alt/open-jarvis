@@ -53,6 +53,10 @@ class SkillRegistryTest {
             "Aaj ka samay kaha hai",
             "What time is it",
             "समय क्या हुआ है",
+            "time now",
+            "abhi time kya hai",
+            "वेळ सांगा",
+            "अभी समय बताओ",
             "आत्ता किती वाजले"
         ).forEach { phrase ->
             assertEquals("TIME for: $phrase", SkillRegistry.Kind.TIME, SkillRegistry.parse(phrase)?.kind)

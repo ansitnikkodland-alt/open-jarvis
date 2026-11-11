@@ -18,7 +18,8 @@ class UnknownCommandPolicyTest {
             "WhatsApp par message likho",
             "स्क्रीनशॉट लो",
             "उघडा settings",
-            "aaj ka screenshot lo"
+            "aaj ka screenshot lo",
+            "WhatsApp message pathva"
         ).forEach { assertFalse("$it is an explicit action request", UnknownCommandPolicy.shouldStopBeforePlanner(it)) }
     }
 }

@@ -322,10 +322,29 @@ ${rawResponse.take(1000)}
                                     SkillRegistry.Kind.VOLUME -> "Volume adjusted"
                                     SkillRegistry.Kind.MAPS -> "Opening navigation"
                                     SkillRegistry.Kind.CALL -> "Dialer opened"
-                                    SkillRegistry.Kind.TIME -> "Abhi " + SimpleDateFormat("h:mm a", Locale.getDefault()).format(Date()) + " baj rahe hain."
+                                    SkillRegistry.Kind.TIME -> {
+                                        val marathi = listOf("आहे", "आणि", "आत्ता", "किती", "वाजले").any(safeCommand::contains) ||
+                                            listOf("aajchi", "aaj chi", "aahe", "sanga", "sang", "kiti vajle", "aata").any { safeCommand.contains(it, ignoreCase = true) }
+                                        val hindi = !marathi && (safeCommand.any { it in '\u0900'..'\u097F' } ||
+                                            listOf("abhi", "samay", "kitne baje", "time kya").any { safeCommand.contains(it, ignoreCase = true) })
+                                        val locale = when {
+                                            marathi -> Locale.forLanguageTag("mr-IN")
+                                            hindi -> Locale.forLanguageTag("hi-IN")
+                                            else -> Locale.getDefault()
+                                        }
+                                        val formatted = SimpleDateFormat("h:mm a", locale).format(Date())
+                                        when {
+                                            marathi -> "आत्ता $formatted वाजले आहेत."
+                                            hindi -> "अभी $formatted बजे हैं।"
+                                            safeCommand.contains("time", ignoreCase = true) || safeCommand.contains("what", ignoreCase = true) -> "It is $formatted."
+                                            else -> "Abhi $formatted baj rahe hain."
+                                        }
+                                    }
                                     SkillRegistry.Kind.DATE -> {
-                                        val marathi = listOf("आहे", "आणि", "काय", "आत्ता", "किती", "सांगा").any(safeCommand::contains)
-                                        val hindi = safeCommand.any { it in '\u0900'..'\u097F' } && !marathi
+                                        val marathi = listOf("आहे", "आणि", "काय", "आत्ता", "किती", "सांगा").any(safeCommand::contains) ||
+                                            listOf("aajchi", "aaj chi", "aahe", "sanga", "sang").any { safeCommand.contains(it, ignoreCase = true) }
+                                        val hindi = !marathi && (safeCommand.any { it in '\u0900'..'\u097F' } ||
+                                            listOf("aaj ki", "aaj ka", "tarikh", "tareekh", "batao", "samay").any { safeCommand.contains(it, ignoreCase = true) })
                                         val dateLocale = when {
                                             marathi -> Locale.forLanguageTag("mr-IN")
                                             hindi -> Locale.forLanguageTag("hi-IN")

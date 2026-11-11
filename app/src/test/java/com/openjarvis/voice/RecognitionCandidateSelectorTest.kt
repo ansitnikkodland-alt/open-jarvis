@@ -48,6 +48,16 @@ class RecognitionCandidateSelectorTest {
         )
     }
 
+    @Test fun treatsNegativeOneConfidenceAsUnavailableNotLowConfidence() {
+        assertEquals(
+            "पहला विकल्प",
+            RecognitionCandidateSelector.select(
+                listOf("पहला विकल्प", "दूसरा विकल्प"),
+                floatArrayOf(-1f, -1f)
+            )
+        )
+    }
+
     @Test fun returnsNullForMissingOrEntirelyBlankResults() {
         assertNull(RecognitionCandidateSelector.select(null))
         assertNull(RecognitionCandidateSelector.select(emptyList()))
