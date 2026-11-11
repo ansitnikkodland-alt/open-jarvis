@@ -314,3 +314,15 @@ object StepIntentParser {
         return if (place.isEmpty()) null else StepIntent.Navigate(place)
     }
 }
+
+/** Bounds model fallback for app-control utterances after deterministic parsing. */
+internal object AppCommandLlmPolicy {
+    private val APP_TERMS = Regex(
+        "(?i)(?:^|[^\\p{L}\\p{N}])(?:youtube|you\\s*tube|instagram|insta|whatsapp|telegram|facebook|chrome|maps|google\\s*maps|open|launch|start|kholo|khol|खोलो|खोल)(?:$|[^\\p{L}\\p{N}])"
+    )
+
+    fun isAppCommand(command: String): Boolean = APP_TERMS.containsMatchIn(command)
+
+    fun timeoutMs(command: String, remainingMs: Long): Long =
+        if (isAppCommand(command)) minOf(remainingMs, 10_000L) else remainingMs
+}
