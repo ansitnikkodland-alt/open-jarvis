@@ -49,12 +49,11 @@ internal object PersonalMemoryCodec {
     }
 
     fun forget(existing: List<String>, query: String): List<String> {
+        val all = query.trim().lowercase()
+        if (all in setOf("all", "everything", "sab", "sab kuch", "सभी", "सब", "सब कुछ", "सगळं", "सर्व")) {
+            return emptyList()
+        }
         val normalized = normalize(query) ?: return existing
-        if (normalized.equals("all", true) ||
-            normalized.equals("everything", true) ||
-            normalized.equals("sab kuch", true) ||
-            normalized.equals("सभी", true)
-        ) return emptyList()
         return delete(existing, normalized)
     }
 
