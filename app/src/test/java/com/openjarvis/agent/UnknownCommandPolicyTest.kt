@@ -6,7 +6,7 @@ import org.junit.Test
 
 class UnknownCommandPolicyTest {
     @Test fun rejectsUnclearStatementsBeforeActionPlanner() {
-        listOf("", "blah blah", "kuch bhi", "mujhe samajh nahi", "plan kya hai").filterNot {
+        listOf("", "blah blah", "kuch bhi", "kuch bhi karo", "mujhe samajh nahi", "plan kya hai").filterNot {
             ConversationIntentPolicy.isChatRequest(it)
         }.forEach { assertTrue("$it should not reach action planner", UnknownCommandPolicy.shouldStopBeforePlanner(it)) }
     }
