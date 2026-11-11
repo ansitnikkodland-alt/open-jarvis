@@ -182,7 +182,7 @@ ${rawResponse.take(1000)}
                 // Otherwise two rapidly submitted voice turns can overwrite each other's state.
                 workingMemory = TaskWorkingMemory()
                 try {
-                    val sanitized = PromptSanitizer.sanitize(cleanCommand)
+                    // Normalize the spoken wake word before any command parser or router sees the utterance.\n                    val commandWithoutWakeWord = JarvisCommandNormalizer.stripWakeWord(cleanCommand)\n                    val sanitized = PromptSanitizer.sanitize(commandWithoutWakeWord)
 
                     when (sanitized) {
                         is PromptSanitizer.SanitizeResult.Rejected -> {
