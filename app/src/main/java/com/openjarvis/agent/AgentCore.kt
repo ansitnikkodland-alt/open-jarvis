@@ -761,6 +761,14 @@ ${fullSystem.substringAfter("MEMORY:")}
                                     return@fold
                                 }
                                 val kind = SkillRegistry.Kind.valueOf(skillPlan.skill)
+                                if (kind == SkillRegistry.Kind.MAPS &&
+                                    !SkillRegistry.hasExplicitNavigationIntent(safeCommand)
+                                ) {
+                                    val reason = "Maps navigation was not requested explicitly; no navigation action was taken."
+                                    AgentDiagnostics.record(context, "skill-route-guard", safeCommand, reason, rawSkillJson, provider = "Ollama Skill Router", model = "qwen3:1.7b")
+                                    _state.value = AgentState.Error(reason)
+                                    return@fold
+                                }
                                 val args = skillPlan.args.keys().asSequence().associateWith { key ->
                                     skillPlan.args.opt(key).toString()
                                 }
