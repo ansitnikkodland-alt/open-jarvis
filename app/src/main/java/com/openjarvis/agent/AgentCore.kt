@@ -112,15 +112,17 @@ INSTALLED APPS: {INSTALLED_APPS}
         conversation: Boolean = false
     ): Result<String> {
         val remaining = remainingLlmBudgetMs(budgetStartMs)
-        if (remaining <= 0L) return Result.failure(IllegalStateException("LLM time budget exceeded (45 seconds). Try a shorter command."))
+        val requestBudget = AppCommandLlmPolicy.timeoutMs(user, remaining)
+        if (requestBudget <= 0L) return Result.failure(IllegalStateException("LLM time budget exceeded. Try a shorter command."))
+        // Deterministic app parsers run before this fallback; app-control LLM fallback is capped at 10 seconds.
         // Compress system/context material only. The user's command remains byte-identical.
         val headroom = HeadroomLite.compress(system, HeadroomLite.ContentKind.POLICY)
         if (headroom.savedChars > 0) {
             Log.i(TAG, "headroom_lite stage=system_prompt saved_chars=${headroom.savedChars} saved_tokens_est=${headroom.savedTokens} ratio=${"%.3f".format(Locale.US, headroom.compressionRatio)}")
         }
-        return withTimeoutOrNull(remaining) {
-            universalAdapter.completeWithDeadline(headroom.content, user, remaining, conversation)
-        } ?: Result.failure(IllegalStateException("LLM time budget exceeded (45 seconds). Try a shorter command."))
+        return withTimeoutOrNull(requestBudget) {
+            universalAdapter.completeWithDeadline(headroom.content, user, requestBudget, conversation)
+        } ?: Result.failure(IllegalStateException("LLM time budget exceeded. Try a shorter command."))
     }
 
     private suspend fun completeSkillWithinBudget(
@@ -129,14 +131,15 @@ INSTALLED APPS: {INSTALLED_APPS}
         budgetStartMs: Long
     ): Result<String> {
         val remaining = remainingLlmBudgetMs(budgetStartMs)
-        if (remaining <= 0L) return Result.failure(IllegalStateException("LLM time budget exceeded (45 seconds). Try a shorter command."))
+        val requestBudget = AppCommandLlmPolicy.timeoutMs(user, remaining)
+        if (requestBudget <= 0L) return Result.failure(IllegalStateException("LLM time budget exceeded. Try a shorter command."))
         val headroom = HeadroomLite.compress(system, HeadroomLite.ContentKind.POLICY)
         if (headroom.savedChars > 0) {
             Log.i(TAG, "headroom_lite stage=skill_system_prompt saved_chars=${headroom.savedChars} saved_tokens_est=${headroom.savedTokens}")
         }
-        return withTimeoutOrNull(remaining) {
-            universalAdapter.completeSkillWithDeadline(headroom.content, user, remaining)
-        } ?: Result.failure(IllegalStateException("LLM time budget exceeded (45 seconds). Try a shorter command."))
+        return withTimeoutOrNull(requestBudget) {
+            universalAdapter.completeSkillWithDeadline(headroom.content, user, requestBudget)
+        } ?: Result.failure(IllegalStateException("LLM time budget exceeded. Try a shorter command."))
     }
 
     /**
