@@ -24,6 +24,13 @@ class ConversationMemoryContextTest {
     }
 
     @Test
+    fun appendsBoundedTrustedPersonalitySettings() {
+        val result = ConversationMemoryContext.appendPersonality("Base persona", "Tone: friendly".repeat(100))
+        assertTrue(result.startsWith("Base persona"))
+        assertTrue(result.length <= "Base persona".length + 2 + 240)
+    }
+
+    @Test
     fun truncatesOversizedMemoryContext() {
         val memory = "x".repeat(ConversationMemoryContext.MAX_CONTEXT_CHARS + 100)
         val result = ConversationMemoryContext.append("system", memory)
