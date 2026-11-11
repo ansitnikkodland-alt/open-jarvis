@@ -20,8 +20,11 @@ class UniversalAdapter(private val context: Context) {
         EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
     )
     
-    fun getActiveProvider(): LLMProvider =
-        OllamaProvider(OllamaProvider.DEFAULT_BASE_URL, OllamaProvider.DEFAULT_MODEL, context.applicationContext)
+    fun getActiveProvider(): LLMProvider {
+        val baseUrl = OllamaProvider.DEFAULT_BASE_URL
+        val model = OllamaProvider.DEFAULT_MODEL
+        return OllamaProvider(baseUrl, model, context.applicationContext)
+    }
 
     private fun getChatProvider(): LLMProvider {
         val selected = prefs.getString("provider_model", OllamaProvider.DEFAULT_MODEL).orEmpty()
