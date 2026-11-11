@@ -269,8 +269,14 @@ object StepIntentParser {
     }
 
     private fun parseAppLaunch(tokens: List<String>): StepIntent.AppLaunch? {
-        val hasVerb = tokens.firstOrNull()?.let { it in OPEN_VERBS } == true
-        val candidate = if (hasVerb) tokens.drop(1).toMutableList() else tokens.toMutableList()
+        val leadingVerb = tokens.firstOrNull()?.let { it in OPEN_VERBS } == true
+        val trailingVerb = tokens.lastOrNull()?.let { it in OPEN_VERBS } == true
+        val hasVerb = leadingVerb || trailingVerb
+        val candidate = when {
+            leadingVerb -> tokens.drop(1).toMutableList()
+            trailingVerb -> tokens.dropLast(1).toMutableList()
+            else -> tokens.toMutableList()
+        }
         while (candidate.isNotEmpty()) {
             val suffix = APP_TRAILING_NOISE.firstOrNull { seq ->
                 seq.size <= candidate.size && seq.indices.all { k ->
