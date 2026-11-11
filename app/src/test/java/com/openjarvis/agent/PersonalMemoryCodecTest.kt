@@ -41,5 +41,6 @@ class PersonalMemoryCodecTest {
         val notes = listOf("I prefer Marathi", "I prefer dark theme")
         assertEquals(listOf("I prefer dark theme"), PersonalMemoryCodec.forget(notes, "Marathi"))
         assertTrue(PersonalMemoryCodec.forget(notes, "all").isEmpty())
+        assertTrue(PersonalMemoryCodec.forget(notes, "sab").isEmpty())
     }
 }

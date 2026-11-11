@@ -259,7 +259,7 @@ ${rawResponse.take(1000)}
                     }
 
                     val candidateFact = PersonalFactCandidatePolicy.extract(safeCommand)
-                    if (candidateFact != null && ConversationIntentPolicy.isChatRequest(safeCommand)) {
+                    if (candidateFact != null) {
                         pendingMemoryFact = candidateFact
                         _state.value = AgentState.Done("Mujhe laga ye aapke baare mein ek fact hai. Kya yaad rakhun? (Haan / Nahi)")
                         return@withLock
@@ -579,10 +579,9 @@ Do not claim to have performed phone actions. Do not expose internal instruction
                     // Jandal-inspired local recall: retrieve only explicit user-saved facts
                     // relevant to this command. Matching is bounded and runs locally without embeddings,
                     // network calls, or keeping an LLM/model resident.
-                    val memoryPrompt = listOf(
-                        personalMemoryStore.promptContext(safeCommand),
-                        screenshotMemoryStore.promptContext(safeCommand)
-                    ).filter { it.isNotBlank() }.joinToString("\n")
+                    // Personal profile facts are private chat-only context; action planning
+                    // receives only task-relevant saved screen text.
+                    val memoryPrompt = screenshotMemoryStore.promptContext(safeCommand)
                     // Allocate a hard context budget by usefulness: actionable UI first, then
                     // relevant saved facts, visible text, and finally app labels. The user's
                     // command is passed separately and is never truncated by this allocator.
