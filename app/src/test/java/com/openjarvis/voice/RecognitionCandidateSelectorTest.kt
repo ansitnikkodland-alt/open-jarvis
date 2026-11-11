@@ -39,11 +39,32 @@ class RecognitionCandidateSelectorTest {
         )
     }
 
-    @Test fun returnsNullWhenEveryUsableHypothesisIsBelowConfidenceThreshold() {
+    @Test fun rejectsOnlyClearlyPositiveScoresBelowPointFifteen() {
         assertNull(
             RecognitionCandidateSelector.select(
-                listOf("open settings", "open settings please"),
-                floatArrayOf(0.12f, RecognitionCandidateSelector.MIN_CONFIDENCE - 0.01f)
+                listOf("low confidence"),
+                floatArrayOf(0.10f)
+            )
+        )
+        assertEquals(
+            "acceptable confidence",
+            RecognitionCandidateSelector.select(
+                listOf("acceptable confidence"),
+                floatArrayOf(0.20f)
+            )
+        )
+    }
+
+    @Test fun treatsZeroConfidenceAsUnavailable() {
+        assertEquals(
+            "time kya hua",
+            RecognitionCandidateSelector.select(listOf("time kya hua"), floatArrayOf(0.0f))
+        )
+        assertEquals(
+            "first candidate",
+            RecognitionCandidateSelector.select(
+                listOf("first candidate", "second candidate"),
+                floatArrayOf(0.0f, 0.0f)
             )
         )
     }
@@ -54,6 +75,23 @@ class RecognitionCandidateSelectorTest {
             RecognitionCandidateSelector.select(
                 listOf("पहला विकल्प", "दूसरा विकल्प"),
                 floatArrayOf(-1f, -1f)
+            )
+        )
+    }
+
+    @Test fun mixedUnavailableScoresDoNotRejectNonblankCandidates() {
+        assertEquals(
+            "first candidate",
+            RecognitionCandidateSelector.select(
+                listOf("first candidate", "second candidate"),
+                floatArrayOf(-1f, 0.0f)
+            )
+        )
+        assertEquals(
+            "second candidate",
+            RecognitionCandidateSelector.select(
+                listOf("first candidate", "second candidate"),
+                floatArrayOf(0.0f, 0.20f)
             )
         )
     }
