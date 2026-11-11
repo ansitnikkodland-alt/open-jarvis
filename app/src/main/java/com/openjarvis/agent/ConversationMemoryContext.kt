@@ -7,6 +7,12 @@ package com.openjarvis.agent
 internal object ConversationMemoryContext {
     const val MAX_CONTEXT_CHARS = 360
 
+    fun appendPersonality(systemPrompt: String, personalityContext: String): String {
+        val bounded = personalityContext.take(240)
+        if (bounded.isBlank()) return systemPrompt
+        return systemPrompt + "\\n\\n" + bounded
+    }
+
     fun append(systemPrompt: String, memoryContext: String): String {
         val bounded = memoryContext.take(MAX_CONTEXT_CHARS)
         if (bounded.isBlank()) return systemPrompt
