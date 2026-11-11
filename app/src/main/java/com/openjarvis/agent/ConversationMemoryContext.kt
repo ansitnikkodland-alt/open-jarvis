@@ -10,7 +10,7 @@ internal object ConversationMemoryContext {
     fun appendPersonality(systemPrompt: String, personalityContext: String): String {
         val bounded = personalityContext.take(240)
         if (bounded.isBlank()) return systemPrompt
-        return systemPrompt + "\\n\\n" + bounded
+        return systemPrompt + "\n\n" + bounded
     }
 
     fun append(systemPrompt: String, memoryContext: String): String {
