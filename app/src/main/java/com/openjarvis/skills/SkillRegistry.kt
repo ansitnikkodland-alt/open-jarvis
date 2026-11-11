@@ -5,7 +5,7 @@ import java.util.Locale
 
 /** Pure command-to-skill parsing. Android side effects are delegated to SkillExecutor. */
 object SkillRegistry {
-    enum class Kind { OPEN_APP, SETTINGS, CALL, SEARCH, WHATSAPP_MESSAGE, SMS_MESSAGE, ALARM, TIMER, TORCH, VOLUME, MAPS, TIME }
+    enum class Kind { OPEN_APP, SETTINGS, CALL, SEARCH, WHATSAPP_MESSAGE, SMS_MESSAGE, ALARM, TIMER, TORCH, VOLUME, MAPS, TIME, DATE }
     data class Request(val kind: Kind, val args: Map<String, String>)
 
     interface SkillExecutor { suspend fun execute(request: Request): Result<Unit> }
@@ -17,6 +17,7 @@ object SkillRegistry {
         val s = norm(raw)
         if (s.isBlank()) return null
 
+        if (isDateQuestion(s)) return Request(Kind.DATE, emptyMap())
         if (isTimeQuestion(s)) return Request(Kind.TIME, emptyMap())
 
         parseAlarm(s)?.let { return Request(Kind.ALARM, mapOf("hour" to it.first.toString(), "minute" to it.second.toString())) }
@@ -70,6 +71,25 @@ object SkillRegistry {
         return null
     }
 
+
+    internal fun isDateQuestion(s: String): Boolean {
+        val text = norm(s).replace(Regex("[?!.,]"), "").trim()
+        val patterns = listOf(
+            Regex("^(?:what is|what's|tell me) (?:today's |the current )?date$"),
+            Regex("^(?:today's date|current date|date today)$"),
+            Regex("^(?:aaj ki|aaj ka|aaj) (?:date|tarikh|tareekh) (?:kya hai|batao|bataiye|sanga|sang)$"),
+            Regex("^(?:date|tarikh|tareekh) (?:kya hai|batao)$"),
+            Regex("^(?:aaj )?(?:kaun si|kya) tarikh hai$"),
+            Regex("^(?:आज की|आज का|आज) (?:तारीख|तारीख़|दिनांक|डेट) (?:क्या है|बताओ|बताइए|सांगो|सांगा)$"),
+            Regex("^(?:आज कौन सी तारीख है|आज कितनी तारीख है|तारीख क्या है|दिनांक क्या है)$"),
+            Regex("^(?:आजची|आज ची) तारीख (?:काय आहे|सांगा|सांग)$"),
+            Regex("^(?:आज किती तारीख आहे|आज कोणती तारीख आहे|दिनांक काय आहे)$"),
+            Regex("^(?:aajchi|aaj chi) tarikh (?:kay aahe|sanga|sang)$"),
+            Regex("^(?:aaj kay tarikh aahe|aajchi date kay aahe)$")
+        )
+        return patterns.any { it.matches(text) }
+    }
+
     internal fun isTimeQuestion(s: String): Boolean {
         val text = norm(s).replace(Regex("[?!.,]"), "").trim()
         val patterns = listOf(
@@ -79,7 +99,12 @@ object SkillRegistry {
             Regex("^(?:aaj ka )?(?:samay|time) (?:kya hai|kaha hai|kitna hua hai)$"),
             Regex("^(?:अभी )?(?:कितने बजे हैं|समय क्या हुआ है|समय क्या है|आज का समय क्या है)$"),
             Regex("^(?:वर्तमान समय क्या है|अभी समय क्या हुआ है)$"),
-            Regex("^(?:आत्ता किती वाजले|सध्या किती वाजले|वेळ किती झाली)$")
+            Regex("^(?:आत्ता किती वाजले|सध्या किती वाजले|वेळ किती झाली)$"),
+            Regex("^(?:what(?:'s| is) the time|what time is it|time now|current time|tell me (?:the )?time|tell me current time)$"),
+            Regex("^(?:abhi )?(?:time|samay) (?:kya hua(?: hai)?|kya hai|batao|kitna hua hai)$"),
+            Regex("^(?:abhi )?(?:kitne baje hain|kitne baje hue|kitne baje huye|kitna time hua)$"),
+            Regex("^(?:आत्ता )?(?:वेळ काय झाली|किती वाजले|वेळ सांगा)$"),
+            Regex("^(?:अभी )?(?:समय बताओ|टाइम बताओ|कितने बजे हुए)$")
         )
         return patterns.any { it.matches(text) }
     }

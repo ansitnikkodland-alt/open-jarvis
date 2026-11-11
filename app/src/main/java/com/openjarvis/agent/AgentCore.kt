@@ -323,6 +323,21 @@ ${rawResponse.take(1000)}
                                     SkillRegistry.Kind.MAPS -> "Opening navigation"
                                     SkillRegistry.Kind.CALL -> "Dialer opened"
                                     SkillRegistry.Kind.TIME -> "Abhi " + SimpleDateFormat("h:mm a", Locale.getDefault()).format(Date()) + " baj rahe hain."
+                                    SkillRegistry.Kind.DATE -> {
+                                        val marathi = listOf("आहे", "आणि", "काय", "आत्ता", "किती", "सांगा").any(safeCommand::contains)
+                                        val hindi = safeCommand.any { it in '\u0900'..'\u097F' } && !marathi
+                                        val dateLocale = when {
+                                            marathi -> Locale.forLanguageTag("mr-IN")
+                                            hindi -> Locale.forLanguageTag("hi-IN")
+                                            else -> Locale.getDefault()
+                                        }
+                                        val formatted = SimpleDateFormat("EEEE, d MMMM yyyy", dateLocale).format(Date())
+                                        when {
+                                            marathi -> "आज $formatted आहे."
+                                            hindi -> "आज $formatted है।"
+                                            else -> "Today is $formatted."
+                                        }
+                                    }
                                     SkillRegistry.Kind.SEARCH -> "Search opened"
                                 }
                                 graphifyRepo.logTask(safeCommand, "success (native skill): $reply", "Android SkillRegistry", 0)

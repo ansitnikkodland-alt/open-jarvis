@@ -59,6 +59,23 @@ class SkillRegistryTest {
         }
         assertNull(SkillRegistry.parse("time machine kaise kaam karti hai"))
     }
+    @Test fun dateQuestionsAreNativeAndUnrelatedQuestionsAreNot() {
+        listOf(
+            "What is today's date",
+            "current date",
+            "Aaj ki date kya hai",
+            "aaj ki tarikh batao",
+            "आज की तारीख क्या है",
+            "आज कितनी तारीख है",
+            "आजची तारीख काय आहे",
+            "आज किती तारीख आहे",
+            "aajchi tarikh sanga"
+        ).forEach { phrase ->
+            assertEquals("DATE for: $phrase", SkillRegistry.Kind.DATE, SkillRegistry.parse(phrase)?.kind)
+        }
+        assertNull(SkillRegistry.parse("date format kaise badle"))
+    }
+
     @Test fun unknownIsNegative() { assertNull(SkillRegistry.parse("hello jarvis")) }
     @Test fun appLaunchParserRemovesTrailingFillerAndRejectsCompoundSentence() {
         assertEquals("instagram", SkillRegistry.parse("open instagram again")?.args?.get("app"))
