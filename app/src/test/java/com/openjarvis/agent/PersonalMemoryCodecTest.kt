@@ -7,12 +7,12 @@ import org.junit.Test
 
 class PersonalMemoryCodecTest {
     @Test fun storesBoundedDeduplicatedNotesNewestFirst() {
-        val first = PersonalMemoryCodec.remember(emptyList(), "I prefer Marathi")
-        val second = PersonalMemoryCodec.remember(first, "I prefer English")
-        val duplicate = PersonalMemoryCodec.remember(second, "I prefer Marathi")
-        assertEquals(listOf("I prefer Marathi"), first)
-        assertEquals(listOf("I prefer English", "I prefer Marathi"), second)
-        assertEquals(listOf("I prefer Marathi", "I prefer English"), duplicate)
+        val first = PersonalMemoryCodec.remember(emptyList(), "Keep battery usage low")
+        val second = PersonalMemoryCodec.remember(first, "Use dark theme")
+        val duplicate = PersonalMemoryCodec.remember(second, "Keep battery usage low")
+        assertEquals(listOf("Keep battery usage low"), first)
+        assertEquals(listOf("Use dark theme", "Keep battery usage low"), second)
+        assertEquals(listOf("Keep battery usage low", "Use dark theme"), duplicate)
     }
 
     @Test fun storesUpToFiftyFactsAndReplacesProfileCategory() {

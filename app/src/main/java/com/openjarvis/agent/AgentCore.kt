@@ -1181,7 +1181,9 @@ ${fullSystem.substringAfter("MEMORY:")}
                     val completedState = _state.value
                     if (completedState is AgentState.Done) {
                         val parsedFast = FastCommandParser.parse(cleanCommand)
-                        if (!MemoryPrivacyPolicy.isMemoryCommand(parsedFast)) {
+                        val containsMemoryCommand = FastCommandParser.parseSequence(cleanCommand)
+                            ?.any(MemoryPrivacyPolicy::isMemoryCommand) == true
+                        if (pendingMemoryFact == null && !containsMemoryCommand) {
                             conversationHistory.addExchange(cleanCommand, completedState.result)
                         }
                         val parsedMessage = MessageCommandParser.parse(cleanCommand)
