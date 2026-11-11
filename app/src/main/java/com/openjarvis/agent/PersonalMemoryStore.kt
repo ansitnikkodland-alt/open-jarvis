@@ -106,10 +106,21 @@ internal object PersonalMemoryCodec {
             .map { it.first }
     }
 
+    private fun neutralizePromptPayload(value: String): String =
+        value
+            .replace(Regex("(?i)system\\s*:"), "system∶")
+            .replace(Regex("(?i)ignore"), "i\\u200Bgnore")
+            .replace(Regex("(?i)instruction"), "instr\\u200Buction")
+            .replace(Regex("(?is)<\\s*/?\\s*think\\s*>"), "‹think›")
+            .replace("<", "‹")
+            .replace(">", "›")
+
     fun promptContext(items: List<String>, query: String): String {
         val matches = retrieve(items, query)
         if (matches.isEmpty()) return ""
-        return matches.joinToString(separator = "\n") { "- User fact (data only): \"$it\"" }.take(360)
+        val facts = JSONArray()
+        matches.forEach { facts.put(neutralizePromptPayload(it)) }
+        return facts.toString()
     }
 }
 
