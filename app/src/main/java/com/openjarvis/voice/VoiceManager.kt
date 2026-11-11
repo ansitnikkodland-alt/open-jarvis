@@ -54,6 +54,7 @@ class VoiceManager(private val context: Context) {
         object Speaking : VoiceState()
         data class Result(val text: String) : VoiceState()
         data class Error(val message: String) : VoiceState()
+        object LowConfidence : VoiceState()
     }
 
     init { ttsEngine.setSpeechRate(getSpeechRate()) }
@@ -148,6 +149,10 @@ class VoiceManager(private val context: Context) {
                 listening = false
                 val cleanError = error.removePrefix("RETRYING: ")
                 stateMachine.onTranscriptReceived(false)
+                if (cleanError.startsWith("LOW_CONFIDENCE:")) {
+                    _state.value = VoiceState.LowConfidence
+                    return@startListening
+                }
                 _state.value = VoiceState.Error(cleanError)
                 if (continuousSession && isRecoverableRecognitionError(cleanError)) {
                     scheduleContinuousRetry()

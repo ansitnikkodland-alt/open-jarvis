@@ -39,6 +39,15 @@ class RecognitionCandidateSelectorTest {
         )
     }
 
+    @Test fun returnsNullWhenEveryUsableHypothesisIsBelowConfidenceThreshold() {
+        assertNull(
+            RecognitionCandidateSelector.select(
+                listOf("open settings", "open settings please"),
+                floatArrayOf(0.12f, RecognitionCandidateSelector.MIN_CONFIDENCE - 0.01f)
+            )
+        )
+    }
+
     @Test fun returnsNullForMissingOrEntirelyBlankResults() {
         assertNull(RecognitionCandidateSelector.select(null))
         assertNull(RecognitionCandidateSelector.select(emptyList()))

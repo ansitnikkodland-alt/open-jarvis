@@ -99,6 +99,8 @@ class AndroidSTTEngine(private val context: Context) : STTEngine {
                     sessionActive = false
                     if (!text.isNullOrBlank()) {
                         currentCallback?.invoke(text)
+                    } else if (matches?.any { it.isNotBlank() } == true) {
+                        currentErrorCallback?.invoke("LOW_CONFIDENCE: transcript confidence was below the safe threshold")
                     } else {
                         val reason = if (hadPartialHypothesis) {
                             "Speech was partially recognized, but no final transcript was returned. Please repeat."

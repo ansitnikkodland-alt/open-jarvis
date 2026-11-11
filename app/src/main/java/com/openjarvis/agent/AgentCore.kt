@@ -497,6 +497,12 @@ Do not claim to have performed phone actions. Do not expose internal instruction
                         return@withLock
                     }
 
+                    if (UnknownCommandPolicy.shouldStopBeforePlanner(safeCommand)) {
+                        Log.i(TAG, "path=rule unknown-command fallback")
+                        _state.value = AgentState.Done(UnknownCommandPolicy.FALLBACK)
+                        return@withLock
+                    }
+
                     _state.value = AgentState.Running("reading screen...")
                     // Keep local-model command planning lean: app ranking and graph-memory
                     // retrieval were adding latency before every request.

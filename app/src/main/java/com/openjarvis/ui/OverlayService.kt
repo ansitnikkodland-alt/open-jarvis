@@ -117,6 +117,12 @@ class OverlayService : Service() {
                         }
                         CommandListeningPolicy.Action.EXECUTE_COMMAND -> submitCommand(state.text)
                     }
+                    is VoiceManager.VoiceState.LowConfidence -> {
+                        setVisualState("IDLE", "Low-confidence transcript ignored")
+                        voiceManager.speak(UnknownCommandPolicy.FALLBACK) {
+                            voiceManager.resumeContinuousSession()
+                        }
+                    }
                     is VoiceManager.VoiceState.Error -> {
                         setVisualState("IDLE", state.message)
                         if (!voiceManager.isContinuousSessionActive()) {

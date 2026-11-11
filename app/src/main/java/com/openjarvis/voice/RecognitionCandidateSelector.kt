@@ -6,6 +6,8 @@ package com.openjarvis.voice
  * recognizer order. Blank candidates are never returned.
  */
 internal object RecognitionCandidateSelector {
+    const val MIN_CONFIDENCE = 0.35f
+
     fun select(matches: List<String>?, confidenceScores: FloatArray? = null): String? {
         if (matches.isNullOrEmpty()) return null
 
@@ -24,6 +26,7 @@ internal object RecognitionCandidateSelector {
                 }
             }
         }
+        if (bestScore.isFinite() && bestScore < MIN_CONFIDENCE) return null
         return bestText
     }
 }
