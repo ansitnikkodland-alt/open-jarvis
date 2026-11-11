@@ -25,7 +25,7 @@ class UniversalAdapter(private val context: Context) {
 
     private fun getChatProvider(): LLMProvider {
         val selected = prefs.getString("provider_model", OllamaProvider.DEFAULT_MODEL).orEmpty()
-        val model = selected.takeIf { it in OllamaProvider.AVAILABLE_MODELS } ?: OllamaProvider.DEFAULT_MODEL
+        val model = OllamaProvider.supportedChatModel(selected)
         return OllamaProvider(OllamaProvider.DEFAULT_BASE_URL, model, context.applicationContext)
     }
     
