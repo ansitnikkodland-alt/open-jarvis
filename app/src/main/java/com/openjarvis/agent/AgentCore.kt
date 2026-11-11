@@ -493,7 +493,7 @@ Do not claim to have performed phone actions. Do not expose internal instruction
                         // never enter conversational context.
                         // The outer task completion hook records this turn once, including action turns.
                         graphifyRepo.logTask(safeCommand, "conversation response", universalAdapter.getProviderName(), System.currentTimeMillis() - chatStart)
-                        _state.value = AgentState.Done(reply)
+                        _state.value = AgentState.Done(ConversationReplyPolicy.safeReply(reply))
                         return@withLock
                     }
 
