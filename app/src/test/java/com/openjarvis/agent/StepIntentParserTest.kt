@@ -41,6 +41,14 @@ class StepIntentParserTest {
     }
 
     @Test
+    fun whatsappMessageUsesColonAsBodyDelimiter() {
+        assertEquals(
+            StepIntent.Message("whatsapp", "rahul", "main 10 minute mein pahunch raha hoon"),
+            p("WhatsApp Rahul ko message bhejo: main 10 minute mein pahunch raha hoon")
+        )
+    }
+
+    @Test
     fun alarms() {
         assertEquals(StepIntent.Alarm(6, 0), p("subah 6 baje ka alarm lagao"))
         assertEquals(StepIntent.Alarm(17, 30), p("shaam 5:30 baje alarm lagao"))
