@@ -17,8 +17,7 @@ object SkillRegistry {
         val s = norm(raw)
         if (s.isBlank()) return null
 
-        if (isDateQuestion(s)) return Request(Kind.DATE, emptyMap())
-        if (isTimeQuestion(s)) return Request(Kind.TIME, emptyMap())
+        parseDateTimeQuestion(s)?.let { return it }
 
         parseAlarm(s)?.let { return Request(Kind.ALARM, mapOf("hour" to it.first.toString(), "minute" to it.second.toString())) }
         Regex("^(?:set )?(?:a )?timer(?: for)? (\\d+)\\s*(seconds?|secs?|minutes?|mins?)$").matchEntire(s)?.let {
@@ -72,6 +71,60 @@ object SkillRegistry {
     }
 
 
+    fun parseDateTimeQuestion(raw: String): Request? {
+        val text = norm(raw)
+        if (text.isBlank()) return null
+        return when {
+            isDateQuestion(text) -> Request(Kind.DATE, emptyMap())
+            isTimeQuestion(text) -> Request(Kind.TIME, emptyMap())
+            else -> null
+        }
+    }
+
+    internal fun dateReply(raw: String, clock: java.time.Clock = java.time.Clock.systemDefaultZone()): String {
+        val language = responseLanguage(raw)
+        val locale = when (language) {
+            "mr" -> Locale.forLanguageTag("mr-IN")
+            "hi" -> Locale.forLanguageTag("hi-IN")
+            else -> Locale.ENGLISH
+        }
+        val formatted = java.time.format.DateTimeFormatter.ofPattern("EEEE, d MMMM uuuu", locale)
+            .withZone(clock.zone).format(clock.instant())
+        return when (language) {
+            "mr" -> "आज $formatted आहे."
+            "hi" -> "आज $formatted है।"
+            else -> "Today is $formatted."
+        }
+    }
+
+    internal fun timeReply(raw: String, clock: java.time.Clock = java.time.Clock.systemDefaultZone()): String {
+        val language = responseLanguage(raw)
+        val locale = when (language) {
+            "mr" -> Locale.forLanguageTag("mr-IN")
+            "hi" -> Locale.forLanguageTag("hi-IN")
+            else -> Locale.ENGLISH
+        }
+        val formatted = java.time.format.DateTimeFormatter.ofPattern("h:mm a", locale)
+            .withZone(clock.zone).format(clock.instant())
+        return when (language) {
+            "mr" -> "आत्ता $formatted वाजले आहेत."
+            "hi" -> "अभी $formatted बजे हैं।"
+            else -> "It is $formatted."
+        }
+    }
+
+    private fun responseLanguage(raw: String): String {
+        val text = norm(raw)
+        val marathi = listOf(
+            "आजची", "आज ची", "आज कोणता दिवस", "आज कोणती तारीख", "आहे", "काय", "सांगा", "सांग", "दिवस",
+            "aajchi", "aaj chi", "aahe", "sanga", "sang", "kaay"
+        ).any { text.contains(it) }
+        if (marathi) return "mr"
+        val hindi = text.any { it in '\u0900'..'\u097F' } ||
+            listOf("aaj", "tarikh", "tareekh", "din", "kya", "hai", "batao", "kaun", "kaunsa").any { text.contains(it) }
+        return if (hindi) "hi" else "en"
+    }
+
     internal fun isDateQuestion(s: String): Boolean {
         val text = norm(s).replace(Regex("[?!.,]"), "").trim()
         val patterns = listOf(
@@ -85,7 +138,12 @@ object SkillRegistry {
             Regex("^(?:आजची|आज ची) तारीख (?:काय आहे|सांगा|सांग)$"),
             Regex("^(?:आज किती तारीख आहे|आज कोणती तारीख आहे|दिनांक काय आहे)$"),
             Regex("^(?:aajchi|aaj chi) tarikh (?:kay aahe|sanga|sang)$"),
-            Regex("^(?:aaj kay tarikh aahe|aajchi date kay aahe)$")
+            Regex("^(?:aaj kay tarikh aahe|aajchi date kay aahe)$"),
+            Regex("^(?:aaj kaun sa din hai|aaj kya din hai|din kya hai|aaj kaunsa din)$"),
+            Regex("^(?:आज कौन सा दिन है|आज कौन-सा दिन है|आज कोणता दिवस)$"),
+            Regex("^(?:what day is it|what day is it today)$"),
+            Regex("^(?:aaj tarikh|tarikh kya hai)$"),
+            Regex("^(?:आज की तारीख|आजची तारीख)$")
         )
         return patterns.any { it.matches(text) }
     }

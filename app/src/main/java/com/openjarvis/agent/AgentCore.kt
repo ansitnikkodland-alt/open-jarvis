@@ -218,6 +218,20 @@ ${rawResponse.take(1000)}
                         return@withLock
                     }
 
+                    // Resolve factual date/time questions before pipelines, learned skills, or LLMs.
+                    val dateTimeRequest = SkillRegistry.parseDateTimeQuestion(safeCommand)
+                    if (dateTimeRequest != null) {
+                        val reply = when (dateTimeRequest.kind) {
+                            SkillRegistry.Kind.DATE -> SkillRegistry.dateReply(safeCommand)
+                            SkillRegistry.Kind.TIME -> SkillRegistry.timeReply(safeCommand)
+                            else -> error("Unexpected date/time route: ${dateTimeRequest.kind}")
+                        }
+                        Log.i(TAG, "path=rule skill=${dateTimeRequest.kind.name.lowercase()}")
+                        graphifyRepo.logTask(safeCommand, "success (date/time rule): $reply", "DateTimeReplyFormatter", 0)
+                        _state.value = AgentState.Done(reply)
+                        return@withLock
+                    }
+
                     if (CommandRouter.isContinueCommand(safeCommand) && actionStepContext.pendingSteps.isNotEmpty()) {
                         val pending = actionStepContext.pendingSteps
                         _state.value = AgentState.Running("resuming ${pending.size} pending steps...")
@@ -322,41 +336,8 @@ ${rawResponse.take(1000)}
                                     SkillRegistry.Kind.VOLUME -> "Volume adjusted"
                                     SkillRegistry.Kind.MAPS -> "Opening navigation"
                                     SkillRegistry.Kind.CALL -> "Dialer opened"
-                                    SkillRegistry.Kind.TIME -> {
-                                        val marathi = listOf("आहे", "आणि", "आत्ता", "किती", "वाजले").any(safeCommand::contains) ||
-                                            listOf("aajchi", "aaj chi", "aahe", "sanga", "sang", "kiti vajle", "aata").any { safeCommand.contains(it, ignoreCase = true) }
-                                        val hindi = !marathi && (safeCommand.any { it in '\u0900'..'\u097F' } ||
-                                            listOf("abhi", "samay", "kitne baje", "time kya").any { safeCommand.contains(it, ignoreCase = true) })
-                                        val locale = when {
-                                            marathi -> Locale.forLanguageTag("mr-IN")
-                                            hindi -> Locale.forLanguageTag("hi-IN")
-                                            else -> Locale.getDefault()
-                                        }
-                                        val formatted = SimpleDateFormat("h:mm a", locale).format(Date())
-                                        when {
-                                            marathi -> "आत्ता $formatted वाजले आहेत."
-                                            hindi -> "अभी $formatted बजे हैं।"
-                                            safeCommand.contains("time", ignoreCase = true) || safeCommand.contains("what", ignoreCase = true) -> "It is $formatted."
-                                            else -> "Abhi $formatted baj rahe hain."
-                                        }
-                                    }
-                                    SkillRegistry.Kind.DATE -> {
-                                        val marathi = listOf("आहे", "आणि", "काय", "आत्ता", "किती", "सांगा").any(safeCommand::contains) ||
-                                            listOf("aajchi", "aaj chi", "aahe", "sanga", "sang").any { safeCommand.contains(it, ignoreCase = true) }
-                                        val hindi = !marathi && (safeCommand.any { it in '\u0900'..'\u097F' } ||
-                                            listOf("aaj ki", "aaj ka", "tarikh", "tareekh", "batao", "samay").any { safeCommand.contains(it, ignoreCase = true) })
-                                        val dateLocale = when {
-                                            marathi -> Locale.forLanguageTag("mr-IN")
-                                            hindi -> Locale.forLanguageTag("hi-IN")
-                                            else -> Locale.getDefault()
-                                        }
-                                        val formatted = SimpleDateFormat("EEEE, d MMMM yyyy", dateLocale).format(Date())
-                                        when {
-                                            marathi -> "आज $formatted आहे."
-                                            hindi -> "आज $formatted है।"
-                                            else -> "Today is $formatted."
-                                        }
-                                    }
+                                    SkillRegistry.Kind.TIME -> SkillRegistry.timeReply(safeCommand)
+                                    SkillRegistry.Kind.DATE -> SkillRegistry.dateReply(safeCommand)
                                     SkillRegistry.Kind.SEARCH -> "Search opened"
                                 }
                                 graphifyRepo.logTask(safeCommand, "success (native skill): $reply", "Android SkillRegistry", 0)
@@ -716,7 +697,7 @@ Never invent contact names or app labels. Understand Hindi, Marathi, Hinglish an
 
                     val skillSystem = """
 You are Jarvis, an Android skill router. Return ONLY one JSON object with exactly "skill" and "args".
-Allowed skills: OPEN_APP, SETTINGS, CALL, SEARCH, WHATSAPP_MESSAGE, SMS_MESSAGE, ALARM, TIMER, TORCH, VOLUME, MAPS, TIME, ANDROID_UI_ACTIONS.
+Allowed skills: OPEN_APP, SETTINGS, CALL, SEARCH, WHATSAPP_MESSAGE, SMS_MESSAGE, ALARM, TIMER, TORCH, VOLUME, MAPS, ANDROID_UI_ACTIONS.
 Native example: {"skill":"TORCH","args":{"enabled":true}}.
 UI example: {"skill":"ANDROID_UI_ACTIONS","args":{"actions":[{"action":"open_app","label":"Chrome"}]}}.
 Use a native skill whenever it fits. Use ANDROID_UI_ACTIONS only for visible-screen tasks. Never invent app labels, contacts or controls.
@@ -737,6 +718,13 @@ ${fullSystem.substringAfter("MEMORY:")}
                                 return@fold
                             }
                             if (skillPlan.skill != "ANDROID_UI_ACTIONS") {
+                                if (skillPlan.skill == "DATE" || skillPlan.skill == "TIME") {
+                                    val reply = if (skillPlan.skill == "DATE") SkillRegistry.dateReply(safeCommand)
+                                    else SkillRegistry.timeReply(safeCommand)
+                                    graphifyRepo.logTask(safeCommand, "success (deterministic date/time fallback): $reply", "DateTimeReplyFormatter", System.currentTimeMillis() - startTime)
+                                    _state.value = AgentState.Done(reply)
+                                    return@fold
+                                }
                                 val kind = SkillRegistry.Kind.valueOf(skillPlan.skill)
                                 val args = skillPlan.args.keys().asSequence().associateWith { key ->
                                     skillPlan.args.opt(key).toString()
@@ -761,8 +749,8 @@ ${fullSystem.substringAfter("MEMORY:")}
                                             SkillRegistry.Kind.VOLUME -> "Volume adjusted"
                                             SkillRegistry.Kind.MAPS -> "Opening navigation"
                                             SkillRegistry.Kind.CALL -> "Dialer opened"
-                                            SkillRegistry.Kind.TIME -> "Abhi " + SimpleDateFormat("h:mm a", Locale.getDefault()).format(Date()) + " baj rahe hain."
-                                            SkillRegistry.Kind.DATE -> "Today is " + SimpleDateFormat("EEEE, d MMMM yyyy", Locale.getDefault()).format(Date())
+                                            SkillRegistry.Kind.TIME -> SkillRegistry.timeReply(safeCommand)
+                                            SkillRegistry.Kind.DATE -> SkillRegistry.dateReply(safeCommand)
                                             SkillRegistry.Kind.SEARCH -> "Search opened"
                                         }
                                         graphifyRepo.logTask(safeCommand, "success (Ollama skill): $reply", "Ollama Skill Router", System.currentTimeMillis() - startTime)
@@ -1961,7 +1949,7 @@ ${fullSystem.substringAfter("MEMORY:")}
         )
         val skillSystem = """
 You are Jarvis, an Android skill router. Return ONLY one JSON object with exactly "skill" and "args".
-Allowed skills: OPEN_APP, SETTINGS, CALL, SEARCH, WHATSAPP_MESSAGE, SMS_MESSAGE, ALARM, TIMER, TORCH, VOLUME, MAPS, TIME, ANDROID_UI_ACTIONS.
+Allowed skills: OPEN_APP, SETTINGS, CALL, SEARCH, WHATSAPP_MESSAGE, SMS_MESSAGE, ALARM, TIMER, TORCH, VOLUME, MAPS, ANDROID_UI_ACTIONS.
 Native example: {"skill":"TORCH","args":{"enabled":true}}.
 UI example: {"skill":"ANDROID_UI_ACTIONS","args":{"actions":[{"action":"open_app","label":"Chrome"}]}}.
 Use a native skill whenever it fits. Use ANDROID_UI_ACTIONS only for visible-screen tasks. Never invent app labels, contacts or controls.

@@ -63,6 +63,36 @@ class SkillRegistryTest {
         }
         assertNull(SkillRegistry.parse("time machine kaise kaam karti hai"))
     }
+    @Test fun requestedDayAndDatePhrasesRouteOnlyToDate() {
+        listOf(
+            "aaj kaun sa din hai", "aaj kya din hai", "din kya hai", "aaj kaunsa din",
+            "aaj tarikh", "tarikh kya hai", "आज कौन सा दिन है", "आज की तारीख",
+            "आजची तारीख", "आज कोणता दिवस", "what day is it", "today's date"
+        ).forEach { phrase ->
+            assertEquals("DATE for: $phrase", SkillRegistry.Kind.DATE, SkillRegistry.parse(phrase)?.kind)
+        }
+        listOf("open date settings", "date format kaise badle", "din bhar kaam karna hai",
+            "today's date format in excel").forEach { phrase ->
+            assertNull("Must not classify as date: $phrase", SkillRegistry.parse(phrase))
+        }
+    }
+
+    @Test fun dateReplyUsesInjectedFixedClockAndQuestionLanguage() {
+        val clock = java.time.Clock.fixed(
+            java.time.Instant.parse("2026-11-11T12:00:00Z"),
+            java.time.ZoneId.of("Asia/Kolkata")
+        )
+        assertEquals("Today is Wednesday, 11 November 2026.", SkillRegistry.dateReply("today's date", clock))
+        val hindi = SkillRegistry.dateReply("आज की तारीख", clock)
+        assertTrue(hindi.startsWith("आज "))
+        assertTrue(hindi.contains("बुधवार") && hindi.contains("नवंबर") && hindi.contains("2026"))
+        assertTrue(hindi.endsWith("है।"))
+        val marathi = SkillRegistry.dateReply("आजची तारीख", clock)
+        assertTrue(marathi.startsWith("आज "))
+        assertTrue(marathi.contains("बुधवार") && marathi.contains("नोव्हेंबर") && marathi.contains("2026"))
+        assertTrue(marathi.endsWith("आहे."))
+    }
+
     @Test fun dateQuestionsAreNativeAndUnrelatedQuestionsAreNot() {
         listOf(
             "What is today's date",
