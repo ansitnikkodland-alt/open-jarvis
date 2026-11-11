@@ -48,6 +48,9 @@ import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 
+internal fun shouldFallbackToYouTubeBrowser(youtubeResolved: Boolean, youtubeLaunchSucceeded: Boolean): Boolean =
+    !youtubeResolved || !youtubeLaunchSucceeded
+
 class AgentCore(private val context: Context) {
 
     private val graphifyRepo = GraphifyRepository(context)
@@ -1604,18 +1607,35 @@ ${fullSystem.substringAfter("MEMORY:")}
             }
             is FastCommandParser.Command.YoutubeSearch -> {
                 val encoded = java.net.URLEncoder.encode(command.query, "UTF-8")
-                val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://www.youtube.com/results?search_query=$encoded"))
-                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                val searchUri = Uri.parse("https://www.youtube.com/results?search_query=$encoded")
                 val youtube = "com.google.android.youtube"
-                val youtubeInstalled = runCatching { context.packageManager.getPackageInfo(youtube, 0) }.isSuccess
-                if (youtubeInstalled) intent.setPackage(youtube)
-                val resolved = intent.resolveActivity(context.packageManager)
-                    ?: throw IllegalStateException("No app or browser can open YouTube search")
-                val targetPackage = if (youtubeInstalled) youtube else resolved.packageName
-                context.startActivity(intent)
+                val youtubeIntent = Intent(Intent.ACTION_VIEW, searchUri)
+                    .setPackage(youtube)
+                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                val youtubeResolved = youtubeIntent.resolveActivity(context.packageManager) != null
+                val youtubeLaunchSucceeded = try {
+                    context.startActivity(youtubeIntent)
+                    true
+                } catch (_: android.content.ActivityNotFoundException) {
+                    false
+                }
+                val browserFallback = shouldFallbackToYouTubeBrowser(youtubeResolved, youtubeLaunchSucceeded)
+                val targetPackage = if (browserFallback) {
+                    val browserIntent = Intent(Intent.ACTION_VIEW, searchUri)
+                        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    val browserResolved = browserIntent.resolveActivity(context.packageManager)
+                    try {
+                        context.startActivity(browserIntent)
+                    } catch (error: android.content.ActivityNotFoundException) {
+                        throw IllegalStateException("No app or browser can open YouTube search", error)
+                    }
+                    browserResolved?.packageName
+                } else {
+                    youtube
+                }
                 var foregroundConfirmed = false
                 for (check in 0 until 16) {
-                    if (JarvisAccessibilityService.instance?.isPackageActive(targetPackage) == true) {
+                    if (targetPackage != null && JarvisAccessibilityService.instance?.isPackageActive(targetPackage) == true) {
                         foregroundConfirmed = true
                         break
                     }
