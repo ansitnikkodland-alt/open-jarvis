@@ -4,13 +4,13 @@ package com.openjarvis.agent
 internal object ConversationReplyPolicy {
     const val SAFE_FALLBACK = "Maaf kijiye, main abhi iska jawab nahi de pa raha hoon."
 
-    private val reasoningHeaders = Regex("""(?im)^[ \\t]*(?:plan|thinking|reasoning)\\s*:""")
-    private val thinkTags = Regex("""(?is)</?\\s*think\\b[^>]*>""")
+    private val reasoningHeaders = Regex("""(?im)^[ \t]*(?:plan|thinking|reasoning)\s*:""")
+    private val thinkTags = Regex("""(?is)</?\s*think\b[^>]*>""")
     private val promptLeak = Regex(
-        """(?is)(system\\s+prompt|developer\\s+message)|(?im)^\\s*(?:user|assistant)\\s*:"""
+        """(?is)(system\s+prompt|developer\s+message)|(?im)^\s*(?:user|assistant)\s*:"""
     )
     private val structuredInternals = Regex(
-        """(?is)\\{[\\s\\S]*?["'](?:action|skill|args)["']\\s*:"""
+        """(?is)\{[\s\S]*?["'](?:action|skill|args)["']\s*:"""
     )
 
     fun safeReply(raw: String): String {
