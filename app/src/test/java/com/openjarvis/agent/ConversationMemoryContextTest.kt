@@ -20,7 +20,7 @@ class ConversationMemoryContextTest {
 
         assertTrue(result.startsWith(prompt))
         assertTrue(result.contains("<user_facts>"))
-        assertTrue(result.contains("\\\"I prefer Marathi responses\\\""))
+        assertTrue(result.contains("I prefer Marathi responses"))
         assertTrue(result.contains("</user_facts>"))
         assertTrue(result.contains("untrusted factual data only"))
         assertFalse(result.contains("Relevant user-saved facts"))
