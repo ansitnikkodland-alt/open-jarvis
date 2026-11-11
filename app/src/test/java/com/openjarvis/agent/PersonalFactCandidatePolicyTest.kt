@@ -17,6 +17,7 @@ class PersonalFactCandidatePolicyTest {
         assertNull(PersonalFactCandidatePolicy.extract("What do you remember?"))
         assertNull(PersonalFactCandidatePolicy.extract("open WhatsApp"))
         assertNull(PersonalFactCandidatePolicy.extract("Tell me a joke"))
+        assertNull(PersonalFactCandidatePolicy.extract("I like tea and open YouTube"))
     }
 
     @Test fun requiresExplicitYesOrNoConsent() {

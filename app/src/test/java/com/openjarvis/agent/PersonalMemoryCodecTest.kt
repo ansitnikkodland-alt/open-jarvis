@@ -24,6 +24,14 @@ class PersonalMemoryCodecTest {
         assertEquals(listOf("My name is Sandip"), profile)
     }
 
+    @Test fun updatesLanguagePreferenceAndWorkCategoriesWithoutDuplicates() {
+        val original = listOf("I prefer Marathi", "I like tea", "I am an engineer")
+        val updated = PersonalMemoryCodec.remember(original, "I prefer Hindi")
+        assertEquals(listOf("I prefer Hindi", "I like tea", "I am an engineer"), updated)
+        val newWork = PersonalMemoryCodec.remember(updated, "I am a technician")
+        assertEquals(listOf("I am a technician", "I prefer Hindi", "I like tea"), newWork)
+    }
+
     @Test fun updateAndDeleteAreSupported() {
         val original = listOf("I prefer Marathi", "I work as an engineer")
         val updated = PersonalMemoryCodec.update(original, "I prefer Marathi", "I prefer Hindi")
