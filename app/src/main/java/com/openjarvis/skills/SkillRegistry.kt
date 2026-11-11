@@ -19,7 +19,7 @@ object SkillRegistry {
     )
 
     fun hasExplicitNavigationIntent(raw: String): Boolean {
-        val tokens = norm(raw).split(Regex("[^\\\\p{L}\\\\p{N}]+")).filter { it.isNotBlank() }
+        val tokens = norm(raw).split(Regex("[^\\p{L}\\p{N}]+")).filter { it.isNotBlank() }
         return tokens.any { it in EXPLICIT_NAVIGATION_WORDS }
     }
 
