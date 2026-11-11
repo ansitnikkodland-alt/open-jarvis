@@ -13,6 +13,8 @@ class SkillRegistryNavigationTest {
         assertTrue(SkillRegistry.hasExplicitNavigationIntent("Pune ka raasta batao"))
         assertTrue(SkillRegistry.hasExplicitNavigationIntent("navigate to Pune station"))
         assertTrue(SkillRegistry.hasExplicitNavigationIntent("show directions to airport"))
+        assertTrue(SkillRegistry.hasExplicitNavigationIntent("Google Maps: navigate to Pune"))
+        assertFalse(SkillRegistry.hasExplicitNavigationIntent("Instagram kholo, Shah Rukh Khan search karo"))
     }
 
     @Test fun instagramLaunchNeverClassifiesAsMaps() {
