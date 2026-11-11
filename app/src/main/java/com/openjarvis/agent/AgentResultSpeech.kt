@@ -2,7 +2,7 @@ package com.openjarvis.agent
 
 /** Keeps spoken feedback aligned with the actual task result. */
 internal object AgentResultSpeech {
-    fun textForDone(result: String): String = ConversationReplyPolicy.safeReply(result)
+    fun textForDone(result: String): String = result.trim().ifBlank { "Command completed." }
 
     fun acknowledgement(language: String): String = when (language) {
         "mr" -> "ठीक आहे, मी काम सुरू करतो."

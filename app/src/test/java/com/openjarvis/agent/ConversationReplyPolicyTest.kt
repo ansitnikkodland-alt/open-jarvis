@@ -15,6 +15,13 @@ class ConversationReplyPolicyTest {
         )
     }
 
+    @Test fun blocksConversationalPlanStepHeader() {
+        assertEquals(
+            ConversationReplyPolicy.SAFE_FALLBACK,
+            ConversationReplyPolicy.safeReply("Plan: step 1")
+        )
+    }
+
     @Test fun blocksReasoningHeadersOnlyAtLineStart() {
         listOf(
             "Plan: step 1...",
