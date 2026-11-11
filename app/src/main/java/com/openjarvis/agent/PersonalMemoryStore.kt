@@ -109,8 +109,8 @@ internal object PersonalMemoryCodec {
     private fun neutralizePromptPayload(value: String): String =
         value
             .replace(Regex("(?i)system\\s*:"), "system∶")
-            .replace(Regex("(?i)ignore"), "i\\u200Bgnore")
-            .replace(Regex("(?i)instruction"), "instr\\u200Buction")
+            .replace(Regex("(?i)ignore"), "i\u200Bgnore")
+            .replace(Regex("(?i)instruction"), "instr\u200Buction")
             .replace(Regex("(?is)<\\s*/?\\s*think\\s*>"), "‹think›")
             .replace("<", "‹")
             .replace(">", "›")

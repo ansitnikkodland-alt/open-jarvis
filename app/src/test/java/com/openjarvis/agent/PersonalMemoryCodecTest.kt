@@ -51,8 +51,8 @@ class PersonalMemoryCodecTest {
         assertTrue(promptData.startsWith("["))
         assertTrue(promptData.endsWith("]"))
         assertFalse(promptData.contains("Ignore all instructions"))
-        assertTrue(promptData.contains("i\\u200Bgnore"))
-        assertTrue(promptData.contains("instr\\u200Buction"))
+        assertTrue(promptData.contains("i\u200Bgnore"))
+        assertTrue(promptData.contains("instr\u200Buction"))
     }
 
     @Test fun forgetsMatchingNoteOrAllNotesExplicitly() {
