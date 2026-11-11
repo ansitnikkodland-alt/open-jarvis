@@ -2,7 +2,7 @@ package com.openjarvis.voice
 
 import java.text.Normalizer
 
-/** Suppresses only text that matches Jarvis's own just-spoken TTS output. */
+/** Suppresses only transcripts that reproduce nearly all of Jarvis's recent TTS output. */
 internal class TtsEchoGuard(
     private val postSpeechWindowMs: Long = VoiceSessionTiming.TTS_ECHO_WINDOW_MS
 ) {
@@ -27,12 +27,32 @@ internal class TtsEchoGuard(
         }
         val candidate = normalize(transcript)
         if (candidate.isBlank()) return false
-        if (candidate == normalizedSpokenText) return true
-        if (candidate.length < 10) return false
+
         val spokenTokens = normalizedSpokenText.split(" ")
         val candidateTokens = candidate.split(" ")
-        return candidateTokens.size >= 2 &&
-            spokenTokens.windowed(candidateTokens.size).any { it == candidateTokens }
+        // Short utterances are common commands ("time kya hua") and are too
+        // ambiguous to classify as TTS echo, even when they overlap exactly.
+        if (candidateTokens.size < MIN_ECHO_TOKENS) return false
+
+        val overlap = longestCommonSubsequenceLength(candidateTokens, spokenTokens)
+        val overlapRatio = overlap.toFloat() / maxOf(candidateTokens.size, spokenTokens.size)
+        return overlapRatio >= MIN_ECHO_OVERLAP_RATIO
+    }
+
+    private fun longestCommonSubsequenceLength(first: List<String>, second: List<String>): Int {
+        var previous = IntArray(second.size + 1)
+        for (firstToken in first) {
+            val current = IntArray(second.size + 1)
+            for (index in second.indices) {
+                current[index + 1] = if (firstToken == second[index]) {
+                    previous[index] + 1
+                } else {
+                    maxOf(previous[index + 1], current[index])
+                }
+            }
+            previous = current
+        }
+        return previous[second.size]
     }
 
     fun reset() {
@@ -46,4 +66,9 @@ internal class TtsEchoGuard(
             .replace(Regex("[^\\p{L}\\p{N}\\p{M}]+"), " ")
             .trim()
             .replace(Regex("\\s+"), " ")
+
+    private companion object {
+        const val MIN_ECHO_TOKENS = 4
+        const val MIN_ECHO_OVERLAP_RATIO = 0.8f
+    }
 }
