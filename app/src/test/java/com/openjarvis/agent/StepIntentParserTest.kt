@@ -76,6 +76,13 @@ class StepIntentParserTest {
     }
 
     @Test
+    fun hindiTrailingVerbLaunchesInstagramInsteadOfNavigation() {
+        assertEquals(StepIntent.AppLaunch("instagram"), p("Instagram kholo"))
+        assertEquals(StepIntent.AppLaunch("whatsapp"), p("WhatsApp kholo"))
+        assertNull(p("Instagram kholo aur Shah Rukh Khan search karo"))
+    }
+
+    @Test
     fun navigation() {
         assertEquals(StepIntent.Navigate("pune station"), p("navigate to Pune station"))
         assertEquals(StepIntent.Navigate("pune"), p("Pune ka rasta batao"))
