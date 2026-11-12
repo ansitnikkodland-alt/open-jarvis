@@ -6,7 +6,9 @@ import android.content.Intent
 import android.content.ServiceConnection
 import android.content.pm.PackageManager
 import android.os.Bundle
+import android.os.Handler
 import android.os.IBinder
+import android.os.Looper
 import android.widget.Toast
 import androidx.lifecycle.lifecycleScope
 import kotlinx.coroutines.Dispatchers
@@ -22,6 +24,22 @@ class PowerOffActivity : Activity() {
 
     private var serviceBound = false
     private var requestListenerRegistered = false
+    private var binderListenerRegistered = false
+    private var powerFlowStarted = false
+    private val mainHandler = Handler(Looper.getMainLooper())
+
+    private val binderReceivedListener = Shizuku.OnBinderReceivedListener {
+        beginPowerFlow()
+    }
+
+    private val binderTimeout = Runnable {
+        if (!powerFlowStarted && !Shizuku.pingBinder()) {
+            finishWithMessage("Shizuku service start nahi hai. Shizuku app kholo, Wireless debugging se Start karo, phir Jarvis command dobara bolo.")
+            packageManager.getLaunchIntentForPackage(SHIZUKU_PACKAGE)?.let { launch ->
+                runCatching { startActivity(launch) }
+            }
+        }
+    }
 
     private val userServiceArgs by lazy {
         Shizuku.UserServiceArgs(
@@ -83,14 +101,19 @@ class PowerOffActivity : Activity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        if (!Shizuku.pingBinder()) {
-            finishWithMessage("Shizuku service start nahi hai. Shizuku app kholo, Wireless debugging se Start karo, phir Jarvis command dobara bolo.")
-            packageManager.getLaunchIntentForPackage(SHIZUKU_PACKAGE)?.let { launch ->
-                runCatching { startActivity(launch) }
-            }
-            return
+        Shizuku.addBinderReceivedListenerSticky(binderReceivedListener)
+        binderListenerRegistered = true
+        if (Shizuku.pingBinder()) {
+            beginPowerFlow()
+        } else {
+            mainHandler.postDelayed(binderTimeout, BINDER_WAIT_TIMEOUT_MS)
         }
+    }
 
+    private fun beginPowerFlow() {
+        if (powerFlowStarted || isFinishing || !Shizuku.pingBinder()) return
+        powerFlowStarted = true
+        mainHandler.removeCallbacks(binderTimeout)
         runCatching {
             if (Shizuku.isPreV11() || Shizuku.getVersion() < MIN_SHIZUKU_API) {
                 finishWithMessage("Jarvis power control ke liye Shizuku API 11 ya newer chahiye.")
@@ -132,6 +155,11 @@ class PowerOffActivity : Activity() {
     }
 
     override fun onDestroy() {
+        mainHandler.removeCallbacks(binderTimeout)
+        if (binderListenerRegistered) {
+            Shizuku.removeBinderReceivedListener(binderReceivedListener)
+            binderListenerRegistered = false
+        }
         if (requestListenerRegistered) {
             Shizuku.removeRequestPermissionResultListener(permissionListener)
             requestListenerRegistered = false
@@ -146,6 +174,7 @@ class PowerOffActivity : Activity() {
     companion object {
         private const val REQUEST_POWER_PERMISSION = 7401
         private const val MIN_SHIZUKU_API = 11
+        private const val BINDER_WAIT_TIMEOUT_MS = 5_000L
         private const val SHIZUKU_PACKAGE = "moe.shizuku.privileged.api"
     }
 }
