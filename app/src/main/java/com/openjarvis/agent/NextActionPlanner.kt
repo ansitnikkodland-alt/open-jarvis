@@ -24,6 +24,8 @@ internal class NextActionPlanner {
     }
 
     private fun validateAction(action: Action, command: String): Result<Action> {
+        if (action.action == Action.COMPLETE) return Result.success(action)
+        if (ActionRiskPolicy.requiresConfirmation(action)) return Result.success(action)
         if (!AgentPlanPolicy.isExecutablePlan(listOf(action), command)) {
             val rule = AgentPlanPolicy.failureRule(listOf(action), command) ?: "RULE_UNSAFE_ACTION"
             return Result.failure(IllegalArgumentException(AgentPlanPolicy.userGuidance(rule)))
