@@ -1,6 +1,8 @@
 package com.openjarvis.voice
 
 import android.content.Context
+import androidx.security.crypto.EncryptedSharedPreferences
+import androidx.security.crypto.MasterKey
 import android.speech.tts.TextToSpeech
 import android.os.Handler
 import android.os.Looper
@@ -16,6 +18,15 @@ class AndroidTTSEngine(private val context: Context) {
     private var pitch = 0.95f
     private val mainHandler = Handler(Looper.getMainLooper())
     private val completionCallbacks = UtteranceCompletionRegistry()
+    private val voicePreferences by lazy {
+        val key = MasterKey.Builder(context.applicationContext)
+            .setKeyScheme(MasterKey.KeyScheme.AES256_GCM).build()
+        EncryptedSharedPreferences.create(
+            context.applicationContext, "voice_prefs", key,
+            EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
+            EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
+        )
+    }
 
     private fun finishSpeech(utteranceId: String?) {
         val callback = utteranceId?.let(completionCallbacks::take) ?: return
@@ -77,9 +88,17 @@ class AndroidTTSEngine(private val context: Context) {
         val language = SpeechLanguage.languageForText(text)
         val locale = Locale.forLanguageTag("$language-IN")
         val engine = tts ?: return
-        val bestVoice = engine.voices
+        val voices = engine.voices
             ?.filter { it.locale.language == language && it.locale.country.equals("IN", ignoreCase = true) }
-            ?.maxWithOrNull(compareBy<android.speech.tts.Voice> { it.quality }.thenBy { it.isNetworkConnectionRequired })
+            .orEmpty()
+        val preferredGender = voicePreferences.getString("tts_voice_gender", "Female") ?: "Female"
+        val genderMatched = voices.filter { voice ->
+            TtsVoiceSelectionPolicy.matchesGender(voice.name, preferredGender)
+        }
+        // Android does not expose reliable gender metadata. Match descriptive engine voice
+        // names when available; otherwise keep the engine's highest-quality locale voice.
+        val bestVoice = (genderMatched.ifEmpty { voices })
+            .maxWithOrNull(compareBy<android.speech.tts.Voice> { it.quality }.thenBy { !it.isNetworkConnectionRequired })
         if (bestVoice != null) {
             engine.voice = bestVoice
         } else {
