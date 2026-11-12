@@ -18,7 +18,7 @@ internal class AgentLoopRunner {
         val remainingMs = initialSession.deadlineAtMs - nowMs()
         if (remainingMs <= 0L) return failed(initialSession, "Task deadline exceeded (45 seconds).")
         val result = withTimeoutOrNull(remainingMs) {
-            runWithinDeadline(initialSession, approvedConfirmation, nowMs, observe, plan, execute, verify)
+            runWithinDeadline(initialSession, approvedConfirmation, nowMs, observe, plan, execute, resolveSendPayload, verify)
         }
         return result ?: failed(initialSession, "Task timed out after 45 seconds; completed actions were not replayed.")
     }
@@ -28,6 +28,7 @@ internal class AgentLoopRunner {
         observe: suspend () -> ScreenObservation,
         plan: suspend (ScreenObservation, AgentTaskSession) -> Result<Action>,
         execute: suspend (Action) -> Boolean,
+        resolveSendPayload: suspend (Action, ScreenObservation) -> SendConfirmationPayload?,
         verify: (Action, ScreenObservation, ScreenObservation, Boolean) -> ActionVerifier.Verification
     ): AgentLoopRunResult {
         var session = initial
