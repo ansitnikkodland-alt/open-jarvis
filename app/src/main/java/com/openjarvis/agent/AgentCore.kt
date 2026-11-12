@@ -281,6 +281,9 @@ ${rawResponse.take(1000)}
                     }
 
                     if (PowerOffCommandPolicy.isPowerOffCommand(safeCommand)) {
+                        // A new full-device power-off request supersedes any other pending confirmation.
+                        pendingMemoryFact = null
+                        pendingAgentLoopSession = null
                         pendingPowerOffUntilMs = nowMs + 20_000L
                         val reply = "Poora phone power off karne ke liye 20 seconds ke andar 'haan power off' bolo. Cancel karne ke liye 'nahi' bolo."
                         graphifyRepo.logTask(safeCommand, "awaiting explicit voice confirmation", "PowerOffCommandPolicy", 0)
