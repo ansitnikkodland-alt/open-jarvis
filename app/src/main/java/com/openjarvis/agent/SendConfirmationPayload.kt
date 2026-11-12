@@ -79,7 +79,7 @@ internal object SendConfirmationPolicy {
 
     fun requestedRecipientName(command: String): String? {
         val match = Regex(
-            """(?i)\\b(?:me|par|to|for)\\s+([\\p{L}][\\p{L}\\p{N} .'-]{0,30}?)\\s+ko\\b"""
+            """(?i)\b(?:me|par|to|for)\s+([\p{L}][\p{L}\p{N} .'-]{0,30}?)\s+ko\b"""
         ).findAll(command).lastOrNull() ?: return null
         return match.groupValues[1].trim().takeIf { it.isNotBlank() }
     }
@@ -88,7 +88,7 @@ internal object SendConfirmationPolicy {
         val values = interactiveElements.lineSequence()
             .filter { it.contains("editable", ignoreCase = true) }
             .mapNotNull { line ->
-                Regex("""(?:^|\\s)text=(.+?)(?:\\s+(?:hint=|id=|class=|bounds=)|$)""")
+                Regex("""(?:^|\s)text=(.+?)(?:\s+(?:hint=|id=|class=|bounds=)|$)""")
                     .find(line)?.groupValues?.get(1)?.trim()
             }
             .filter { it.isNotBlank() }
@@ -97,9 +97,9 @@ internal object SendConfirmationPolicy {
     }
 
     fun attachmentName(visibleText: String): String? =
-        Regex("""(?i)\\b[\\p{L}\\p{N}_ .-]+\\.(?:png|jpe?g|webp|gif|pdf)\\b""")
+        Regex("""(?i)\b[\p{L}\p{N}_ .-]+\\.(?:png|jpe?g|webp|gif|pdf)\b""")
             .find(visibleText)?.value?.trim()
 
     private fun normalizeName(value: String): String =
-        value.trim().replace(Regex("\\s+"), " ").lowercase()
+        value.trim().replace(Regex("\s+"), " ").lowercase()
 }
