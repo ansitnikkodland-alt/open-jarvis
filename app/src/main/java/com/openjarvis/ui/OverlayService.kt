@@ -47,6 +47,7 @@ import com.openjarvis.ui.home.VoiceUiBridge
 import com.openjarvis.ui.overlay.FloatingPanelMode
 import com.openjarvis.ui.overlay.FloatingVoiceState
 import com.openjarvis.ui.overlay.mapFloatingViewStyle
+import com.openjarvis.ui.overlay.snapFloatingBubblePosition
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -295,13 +296,17 @@ class OverlayService : Service() {
                     }
                     MotionEvent.ACTION_UP -> {
                         if (dragged && params != null) {
-                            val screenWidth = resources.displayMetrics.widthPixels
-                            val screenHeight = resources.displayMetrics.heightPixels
-                            val bubbleWidth = dp(64)
-                            val margin = dp(12)
-                            val centerX = screenWidth - params.x - bubbleWidth / 2
-                            params.x = if (centerX < screenWidth / 2) (screenWidth - bubbleWidth - margin).coerceAtLeast(margin) else margin
-                            params.y = params.y.coerceIn(margin, (screenHeight - dp(64) - margin).coerceAtLeast(margin))
+                            val snapped = snapFloatingBubblePosition(
+                                screenWidthPx = resources.displayMetrics.widthPixels,
+                                screenHeightPx = resources.displayMetrics.heightPixels,
+                                bubbleWidthPx = dp(64),
+                                bubbleHeightPx = dp(64),
+                                marginPx = dp(12),
+                                currentXFromEndPx = params.x,
+                                currentTopPx = params.y
+                            )
+                            params.x = snapped.xFromEndPx
+                            params.y = snapped.topPx
                             runCatching { windowManager?.updateViewLayout(overlayView, params) }
                         } else if (!dragged) {
                             togglePanel()
@@ -398,6 +403,12 @@ class OverlayService : Service() {
                 }
             }
             commandInput = input
+            input.setOnKeyListener { _, keyCode, event ->
+                if (keyCode == KeyEvent.KEYCODE_BACK && event.action == KeyEvent.ACTION_UP && isExpanded) {
+                    togglePanel()
+                    true
+                } else false
+            }
 
             val actions = LinearLayout(this).apply {
                 orientation = LinearLayout.HORIZONTAL
@@ -557,7 +568,6 @@ class OverlayService : Service() {
             orbView?.scaleX = 1f
             orbView?.scaleY = 1f
             commandInput?.requestFocus()
-            overlayView?.requestFocus()
         } else {
             mainHandler.post(orbPulseRunnable)
         }
