@@ -26,7 +26,7 @@ fun mapFloatingViewStyle(
         FloatingVoiceState.OFF -> 0xFF87909F.toInt()
         FloatingVoiceState.LISTENING -> 0xFF31D8E8.toInt()
         FloatingVoiceState.THINKING -> 0xFFFFB454.toInt()
-        FloatingVoiceState.SPEAKING -> 0xFFAA82FF.toInt()
+        FloatingVoiceState.SPEAKING -> 0xFFE879F9.toInt()
     }
     val stateLabel = when (voiceState) {
         FloatingVoiceState.OFF -> "OFF"
