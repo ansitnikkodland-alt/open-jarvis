@@ -99,6 +99,7 @@ fun SettingsScreen(
     var savedVisible by remember { mutableStateOf(false) }
     var voiceEnabled by remember { mutableStateOf(voicePrefs.getBoolean("voice_enabled", false)) }
     var speakResults by remember { mutableStateOf(voicePrefs.getBoolean("speak_results", true)) }
+    var ttsVoiceGender by remember { mutableStateOf(voicePrefs.getString("tts_voice_gender", "Female") ?: "Female") }
     val personalMemoryStore = remember { PersonalMemoryStore(context) }
     val personalityStore = remember { JarvisPersonalityStore(context) }
     var memoryFacts by remember { mutableStateOf(personalMemoryStore.getAll()) }
@@ -391,7 +392,41 @@ fun SettingsScreen(
                     )
                     
                     Spacer(modifier = Modifier.height(8.dp))
-                    
+
+                    Surface(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(16.dp),
+                        color = VoidColor.Void900,
+                        border = BorderStroke(1.dp, VoidColor.BorderSubtle)
+                    ) {
+                        Column(modifier = Modifier.padding(16.dp)) {
+                            Text("Jarvis voice", color = VoidColor.TextPrimary, fontSize = 14.sp, fontWeight = FontWeight(600))
+                            Text("Choose Female or Male. Actual variants depend on installed TTS voice data.", color = VoidColor.TextDisabled, fontSize = 11.sp)
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                TextButton(onClick = {
+                                    ttsVoiceGender = "Female"
+                                    voicePrefs.edit().putString("tts_voice_gender", ttsVoiceGender).apply()
+                                }) { Text(if (ttsVoiceGender == "Female") "✓ Female (default)" else "Female") }
+                                TextButton(onClick = {
+                                    ttsVoiceGender = "Male"
+                                    voicePrefs.edit().putString("tts_voice_gender", ttsVoiceGender).apply()
+                                }) { Text(if (ttsVoiceGender == "Male") "✓ Male" else "Male") }
+                            }
+                            OutlinedButton(
+                                onClick = {
+                                    com.openjarvis.voice.AndroidTTSEngine.preview(
+                                        context, ttsVoiceGender, "नमस्ते! मैं आपकी Jarvis हूँ। कैसे मदद करूँ?"
+                                    ) {
+                                        Toast.makeText(context, "Selected voice preview unavailable. Check installed TTS voices.", Toast.LENGTH_LONG).show()
+                                    }
+                                },
+                                modifier = Modifier.fillMaxWidth()
+                            ) { Text("Preview $ttsVoiceGender voice") }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
                     // STT Mode selector
                     Surface(
                         modifier = Modifier.fillMaxWidth(),
