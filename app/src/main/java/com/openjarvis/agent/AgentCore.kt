@@ -1436,7 +1436,7 @@ ${snapshot.interactiveElements.take(3500)}
                 }
             },
             execute = { action -> executeActions(listOf(action)).succeeded },
-            resolveSendPayload = { action, snapshot -> resolveSendConfirmationPayload(command, action, snapshot) },
+            resolveSendPayload = { action, snapshot -> resolveSendConfirmationPayload(initial.goal, action, snapshot) },
             verify = { action, before, after, accepted -> ActionVerifier.verify(action, before, after, accepted, action.packageName) }
         )
         when (result.status) {
