@@ -49,6 +49,14 @@ class StepIntentParserTest {
     }
 
     @Test
+    fun recognizesMaharashtraDialectAppLaunchPhrases() {
+        assertEquals(StepIntent.AppLaunch("whatsapp"), p("व्हॉट्सॲप उघडून दे"))
+        assertEquals(StepIntent.AppLaunch("whatsapp"), p("माका व्हॉट्सॲप उघडून दे"))
+        assertEquals(StepIntent.AppLaunch("whatsapp"), p("मले व्हॉट्सऍप उघड"))
+        assertEquals(StepIntent.AppLaunch("whatsapp"), p("WhatsApp ugadun de"))
+    }
+
+    @Test
     fun appCommandLlmFallbackIsCappedAtTenSeconds() {
         assertEquals(true, AppCommandLlmPolicy.isAppCommand("Instagram kholo aur Shah Rukh Khan search karo"))
         assertEquals(true, AppCommandLlmPolicy.isAppCommand("WhatsApp kholo"))
