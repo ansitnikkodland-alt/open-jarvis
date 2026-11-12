@@ -85,7 +85,10 @@ class AgentLoopRunnerTest {
         )
         val result = runner.run(
             pending, approvedConfirmation = true, nowMs = { 1 },
-            observe = { whatsappScreen("Composer still contains Hello Dad") },
+            observe = { ScreenObservation(
+                "com.whatsapp", "Hello Dad",
+                "[#1 editable] text=Hello Dad hint=Message class=EditText bounds=0,0,1,1", 3
+            ) },
             plan = { _, _ -> Result.success(Action(action = Action.COMPLETE)) },
             execute = { true }, resolveSendPayload = { _, _ -> sendPayload }, verify = ::verifier
         )
