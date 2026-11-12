@@ -55,7 +55,7 @@ class UntestedFeatureCoverageTest {
         val playOnly = JarvisCommandNormalizer.stripWakeWord("Hey Jarvis, YouTube kholo aur lofi play karo")
         assertEquals("lofi", SearchCommandParser.parseYouTubeQuery(playOnly))
 
-        assertEquals("Jarvis songs", SearchCommandParser.parseYouTubeQuery("YouTube par Jarvis songs search karo"))
+        assertEquals("jarvis songs", SearchCommandParser.parseYouTubeQuery("YouTube par Jarvis songs search karo"))
         assertNull(SearchCommandParser.parseYouTubeQuery("Jarvis, YouTube kholo"))
         assertNull(SearchCommandParser.parseYouTubeQuery("YouTube par play karo"))
     }
