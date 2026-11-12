@@ -1,4 +1,5 @@
 name: Android Build
+# Keep this isolated feature branch eligible for push validation as well as PR checks.
 
 on:
   push:
