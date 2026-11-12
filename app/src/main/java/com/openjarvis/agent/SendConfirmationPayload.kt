@@ -108,6 +108,11 @@ internal object SendConfirmationPolicy {
         Regex("""(?i)\b[\p{L}\p{N}_-]+(?: [\p{L}\p{N}_-]+)*\.(?:png|jpe?g|webp|gif|pdf)\b""")
             .find(visibleText)?.value?.trim()
 
+    fun hasAttachmentEvidence(visibleText: String): Boolean =
+        attachmentName(visibleText) != null ||
+            Regex("(?i)(remove attachment|image attached|photo attached|attachment preview|selected image|file attached)")
+                .containsMatchIn(visibleText)
+
     private fun normalizeName(value: String): String =
         value.trim().replace(Regex("\\s+"), " ").lowercase()
 }
