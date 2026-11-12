@@ -17,10 +17,11 @@ fun snapFloatingBubblePosition(
 ): FloatingBubblePosition {
     val safeMargin = marginPx.coerceAtLeast(0)
     val centerX = screenWidthPx - currentXFromEndPx - bubbleWidthPx / 2
+    // Keep roughly half of the orb visible at the selected edge.
     val xFromEnd = if (centerX < screenWidthPx / 2) {
-        (screenWidthPx - bubbleWidthPx - safeMargin).coerceAtLeast(safeMargin)
+        screenWidthPx - bubbleWidthPx / 2
     } else {
-        safeMargin
+        -(bubbleWidthPx / 2)
     }
     val maxTop = (screenHeightPx - bubbleHeightPx - safeMargin).coerceAtLeast(safeMargin)
     return FloatingBubblePosition(
