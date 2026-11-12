@@ -24,4 +24,11 @@ class JarvisPersonalityPolicyTest {
         assertTrue(prompt.contains("Preferred response language: Marathi"))
         assertTrue(prompt.contains("Always answer in this language"))
     }
+
+    @Test fun matchesExplicitVoiceNameGenderTokens() {
+        assertTrue(TtsVoiceSelectionPolicy.matchesGender("en-in-x-female-1", "Female"))
+        assertTrue(TtsVoiceSelectionPolicy.matchesGender("en-in-x-male-1", "Male"))
+        assertFalse(TtsVoiceSelectionPolicy.matchesGender("en-in-x-neutral-1", "Female"))
+        assertFalse(TtsVoiceSelectionPolicy.matchesGender("en-in-x-female-1", "Male"))
+    }
 }
