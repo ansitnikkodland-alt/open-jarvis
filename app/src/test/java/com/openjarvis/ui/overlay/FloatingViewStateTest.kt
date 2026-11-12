@@ -9,7 +9,7 @@ class FloatingViewStateTest {
         assertEquals(FloatingViewStyle(0xFF87909F.toInt(), "JARVIS · OFF"), mapFloatingViewStyle(FloatingPanelMode.COLLAPSED, FloatingVoiceState.OFF))
         assertEquals(FloatingViewStyle(0xFF31D8E8.toInt(), "JARVIS · LISTENING"), mapFloatingViewStyle(FloatingPanelMode.COLLAPSED, FloatingVoiceState.LISTENING))
         assertEquals(FloatingViewStyle(0xFFFFB454.toInt(), "JARVIS · THINKING"), mapFloatingViewStyle(FloatingPanelMode.COLLAPSED, FloatingVoiceState.THINKING))
-        assertEquals(FloatingViewStyle(0xFFAA82FF.toInt(), "JARVIS · SPEAKING"), mapFloatingViewStyle(FloatingPanelMode.COLLAPSED, FloatingVoiceState.SPEAKING))
+        assertEquals(FloatingViewStyle(0xFFE879F9.toInt(), "JARVIS · SPEAKING"), mapFloatingViewStyle(FloatingPanelMode.COLLAPSED, FloatingVoiceState.SPEAKING))
     }
 
     @Test
