@@ -12,6 +12,7 @@ internal class AgentLoopRunner {
         observe: suspend () -> ScreenObservation,
         plan: suspend (ScreenObservation, AgentTaskSession) -> Result<Action>,
         execute: suspend (Action) -> Boolean,
+        resolveSendPayload: suspend (Action, ScreenObservation) -> SendConfirmationPayload? = { _, _ -> null },
         verify: (Action, ScreenObservation, ScreenObservation, Boolean) -> ActionVerifier.Verification
     ): AgentLoopRunResult {
         val remainingMs = initialSession.deadlineAtMs - nowMs()
@@ -32,13 +33,33 @@ internal class AgentLoopRunner {
         var session = initial
         val pending = session.awaitingConfirmation
         if (pending != null) {
-            if (!approvedConfirmation) return AgentLoopRunResult(AgentLoopStatus.NEEDS_CONFIRMATION, session, confirmationMessage(pending))
-            session = session.resolveConfirmation(true)
-            if (ActionRiskPolicy.isPaymentAction(pending)) return failed(session, BankingSafetyPolicy.userGuidance(BankingSafetyPolicy.BLOCKED_TRANSACTION))
+            if (!approvedConfirmation) return AgentLoopRunResult(
+                AgentLoopStatus.NEEDS_CONFIRMATION, session,
+                confirmationMessage(pending, session.awaitingConfirmationPayload)
+            )
+            if (ActionRiskPolicy.isPaymentAction(pending)) {
+                return failed(session, BankingSafetyPolicy.userGuidance(BankingSafetyPolicy.BLOCKED_TRANSACTION))
+            }
             val before = observe()
+            val approvedPayload = session.awaitingConfirmationPayload
+            if (ActionRiskPolicy.isSendAction(pending)) {
+                if (approvedPayload == null) return failed(session, "Send blocked: recipient and message details could not be verified.")
+                val currentPayload = resolveSendPayload(pending, before)
+                if (!SendConfirmationPolicy.approvalStillValid(approvedPayload, currentPayload)) {
+                    if (currentPayload == null) return failed(session, "Send blocked: recipient or message changed and could not be re-verified.")
+                    val refreshed = session.requireConfirmation(pending, currentPayload)
+                    return AgentLoopRunResult(
+                        AgentLoopStatus.NEEDS_CONFIRMATION, refreshed,
+                        confirmationMessage(pending, currentPayload)
+                    )
+                }
+            }
+            session = session.resolveConfirmation(true)
             val accepted = runCatching { execute(pending) }.getOrDefault(false)
             val after = observe()
-            val checked = verify(pending, before, after, accepted)
+            val checked = if (ActionRiskPolicy.isSendAction(pending)) {
+                ActionVerifier.verifySentMessage(pending, before, after, accepted, approvedPayload!!)
+            } else verify(pending, before, after, accepted)
             if (!checked.verified) return failed(session.markFailed(pending, checked.reason), checked.reason)
             session = session.markCompleted(pending, after.fingerprint)
         } else if (approvedConfirmation) return failed(session, "There is no pending action awaiting confirmation.")
@@ -55,8 +76,12 @@ internal class AgentLoopRunner {
                     "Goal completed; \${session.completedActions.size} action(s) verified.")
             }
             if (ActionRiskPolicy.requiresConfirmation(action)) {
-                val waiting = session.requireConfirmation(action)
-                return AgentLoopRunResult(AgentLoopStatus.NEEDS_CONFIRMATION, waiting, confirmationMessage(action))
+                val payload = if (ActionRiskPolicy.isSendAction(action)) resolveSendPayload(action, before) else null
+                if (ActionRiskPolicy.isSendAction(action) && payload == null) {
+                    return failed(session, "Send blocked: exact recipient, number, and message could not be verified.")
+                }
+                val waiting = session.requireConfirmation(action, payload)
+                return AgentLoopRunResult(AgentLoopStatus.NEEDS_CONFIRMATION, waiting, confirmationMessage(action, payload))
             }
             if (ActionRiskPolicy.isPaymentAction(action) || BankingSafetyPolicy.failureRule(session.goal, listOf(action)) != null) {
                 return failed(session, BankingSafetyPolicy.userGuidance(BankingSafetyPolicy.BLOCKED_TRANSACTION))
@@ -83,7 +108,11 @@ internal class AgentLoopRunner {
             "Reached the \${session.maxActions}-action limit; goal is not confirmed complete."
         ) else failed(session, "Task stopped before goal completion.")
     }
-    private fun confirmationMessage(action: Action): String {
+    private fun confirmationMessage(action: Action, payload: SendConfirmationPayload?): String {
+        if (ActionRiskPolicy.isSendAction(action)) {
+            return payload?.let(SendConfirmationPolicy::confirmationText)
+                ?: "Send blocked: recipient and message details could not be verified."
+        }
         val target = action.text ?: action.hint ?: action.action
         return "Confirmation required before '$target'. Say 'yes confirm' to proceed or 'no cancel' to stop."
     }
