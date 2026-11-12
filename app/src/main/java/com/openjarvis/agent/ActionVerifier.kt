@@ -4,6 +4,32 @@ package com.openjarvis.agent
 internal object ActionVerifier {
     data class Verification(val verified: Boolean, val reason: String)
 
+    fun verifySentMessage(
+        action: Action,
+        before: ScreenObservation,
+        after: ScreenObservation,
+        executionAccepted: Boolean,
+        payload: SendConfirmationPayload
+    ): Verification {
+        if (!executionAccepted) return Verification(false, "Send tap was not accepted; send tap kiya, confirm nahi hua.")
+        if (after.packageName !in setOf("com.whatsapp", "com.whatsapp.w4b")) {
+            return Verification(false, "WhatsApp is not the foreground app; send tap kiya, confirm nahi hua.")
+        }
+        val messageVisible = after.visibleText.contains(payload.message)
+        val composerCleared = after.interactiveElements.lineSequence().any { line ->
+            line.contains("editable", ignoreCase = true) &&
+                (line.contains("hint=Message", ignoreCase = true) ||
+                    line.contains("id=com.whatsapp:id/entry", ignoreCase = true)) &&
+                !line.contains("text=${payload.message}", ignoreCase = true)
+        }
+        val deliveryMarker = Regex("(?i)\\b(sent|delivered|read)\\b").containsMatchIn(after.visibleText)
+        return if (messageVisible && (composerCleared || deliveryMarker)) {
+            Verification(true, "Message is visible in the WhatsApp conversation and the composer is clear.")
+        } else {
+            Verification(false, "send tap kiya, confirm nahi hua")
+        }
+    }
+
     fun verify(
         action: Action,
         before: ScreenObservation,
