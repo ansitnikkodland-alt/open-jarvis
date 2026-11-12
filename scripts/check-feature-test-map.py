@@ -7,7 +7,7 @@ import sys
 ROOT = Path(__file__).resolve().parents[1]
 DOC = ROOT / "FEATURES.md"
 ROW = re.compile(r"^\|\s*[^|]+\|\s*[^|]+\|\s*(.*?)\s*\|$")
-MAPPING = re.compile(r"([^;]+?\.kt)::([A-Za-z_][A-Za-z0-9_]*)")
+MAPPING = re.compile(r"`?([^`;\s]+\.kt)::([A-Za-z_][A-Za-z0-9_]*)")
 
 def main() -> int:
     if not DOC.is_file():
