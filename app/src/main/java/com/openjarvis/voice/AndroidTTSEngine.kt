@@ -171,8 +171,8 @@ internal object TtsVoiceSelectionPolicy {
     private val maleTokens = listOf("male", "man", "david", "mark", "guy", "ravi", "hemant", "madhur")
 
     fun matchesGender(voiceName: String, gender: String): Boolean {
-        val name = voiceName.lowercase()
-        val tokens = if (gender.equals("Male", ignoreCase = true)) maleTokens else femaleTokens
-        return tokens.any { token -> name.contains(token) }
+        val nameTokens = voiceName.lowercase().split(Regex("[^a-z0-9]+"))
+        val expected = if (gender.equals("Male", ignoreCase = true)) maleTokens else femaleTokens
+        return nameTokens.any { it in expected }
     }
 }
