@@ -52,7 +52,7 @@ class AgentLoopAcceptanceTest {
             CommandRouter.classify(it) != CommandRouter.Route.NONE
         }
         assertEquals(2, steps.size)
-        assertEquals(CommandRouter.Route.STEP_INTENT, CommandRouter.classify("volume badhao"))
+        assertEquals(CommandRouter.Route.SKILL_REGISTRY, CommandRouter.classify("volume badhao"))
         assertEquals(CommandRouter.Route.STEP_INTENT, CommandRouter.classify("Instagram kholo"))
     }
 
