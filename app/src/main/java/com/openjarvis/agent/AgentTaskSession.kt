@@ -11,6 +11,7 @@ internal data class AgentTaskSession(
     val lastObservationFingerprint: String? = null,
     val lastFailure: String? = null,
     val awaitingConfirmation: Action? = null,
+    val confirmationDeclined: Boolean = false,
     val isComplete: Boolean = false
 ) {
     init {
@@ -21,8 +22,8 @@ internal data class AgentTaskSession(
 
     val remainingActions: Int get() = (maxActions - completedActions.size).coerceAtLeast(0)
     fun isExpired(nowMs: Long): Boolean = nowMs >= deadlineAtMs
-    fun canContinue(nowMs: Long): Boolean = !isComplete && awaitingConfirmation == null &&
-        !isExpired(nowMs) && remainingActions > 0
+    fun canContinue(nowMs: Long): Boolean = !isComplete && !confirmationDeclined &&
+        lastFailure == null && awaitingConfirmation == null && !isExpired(nowMs) && remainingActions > 0
     fun withObservation(fingerprint: String) = copy(lastObservationFingerprint = fingerprint)
     fun withNextAction(action: Action) = copy(pendingAction = action, lastFailure = null)
     fun markCompleted(action: Action, observationFingerprint: String) = copy(
@@ -35,7 +36,8 @@ internal data class AgentTaskSession(
     fun resolveConfirmation(approved: Boolean) = copy(
         pendingAction = if (approved) awaitingConfirmation else null,
         awaitingConfirmation = null,
-        lastFailure = if (approved) null else "User declined confirmation"
+        lastFailure = if (approved) null else "User declined confirmation",
+        confirmationDeclined = !approved
     )
     fun finish() = copy(isComplete = true, pendingAction = null)
 
