@@ -97,9 +97,9 @@ internal object SendConfirmationPolicy {
     }
 
     fun attachmentName(visibleText: String): String? =
-        Regex("""(?i)\b[\p{L}\p{N}_ .-]+\.(?:png|jpe?g|webp|gif|pdf)\b""")
+        Regex("""(?i)\b[\p{L}\p{N}_-]+(?: [\p{L}\p{N}_-]+)*\.(?:png|jpe?g|webp|gif|pdf)\b""")
             .find(visibleText)?.value?.trim()
 
     private fun normalizeName(value: String): String =
-        value.trim().replace(Regex("\s+"), " ").lowercase()
+        value.trim().replace(Regex("\\s+"), " ").lowercase()
 }
