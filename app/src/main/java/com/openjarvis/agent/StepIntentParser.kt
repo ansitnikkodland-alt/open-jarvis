@@ -83,7 +83,7 @@ object StepIntentParser {
         "पाठव", "पाठवा", "पाठवून", "धाड", "धाडा", "धाडून"
     )
     private val TEXT_DELIMS = words("ki", "कि", "that", "saying", "say")
-    private val KO_WORDS = words("ko", "को", "ला")
+    private val KO_WORDS = words("ko", "la", "को", "ला")
     private val MESSAGE_NOISE: Set<String> =
         MESSAGE_WORDS + SEND_WORDS + CONNECTORS + FILLERS + OPEN_VERBS
 
