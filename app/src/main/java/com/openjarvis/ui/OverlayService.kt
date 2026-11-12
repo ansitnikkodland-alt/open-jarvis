@@ -21,12 +21,14 @@ import android.os.Handler
 import android.os.Looper
 import android.provider.Settings
 import android.view.Gravity
+import android.view.KeyEvent
 import android.view.MotionEvent
 import android.view.WindowManager
 import android.view.inputmethod.EditorInfo
 import android.widget.Button
 import android.widget.EditText
 import android.widget.LinearLayout
+import android.widget.PopupMenu
 import android.widget.TextView
 import android.widget.Toast
 import android.text.TextUtils
@@ -42,6 +44,9 @@ import com.openjarvis.graphify.nodes.TaskNode
 import com.openjarvis.voice.VoiceManager
 import com.openjarvis.voice.VoiceSessionState
 import com.openjarvis.ui.home.VoiceUiBridge
+import com.openjarvis.ui.overlay.FloatingPanelMode
+import com.openjarvis.ui.overlay.FloatingVoiceState
+import com.openjarvis.ui.overlay.mapFloatingViewStyle
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -49,6 +54,7 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.launch
+import kotlin.math.sin
 
 class OverlayService : Service() {
     private var windowManager: WindowManager? = null
@@ -57,6 +63,8 @@ class OverlayService : Service() {
     private var commandInput: EditText? = null
     private var statusText: TextView? = null
     private var waveformText: TextView? = null
+    private var orbView: TextView? = null
+    private var voiceStateLabelText: TextView? = null
     private var visualState: String = "IDLE"
     private var waveformFrame: Int = 0
     private val waveformRunnable = object : Runnable {
@@ -203,6 +211,9 @@ class OverlayService : Service() {
         overlayView = null
         visualState = "IDLE"
         mainHandler.removeCallbacks(waveformRunnable)
+        mainHandler.removeCallbacks(orbPulseRunnable)
+        orbView = null
+        voiceStateLabelText = null
         waveformText = null
         voiceManager.stopListening()
         VoiceUiBridge.registerStopCallback(null)
@@ -228,22 +239,33 @@ class OverlayService : Service() {
             // A stale detached View must not block recreation of the floating overlay.
             overlayView = null
             windowManager = getSystemService(WINDOW_SERVICE) as WindowManager
+            val isNightMode = (resources.configuration.uiMode and android.content.res.Configuration.UI_MODE_NIGHT_MASK) == android.content.res.Configuration.UI_MODE_NIGHT_YES
+            val panelBackground = if (isNightMode) Color.rgb(25, 23, 38) else Color.rgb(250, 251, 255)
+            val panelSurface = if (isNightMode) Color.rgb(39, 36, 56) else Color.rgb(237, 240, 248)
+            val panelText = if (isNightMode) Color.WHITE else Color.rgb(28, 31, 43)
+            val panelMutedText = if (isNightMode) Color.LTGRAY else Color.rgb(91, 99, 116)
             val root = LinearLayout(this).apply {
                 orientation = LinearLayout.VERTICAL
-                setPadding(dp(8), dp(8), dp(8), dp(8))
-                minimumWidth = dp(64)
-                minimumHeight = dp(48)
-                background = rounded(Color.rgb(20, 18, 35), 24)
-                elevation = 18f
+                setPadding(0, 0, 0, 0)
+                background = android.graphics.drawable.ColorDrawable(Color.TRANSPARENT)
+                elevation = dp(16).toFloat()
+                isFocusableInTouchMode = true
             }
             val pill = TextView(this).apply {
-                text = "● JARVIS"
-                textSize = 14f
+                text = "J"
+                textSize = 23f
+                typeface = android.graphics.Typeface.DEFAULT_BOLD
                 setTextColor(Color.WHITE)
                 gravity = Gravity.CENTER
-                setPadding(dp(22), dp(14), dp(22), dp(14))
-                background = rounded(Color.rgb(55, 35, 95), 40)
+                background = android.graphics.drawable.GradientDrawable().apply {
+                    shape = android.graphics.drawable.GradientDrawable.OVAL
+                    setColor(mapFloatingViewStyle(FloatingPanelMode.COLLAPSED, FloatingVoiceState.OFF).colorArgb)
+                    setStroke(dp(1), Color.argb(190, 255, 255, 255))
+                }
+                elevation = dp(12).toFloat()
+                contentDescription = "JARVIS floating assistant. Tap to expand, drag to move."
             }
+            orbView = pill
             var downRawX = 0f
             var downRawY = 0f
             var downWindowX = 0
@@ -272,24 +294,73 @@ class OverlayService : Service() {
                         true
                     }
                     MotionEvent.ACTION_UP -> {
-                        if (!dragged) togglePanel()
+                        if (dragged && params != null) {
+                            val screenWidth = resources.displayMetrics.widthPixels
+                            val screenHeight = resources.displayMetrics.heightPixels
+                            val bubbleWidth = dp(64)
+                            val margin = dp(12)
+                            val centerX = screenWidth - params.x - bubbleWidth / 2
+                            params.x = if (centerX < screenWidth / 2) (screenWidth - bubbleWidth - margin).coerceAtLeast(margin) else margin
+                            params.y = params.y.coerceIn(margin, (screenHeight - dp(64) - margin).coerceAtLeast(margin))
+                            runCatching { windowManager?.updateViewLayout(overlayView, params) }
+                        } else if (!dragged) {
+                            togglePanel()
+                        }
                         true
                     }
                     else -> true
                 }
             }
-            root.addView(pill, LinearLayout.LayoutParams(-2, -2))
+            root.addView(pill, LinearLayout.LayoutParams(dp(64), dp(64)))
 
             val commandPanel = LinearLayout(this).apply {
                 orientation = LinearLayout.VERTICAL
                 visibility = android.view.View.GONE
-                setPadding(dp(4), dp(8), dp(4), dp(4))
+                setPadding(dp(12), dp(10), dp(12), dp(10))
+                background = android.graphics.drawable.GradientDrawable().apply {
+                    setColor(panelBackground)
+                    cornerRadius = dp(22).toFloat()
+                    setStroke(dp(1), if (isNightMode) Color.rgb(75, 67, 105) else Color.rgb(204, 210, 226))
+                }
+                elevation = dp(12).toFloat()
             }
+            val header = LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER_VERTICAL
+            }
+            val stateLabel = TextView(this).apply {
+                text = "JARVIS OFF"
+                textSize = 12f
+                typeface = android.graphics.Typeface.DEFAULT_BOLD
+                setTextColor(mapFloatingViewStyle(FloatingPanelMode.EXPANDED, FloatingVoiceState.OFF).colorArgb)
+                setPadding(dp(4), dp(8), dp(4), dp(8))
+            }
+            voiceStateLabelText = stateLabel
+            header.addView(stateLabel, LinearLayout.LayoutParams(0, -2, 1f))
+            val menuButton = TextView(this).apply {
+                text = "⋮"
+                textSize = 24f
+                gravity = Gravity.CENTER
+                setTextColor(panelMutedText)
+                contentDescription = "More assistant options"
+                setPadding(dp(12), dp(2), dp(8), dp(2))
+                setOnClickListener { anchor ->
+                    PopupMenu(this@OverlayService, anchor).apply {
+                        menu.add("Share Diagnostic Report").setOnMenuItemClickListener {
+                            shareLatestDiagnostic()
+                            true
+                        }
+                    }.show()
+                }
+            }
+            header.addView(menuButton, LinearLayout.LayoutParams(dp(44), dp(40)))
+            commandPanel.addView(header)
+
             val status = TextView(this).apply {
                 text = "Ready — type a command or use mic"
                 textSize = 12f
-                setTextColor(Color.LTGRAY)
-                setPadding(dp(8), dp(4), dp(8), dp(4))
+                setTextColor(panelMutedText)
+                setPadding(dp(4), dp(2), dp(4), dp(6))
                 maxLines = 2
                 ellipsize = TextUtils.TruncateAt.END
             }
@@ -307,25 +378,27 @@ class OverlayService : Service() {
                 contentDescription = "JARVIS voice activity waveform"
             }
             waveformText = waveform
-            commandPanel.addView(waveform, LinearLayout.LayoutParams(-1, dp(30)))
+            commandPanel.addView(waveform, LinearLayout.LayoutParams(-1, dp(28)))
 
             val input = EditText(this).apply {
                 hint = "Ask Jarvis to do something…"
                 textSize = 14f
-                setTextColor(Color.WHITE)
-                setHintTextColor(Color.GRAY)
+                setTextColor(panelText)
+                setHintTextColor(panelMutedText)
                 setSingleLine(false)
                 minLines = 1
                 maxLines = 2
                 inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_FLAG_MULTI_LINE
                 imeOptions = EditorInfo.IME_ACTION_SEND
-                setPadding(dp(10), dp(8), dp(10), dp(8))
-                background = rounded(Color.rgb(42, 38, 58), 12)
+                setPadding(dp(12), dp(8), dp(12), dp(8))
+                background = android.graphics.drawable.GradientDrawable().apply {
+                    setColor(panelSurface)
+                    cornerRadius = dp(14).toFloat()
+                    setStroke(dp(1), if (isNightMode) Color.rgb(77, 72, 99) else Color.rgb(210, 216, 230))
+                }
             }
             commandInput = input
 
-            // Keep the text field and both actions in one weighted row. Fixed action
-            // widths prevent clipping on compact (~360dp) displays.
             val actions = LinearLayout(this).apply {
                 orientation = LinearLayout.HORIZONTAL
                 gravity = Gravity.CENTER_VERTICAL
@@ -366,12 +439,6 @@ class OverlayService : Service() {
             actions.addView(mic, LinearLayout.LayoutParams(actionWidth, dp(48)))
             actions.addView(send, LinearLayout.LayoutParams(actionWidth, dp(48)))
             commandPanel.addView(actions, LinearLayout.LayoutParams(-1, -2))
-            val shareReport = Button(this).apply {
-                text = "Share Diagnostic Report"
-                isAllCaps = false
-                setOnClickListener { shareLatestDiagnostic() }
-            }
-            commandPanel.addView(shareReport, LinearLayout.LayoutParams(-1, dp(42)))
             root.addView(commandPanel)
             panel = commandPanel
             isExpanded = false
@@ -383,7 +450,10 @@ class OverlayService : Service() {
                 WindowManager.LayoutParams.WRAP_CONTENT,
                 WindowManager.LayoutParams.WRAP_CONTENT,
                 type,
-                WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
+                WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+                    WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or
+                    WindowManager.LayoutParams.FLAG_WATCH_OUTSIDE_TOUCH or
+                    WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
                 PixelFormat.TRANSLUCENT
             ).apply {
                 gravity = Gravity.TOP or Gravity.END
@@ -393,10 +463,62 @@ class OverlayService : Service() {
             windowParams = params
             windowManager?.addView(root, params)
             overlayView = root
+            root.setOnTouchListener { _, event ->
+                if (event.action == MotionEvent.ACTION_OUTSIDE && isExpanded) {
+                    togglePanel()
+                    true
+                } else false
+            }
+            root.setOnKeyListener { _, keyCode, event ->
+                if (keyCode == KeyEvent.KEYCODE_BACK && event.action == KeyEvent.ACTION_UP && isExpanded) {
+                    togglePanel()
+                    true
+                } else false
+            }
+            applyFloatingStyle()
+            mainHandler.removeCallbacks(orbPulseRunnable)
+            mainHandler.post(orbPulseRunnable)
         } catch (e: Exception) {
             android.util.Log.e("OpenJarvis", "Unable to attach assistant overlay", e)
         } finally {
             overlayAttachmentGate.finish()
+        }
+    }
+
+    private val orbPulseRunnable = object : Runnable {
+        private var phase = 0f
+        override fun run() {
+            val orb = orbView ?: return
+            if (isExpanded || !orb.isAttachedToWindow) return
+            phase += 0.20f
+            val scale = 1f + (0.018f * (0.5f + 0.5f * sin(phase)))
+            orb.scaleX = scale
+            orb.scaleY = scale
+            mainHandler.postDelayed(this, 33L)
+        }
+    }
+
+    private fun currentFloatingVoiceState(): FloatingVoiceState = when (visualState) {
+        "LISTENING" -> FloatingVoiceState.LISTENING
+        "THINKING" -> FloatingVoiceState.THINKING
+        "SPEAKING" -> FloatingVoiceState.SPEAKING
+        else -> FloatingVoiceState.OFF
+    }
+
+    private fun applyFloatingStyle() {
+        val mode = if (isExpanded) FloatingPanelMode.EXPANDED else FloatingPanelMode.COLLAPSED
+        val style = mapFloatingViewStyle(mode, currentFloatingVoiceState())
+        orbView?.apply {
+            background = android.graphics.drawable.GradientDrawable().apply {
+                shape = android.graphics.drawable.GradientDrawable.OVAL
+                setColor(style.colorArgb)
+                setStroke(dp(1), Color.argb(190, 255, 255, 255))
+            }
+            setShadowLayer(dp(12).toFloat(), 0f, 0f, style.colorArgb)
+        }
+        voiceStateLabelText?.apply {
+            text = style.label
+            setTextColor(style.colorArgb)
         }
     }
 
@@ -409,6 +531,7 @@ class OverlayService : Service() {
             else -> VoiceSessionState.Idle
         })
         statusText?.text = label
+        applyFloatingStyle()
         waveformText?.visibility = if (state == "IDLE") android.view.View.GONE else android.view.View.VISIBLE
         mainHandler.removeCallbacks(waveformRunnable)
         if (state != "IDLE") {
@@ -422,18 +545,25 @@ class OverlayService : Service() {
         panel?.visibility = if (isExpanded) android.view.View.VISIBLE else android.view.View.GONE
         windowParams?.let { params ->
             params.width = if (isExpanded) dp(304) else WindowManager.LayoutParams.WRAP_CONTENT
-            // The overlay must never be touch-modal: taps outside the floating panel
-            // must continue to reach the app underneath, even while the input panel is open.
-            // Keep the expanded panel focusable so its EditText can receive keyboard input.
             params.flags = WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or
+                WindowManager.LayoutParams.FLAG_WATCH_OUTSIDE_TOUCH or
                 WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
                 (if (isExpanded) 0 else WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE)
             try { windowManager?.updateViewLayout(overlayView, params) } catch (_: Exception) { }
         }
-        if (isExpanded) commandInput?.requestFocus()
+        applyFloatingStyle()
+        mainHandler.removeCallbacks(orbPulseRunnable)
+        if (isExpanded) {
+            orbView?.scaleX = 1f
+            orbView?.scaleY = 1f
+            commandInput?.requestFocus()
+            overlayView?.requestFocus()
+        } else {
+            mainHandler.post(orbPulseRunnable)
+        }
     }
 
-    private fun enterMuteMode() {
+        private fun enterMuteMode() {
         isMuted = true
         statusText?.text = "COMMAND MUTED — mic active for Unmute; other commands ignored"
         updateNotification("Mic active for Unmute; other commands ignored")
