@@ -34,7 +34,7 @@ object StepIntentParser {
     private val FILLERS = words(
         "karo", "kar", "kro", "kare", "karen", "kardo", "karna", "kijiye",
         "do", "dena", "de", "na", "please", "plz", "pls", "zara", "jara",
-        "mujhe", "mera", "meri", "hume", "lagao", "laga", "lagana", "chalu",
+        "mujhe", "mera", "meri", "hume", "mala", "tula", "maka", "tuka", "male", "tule", "lagao", "laga", "lagana", "chalu",
         "hai", "hain",
         "करो", "कर", "करा", "करना", "कीजिए", "दो", "दे", "द्या", "ना", "प्लीज", "कृपया",
         "ज़रा", "जरा", "मुझे", "मला", "मले", "माले", "माका", "तुका", "तुले", "लगाओ", "लगा", "है", "हैं"
@@ -290,8 +290,8 @@ object StepIntentParser {
         val trailingSequence = OPEN_VERB_SEQUENCES.firstOrNull { sequence ->
             sequence.size <= tokens.size && sequence.indices.all { i -> tokens[tokens.size - sequence.size + i] == sequence[i] }
         }
-        val leadingVerbSize = leadingSequence?.size ?: if (tokens.firstOrNull() in OPEN_VERBS) 1 else 0
-        val trailingVerbSize = trailingSequence?.size ?: if (tokens.lastOrNull() in OPEN_VERBS) 1 else 0
+        val leadingVerbSize = leadingSequence?.size ?: if (tokens.firstOrNull()?.let { it in OPEN_VERBS } == true) 1 else 0
+        val trailingVerbSize = trailingSequence?.size ?: if (tokens.lastOrNull()?.let { it in OPEN_VERBS } == true) 1 else 0
         val leadingVerb = leadingVerbSize > 0
         val trailingVerb = trailingVerbSize > 0
         val hasVerb = leadingVerb || trailingVerb
@@ -300,7 +300,7 @@ object StepIntentParser {
             trailingVerb -> tokens.dropLast(trailingVerbSize).toMutableList()
             else -> tokens.toMutableList()
         }
-        if (hasVerb) while (candidate.firstOrNull() in FILLERS) candidate.removeAt(0)
+        if (hasVerb) while (candidate.firstOrNull()?.let { it in FILLERS } == true) candidate.removeAt(0)
         while (candidate.isNotEmpty()) {
             val suffix = APP_TRAILING_NOISE.firstOrNull { seq ->
                 seq.size <= candidate.size && seq.indices.all { k ->
