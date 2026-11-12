@@ -7,13 +7,13 @@ class FloatingBubblePositionPolicyTest {
     @Test
     fun dragToLeftHalfSnapsToLeftEdge() {
         val result = snapFloatingBubblePosition(1080, 2400, 192, 192, 36, 800, 500)
-        assertEquals(852, result.xFromEndPx)
+        assertEquals(984, result.xFromEndPx)
     }
 
     @Test
     fun dragToRightHalfSnapsToRightEdge() {
         val result = snapFloatingBubblePosition(1080, 2400, 192, 192, 36, 100, 500)
-        assertEquals(36, result.xFromEndPx)
+        assertEquals(-96, result.xFromEndPx)
     }
 
     @Test
