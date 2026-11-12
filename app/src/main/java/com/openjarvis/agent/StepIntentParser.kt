@@ -40,11 +40,11 @@ object StepIntentParser {
         "ज़रा", "जरा", "मुझे", "मला", "मले", "माले", "माका", "तुका", "तुले", "लगाओ", "लगा", "है", "हैं"
     )
     private val OPEN_VERBS = words(
-        "open", "kholo", "khol", "launch", "start", "shuru", "ughad", "ughadun",
+        "open", "kholo", "khol", "launch", "start", "shuru", "ughad", "ughadun", "ugadun",
         "खोलो", "खोल", "उघड", "उघडा", "उघडून", "शुरू"
     )
     private val OPEN_VERB_SEQUENCES = listOf(
-        listOf("ughadun", "de"), listOf("उघडून", "दे"),
+        listOf("ughadun", "de"), listOf("ugadun", "de"), listOf("उघडून", "दे"),
         listOf("ughad", "de"), listOf("उघड", "दे"), listOf("उघड", "ना")
     )
     // Suffixes are removed only from app-launch candidates, never from message text.
