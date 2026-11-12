@@ -29,7 +29,7 @@ object StepIntentParser {
 
     private val CONNECTORS = words(
         "ko", "se", "ka", "ki", "ke", "to", "pe", "par", "on", "in", "at", "for",
-        "liye", "tak", "को", "से", "का", "की", "के", "पर", "पे", "तक", "ला", "वर"
+        "liye", "tak", "la", "को", "से", "का", "की", "के", "पर", "पे", "तक", "ला", "वर"
     )
     private val FILLERS = words(
         "karo", "kar", "kro", "kare", "karen", "kardo", "karna", "kijiye",
