@@ -35,7 +35,30 @@ class NextActionPlannerTest {
         assertTrue(invalid.isFailure)
         val send = planner.chooseNextAction("send message", screen, { _, _ -> null },
             { Result.success("""[{"action":"click","target":"Send"}]""") })
-        assertTrue(send.isFailure)
+        assertTrue(send.isSuccess)
+        assertEquals("Send", send.getOrThrow().text)
+    }
+
+    @Test fun modelGeneratedSendTapRequiresRunnerConfirmationBeforeExecution() = runBlocking {
+        val runner = AgentLoopRunner()
+        listOf("Send", "Send message").forEach { target ->
+            var executions = 0
+            val planned = planner.chooseNextAction("send message", screen, { _, _ -> null },
+                { Result.success("""[{"action":"click","target":"$target"}]""") })
+            val action = planned.getOrThrow()
+            assertTrue(AgentPlanPolicy.hasMessageSendTap(listOf(action)))
+            assertFalse(AgentPlanPolicy.isExecutablePlan(listOf(action), "send message"))
+            val result = runner.run(
+                AgentTaskSession("send message", 0),
+                nowMs = { 1 },
+                observe = { screen.copy(visibleText = "Message composer") },
+                plan = { _, _ -> Result.success(action) },
+                execute = { executions++; true },
+                verify = { a, before, after, accepted -> ActionVerifier.verify(a, before, after, accepted, a.packageName) }
+            )
+            assertEquals(AgentLoopStatus.NEEDS_CONFIRMATION, result.status)
+            assertEquals(0, executions)
+        }
     }
 
     @Test fun firstVideoGoalIsYoutubeSpecificAndNeverMaps() {
