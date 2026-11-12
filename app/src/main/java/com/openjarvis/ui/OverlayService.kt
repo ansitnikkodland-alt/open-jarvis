@@ -13,6 +13,11 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.content.pm.ServiceInfo
 import android.graphics.Color
+import android.graphics.Canvas
+import android.graphics.Paint
+import android.graphics.RectF
+import android.graphics.LinearGradient
+import android.graphics.Shader
 import android.graphics.PixelFormat
 import android.graphics.drawable.GradientDrawable
 import android.os.Build
@@ -21,11 +26,12 @@ import android.os.Handler
 import android.os.Looper
 import android.provider.Settings
 import android.view.Gravity
+import android.view.HapticFeedbackConstants
 import android.view.KeyEvent
 import android.view.MotionEvent
 import android.view.WindowManager
+import android.view.View
 import android.view.inputmethod.EditorInfo
-import android.widget.Button
 import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.PopupMenu
@@ -56,6 +62,8 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.launch
 import kotlin.math.sin
+import kotlin.math.cos
+import android.view.animation.OvershootInterpolator
 
 class OverlayService : Service() {
     private var windowManager: WindowManager? = null
@@ -63,7 +71,7 @@ class OverlayService : Service() {
     private var windowParams: WindowManager.LayoutParams? = null
     private var commandInput: EditText? = null
     private var statusText: TextView? = null
-    private var waveformText: TextView? = null
+    private var waveformText: View? = null
     private var orbView: TextView? = null
     private var voiceStateLabelText: TextView? = null
     private var visualState: String = "IDLE"
@@ -72,9 +80,9 @@ class OverlayService : Service() {
         override fun run() {
             val view = waveformText ?: return
             if (visualState == "IDLE") return
-            val frames = arrayOf("▁ ▃ ▆ ▄ ▂", "▃ ▆ ▄ ▂ ▅", "▆ ▄ ▂ ▅ ▃", "▄ ▂ ▅ ▃ ▆")
-            view.text = frames[waveformFrame++ % frames.size]
-            mainHandler.postDelayed(this, if (visualState == "THINKING") 420L else 150L)
+            view.invalidate()
+            waveformFrame++
+            mainHandler.postDelayed(this, 33L)
         }
     }
     private var panel: LinearLayout? = null
@@ -241,10 +249,10 @@ class OverlayService : Service() {
             overlayView = null
             windowManager = getSystemService(WINDOW_SERVICE) as WindowManager
             val isNightMode = (resources.configuration.uiMode and android.content.res.Configuration.UI_MODE_NIGHT_MASK) == android.content.res.Configuration.UI_MODE_NIGHT_YES
-            val panelBackground = if (isNightMode) Color.rgb(25, 23, 38) else Color.rgb(250, 251, 255)
-            val panelSurface = if (isNightMode) Color.rgb(39, 36, 56) else Color.rgb(237, 240, 248)
-            val panelText = if (isNightMode) Color.WHITE else Color.rgb(28, 31, 43)
-            val panelMutedText = if (isNightMode) Color.LTGRAY else Color.rgb(91, 99, 116)
+            val panelBackground = if (isNightMode) Color.argb(238, 17, 20, 34) else Color.argb(246, 247, 251, 255)
+            val panelSurface = if (isNightMode) Color.argb(210, 37, 42, 61) else Color.argb(225, 255, 255, 255)
+            val panelText = if (isNightMode) Color.WHITE else Color.rgb(24, 29, 44)
+            val panelMutedText = if (isNightMode) Color.rgb(190, 199, 218) else Color.rgb(91, 101, 122)
             val root = LinearLayout(this).apply {
                 orientation = LinearLayout.VERTICAL
                 setPadding(0, 0, 0, 0)
@@ -252,18 +260,8 @@ class OverlayService : Service() {
                 elevation = dp(16).toFloat()
                 isFocusableInTouchMode = true
             }
-            val pill = TextView(this).apply {
-                text = "J"
-                textSize = 23f
-                typeface = android.graphics.Typeface.DEFAULT_BOLD
-                setTextColor(Color.WHITE)
-                gravity = Gravity.CENTER
-                background = android.graphics.drawable.GradientDrawable().apply {
-                    shape = android.graphics.drawable.GradientDrawable.OVAL
-                    setColor(mapFloatingViewStyle(FloatingPanelMode.COLLAPSED, FloatingVoiceState.OFF).colorArgb)
-                    setStroke(dp(1), Color.argb(190, 255, 255, 255))
-                }
-                elevation = dp(12).toFloat()
+            val pill = ArcReactorOrbView(this).apply {
+                elevation = dp(14).toFloat()
                 contentDescription = "JARVIS floating assistant. Tap to expand, drag to move."
             }
             orbView = pill
@@ -308,6 +306,7 @@ class OverlayService : Service() {
                             params.x = snapped.xFromEndPx
                             params.y = snapped.topPx
                             runCatching { windowManager?.updateViewLayout(overlayView, params) }
+                            pill.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
                         } else if (!dragged) {
                             togglePanel()
                         }
@@ -322,10 +321,15 @@ class OverlayService : Service() {
                 orientation = LinearLayout.VERTICAL
                 visibility = android.view.View.GONE
                 setPadding(dp(12), dp(10), dp(12), dp(10))
-                background = android.graphics.drawable.GradientDrawable().apply {
-                    setColor(panelBackground)
-                    cornerRadius = dp(22).toFloat()
-                    setStroke(dp(1), if (isNightMode) Color.rgb(75, 67, 105) else Color.rgb(204, 210, 226))
+                background = android.graphics.drawable.GradientDrawable(
+                    android.graphics.drawable.GradientDrawable.Orientation.TOP_BOTTOM,
+                    intArrayOf(
+                        if (isNightMode) Color.argb(246, 43, 43, 67) else Color.argb(248, 255, 255, 255),
+                        if (isNightMode) Color.argb(238, 18, 22, 38) else Color.argb(244, 232, 239, 250)
+                    )
+                ).apply {
+                    cornerRadius = dp(24).toFloat()
+                    setStroke(dp(1), if (isNightMode) Color.argb(150, 145, 132, 205) else Color.argb(170, 255, 255, 255))
                 }
                 elevation = dp(12).toFloat()
             }
@@ -334,8 +338,9 @@ class OverlayService : Service() {
                 gravity = Gravity.CENTER_VERTICAL
             }
             val stateLabel = TextView(this).apply {
-                text = "JARVIS OFF"
-                textSize = 12f
+                text = "●  J A R V I S   O F F"
+                textSize = 10f
+                letterSpacing = 0.10f
                 typeface = android.graphics.Typeface.DEFAULT_BOLD
                 setTextColor(mapFloatingViewStyle(FloatingPanelMode.EXPANDED, FloatingVoiceState.OFF).colorArgb)
                 setPadding(dp(4), dp(8), dp(4), dp(8))
@@ -372,15 +377,9 @@ class OverlayService : Service() {
             statusText = status
             status.setOnClickListener { copyLatestDebugLog() }
             commandPanel.addView(status)
-            val waveform = TextView(this).apply {
-                text = "▁ ▃ ▆ ▄ ▂"
-                textSize = 19f
-                letterSpacing = 0.16f
-                gravity = Gravity.CENTER
-                setTextColor(Color.rgb(70, 220, 255))
-                setPadding(dp(8), 0, dp(8), dp(2))
-                visibility = android.view.View.GONE
-                contentDescription = "JARVIS voice activity waveform"
+            val waveform = VoiceWaveformView(this).apply {
+                visibility = View.GONE
+                contentDescription = "JARVIS animated voice activity waveform"
             }
             waveformText = waveform
             commandPanel.addView(waveform, LinearLayout.LayoutParams(-1, dp(28)))
@@ -398,8 +397,8 @@ class OverlayService : Service() {
                 setPadding(dp(12), dp(8), dp(12), dp(8))
                 background = android.graphics.drawable.GradientDrawable().apply {
                     setColor(panelSurface)
-                    cornerRadius = dp(14).toFloat()
-                    setStroke(dp(1), if (isNightMode) Color.rgb(77, 72, 99) else Color.rgb(210, 216, 230))
+                    cornerRadius = dp(20).toFloat()
+                    setStroke(dp(1), if (isNightMode) Color.argb(145, 134, 137, 176) else Color.argb(170, 190, 202, 225))
                 }
             }
             commandInput = input
@@ -416,11 +415,18 @@ class OverlayService : Service() {
                 minimumHeight = dp(52)
             }
             actions.addView(input, LinearLayout.LayoutParams(0, dp(52), 1f))
-            val mic = Button(this).apply {
-                text = "Mic"
-                isAllCaps = false
-                minWidth = 0
-                setPadding(0, 0, 0, 0)
+            val mic = TextView(this).apply {
+                text = "●"
+                textSize = 20f
+                gravity = Gravity.CENTER
+                setTextColor(Color.WHITE)
+                contentDescription = "Mic"
+                background = android.graphics.drawable.GradientDrawable().apply {
+                    shape = android.graphics.drawable.GradientDrawable.OVAL
+                    setColor(mapFloatingViewStyle(FloatingPanelMode.EXPANDED, FloatingVoiceState.OFF).colorArgb)
+                    setStroke(dp(1), Color.argb(150, 255, 255, 255))
+                }
+                elevation = dp(5).toFloat()
                 setOnClickListener {
                     if (ContextCompat.checkSelfPermission(this@OverlayService, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
                         status.text = "Allow microphone permission in Android app settings"
@@ -439,16 +445,23 @@ class OverlayService : Service() {
                     }
                 }
             }
-            val send = Button(this).apply {
-                text = "Send"
-                isAllCaps = false
-                minWidth = 0
-                setPadding(0, 0, 0, 0)
+            val send = TextView(this).apply {
+                text = "↑"
+                textSize = 27f
+                gravity = Gravity.CENTER
+                setTextColor(Color.WHITE)
+                contentDescription = "Send command"
+                background = android.graphics.drawable.GradientDrawable().apply {
+                    shape = android.graphics.drawable.GradientDrawable.OVAL
+                    setColor(Color.rgb(91, 103, 224))
+                    setStroke(dp(1), Color.argb(160, 255, 255, 255))
+                }
+                elevation = dp(5).toFloat()
                 setOnClickListener { submitCommand() }
             }
             val actionWidth = dp(48)
-            actions.addView(mic, LinearLayout.LayoutParams(actionWidth, dp(48)))
-            actions.addView(send, LinearLayout.LayoutParams(actionWidth, dp(48)))
+            actions.addView(mic, LinearLayout.LayoutParams(actionWidth, dp(48)).apply { leftMargin = dp(6); rightMargin = dp(4) })
+            actions.addView(send, LinearLayout.LayoutParams(actionWidth, dp(48)).apply { leftMargin = dp(4) })
             commandPanel.addView(actions, LinearLayout.LayoutParams(-1, -2))
             root.addView(commandPanel, LinearLayout.LayoutParams(-1, -2))
             panel = commandPanel
@@ -468,6 +481,10 @@ class OverlayService : Service() {
                 PixelFormat.TRANSLUCENT
             ).apply {
                 gravity = Gravity.TOP or Gravity.END
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                    flags = flags or WindowManager.LayoutParams.FLAG_BLUR_BEHIND
+                    blurBehindRadius = dp(22)
+                }
                 x = 16
                 y = 220
             }
@@ -502,6 +519,7 @@ class OverlayService : Service() {
             val orb = orbView ?: return
             if (isExpanded || !orb.isAttachedToWindow) return
             phase += 0.20f
+            (orb as? ArcReactorOrbView)?.setPulse(phase)
             val scale = 1f + (0.018f * (0.5f + 0.5f * sin(phase)))
             orb.scaleX = scale
             orb.scaleY = scale
@@ -519,15 +537,8 @@ class OverlayService : Service() {
     private fun applyFloatingStyle() {
         val mode = if (isExpanded) FloatingPanelMode.EXPANDED else FloatingPanelMode.COLLAPSED
         val style = mapFloatingViewStyle(mode, currentFloatingVoiceState())
-        orbView?.apply {
-            contentDescription = "${style.label}. Tap to expand, drag to move."
-            background = android.graphics.drawable.GradientDrawable().apply {
-                shape = android.graphics.drawable.GradientDrawable.OVAL
-                setColor(style.colorArgb)
-                setStroke(dp(1), Color.argb(190, 255, 255, 255))
-            }
-            setShadowLayer(dp(12).toFloat(), 0f, 0f, style.colorArgb)
-        }
+        (orbView as? ArcReactorOrbView)?.setStateColor(style.colorArgb)
+        orbView?.contentDescription = "${style.label}. Tap to expand, drag to move."
         voiceStateLabelText?.apply {
             text = style.label
             setTextColor(style.colorArgb)
@@ -544,7 +555,8 @@ class OverlayService : Service() {
         })
         statusText?.text = label
         applyFloatingStyle()
-        waveformText?.visibility = if (state == "IDLE") android.view.View.GONE else android.view.View.VISIBLE
+        waveformText?.visibility = if (state == "IDLE") View.GONE else View.VISIBLE
+        (waveformText as? VoiceWaveformView)?.setVoiceColor(mapFloatingViewStyle(FloatingPanelMode.EXPANDED, currentFloatingVoiceState()).colorArgb)
         mainHandler.removeCallbacks(waveformRunnable)
         if (state != "IDLE") {
             waveformFrame = 0
@@ -565,11 +577,22 @@ class OverlayService : Service() {
         }
         applyFloatingStyle()
         mainHandler.removeCallbacks(orbPulseRunnable)
+        val animatedRoot = overlayView
         if (isExpanded) {
-            orbView?.scaleX = 1f
-            orbView?.scaleY = 1f
+            animatedRoot?.animate()?.cancel()
+            animatedRoot?.scaleX = 0.90f
+            animatedRoot?.scaleY = 0.90f
+            animatedRoot?.alpha = 0.72f
+            animatedRoot?.animate()?.scaleX(1f)?.scaleY(1f)?.alpha(1f)
+                ?.setDuration(260L)?.setInterpolator(OvershootInterpolator(0.72f))?.start()
             commandInput?.requestFocus()
         } else {
+            animatedRoot?.animate()?.cancel()
+            animatedRoot?.scaleX = 0.94f
+            animatedRoot?.scaleY = 0.94f
+            animatedRoot?.alpha = 0.82f
+            animatedRoot?.animate()?.scaleX(1f)?.scaleY(1f)?.alpha(1f)
+                ?.setDuration(210L)?.setInterpolator(OvershootInterpolator(0.55f))?.start()
             mainHandler.post(orbPulseRunnable)
         }
     }
@@ -660,6 +683,83 @@ class OverlayService : Service() {
         val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
         clipboard.setPrimaryClip(ClipData.newPlainText("JARVIS Debug Log", report))
         Toast.makeText(this, "Debug log copied. Paste it here in ChatGPT.", Toast.LENGTH_LONG).show()
+    }
+
+    private inner class ArcReactorOrbView(context: Context) : TextView(context) {
+        private val ringPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE; strokeCap = Paint.Cap.ROUND }
+        private val corePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.FILL }
+        private var stateColor: Int = 0xFF87909F.toInt()
+        private var pulse = 0f
+
+        init {
+            setText("J")
+            textSize = 17f
+            typeface = android.graphics.Typeface.create("sans-serif-medium", android.graphics.Typeface.BOLD)
+            setTextColor(Color.WHITE)
+            gravity = Gravity.CENTER
+            setLayerType(View.LAYER_TYPE_SOFTWARE, null)
+            background = null
+        }
+
+        fun setStateColor(color: Int) {
+            stateColor = color
+            invalidate()
+        }
+
+        fun setPulse(value: Float) {
+            pulse = value
+            invalidate()
+        }
+
+        override fun onDraw(canvas: Canvas) {
+            val cx = width / 2f
+            val cy = height / 2f
+            val radius = minOf(width, height) * 0.46f
+            val disk = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                shader = LinearGradient(0f, 0f, width.toFloat(), height.toFloat(),
+                    intArrayOf(0xEE252B3C.toInt(), 0xF20D1220.toInt(), 0xE91B2032.toInt()),
+                    null, Shader.TileMode.CLAMP)
+            }
+            canvas.drawCircle(cx, cy, radius, disk)
+            ringPaint.color = Color.argb(45, 255, 255, 255)
+            ringPaint.strokeWidth = dp(1).toFloat()
+            canvas.drawCircle(cx, cy, radius * 0.84f, ringPaint)
+            ringPaint.color = Color.argb(55, Color.red(stateColor), Color.green(stateColor), Color.blue(stateColor))
+            ringPaint.strokeWidth = dp(5).toFloat()
+            canvas.drawCircle(cx, cy, radius * (0.64f + pulse * 0.015f), ringPaint)
+            ringPaint.color = stateColor
+            ringPaint.strokeWidth = dp(2).toFloat()
+            val arc = RectF(cx - radius * 0.66f, cy - radius * 0.66f, cx + radius * 0.66f, cy + radius * 0.66f)
+            canvas.drawArc(arc, -88f + pulse * 12f, 108f, false, ringPaint)
+            canvas.drawArc(arc, 62f + pulse * 12f, 76f, false, ringPaint)
+            canvas.drawArc(arc, 188f + pulse * 12f, 54f, false, ringPaint)
+            corePaint.color = Color.argb(190, Color.red(stateColor), Color.green(stateColor), Color.blue(stateColor))
+            canvas.drawCircle(cx, cy, radius * 0.12f, corePaint)
+            super.onDraw(canvas)
+        }
+    }
+
+    private inner class VoiceWaveformView(context: Context) : View(context) {
+        private val barPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.FILL; strokeCap = Paint.Cap.ROUND }
+        private var voiceColor = 0xFF31D8E8.toInt()
+        fun setVoiceColor(color: Int) { voiceColor = color; invalidate() }
+        override fun onDraw(canvas: Canvas) {
+            super.onDraw(canvas)
+            val count = 27
+            val gap = dp(4).toFloat()
+            val barWidth = dp(2).toFloat()
+            val total = count * barWidth + (count - 1) * gap
+            val startX = (width - total) / 2f
+            val centerY = height / 2f
+            val t = System.nanoTime() / 1_000_000_000.0
+            barPaint.color = voiceColor
+            for (i in 0 until count) {
+                val wave = 0.18 + 0.82 * (0.5 + 0.5 * sin(t * 3.0 + i * 0.47))
+                val h = (dp(4) + dp(18) * wave).toFloat()
+                val x = startX + i * (barWidth + gap)
+                canvas.drawRoundRect(x, centerY - h / 2f, x + barWidth, centerY + h / 2f, barWidth, barWidth, barPaint)
+            }
+        }
     }
 
     private fun dp(value: Int): Int = (value * resources.displayMetrics.density).toInt()
