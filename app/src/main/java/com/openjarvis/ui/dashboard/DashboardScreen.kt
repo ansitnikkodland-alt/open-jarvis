@@ -3,6 +3,7 @@ package com.openjarvis.ui.dashboard
 import android.Manifest
 import android.content.pm.PackageManager
 import android.os.Build
+import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.ContextCompat
@@ -47,7 +48,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.openjarvis.agent.JarvisPersonalityStore
-import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.compose.ui.graphics.drawscope.DrawScope
@@ -186,14 +187,23 @@ fun DashboardScreen(
 @Composable
 private fun OrbBackground() {
     var frame by remember { mutableIntStateOf(0) }
-    var resumed by remember { mutableStateOf(true) }
-    val lifecycleOwner = LocalLifecycleOwner.current
+    val activity = LocalContext.current as? ComponentActivity
+    val lifecycleOwner = activity as? LifecycleOwner
+    var resumed by remember(activity) {
+        mutableStateOf(
+            lifecycleOwner?.lifecycle?.currentState?.isAtLeast(Lifecycle.State.RESUMED) ?: true
+        )
+    }
     DisposableEffect(lifecycleOwner) {
-        val observer = LifecycleEventObserver { _, event ->
-            resumed = event == Lifecycle.Event.ON_RESUME
+        if (lifecycleOwner == null) {
+            onDispose { }
+        } else {
+            val observer = LifecycleEventObserver { _, event ->
+                resumed = event == Lifecycle.Event.ON_RESUME
+            }
+            lifecycleOwner.lifecycle.addObserver(observer)
+            onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
         }
-        lifecycleOwner.lifecycle.addObserver(observer)
-        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
     LaunchedEffect(resumed) {
         if (resumed) {
