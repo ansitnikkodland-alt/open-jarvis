@@ -1340,6 +1340,60 @@ ${fullSystem.substringAfter("MEMORY:")}
         appAnalyzer.getAICount()
 
 
+    private fun resolveSendConfirmationPayload(
+        command: String,
+        action: Action,
+        observation: ScreenObservation
+    ): SendConfirmationPayload? {
+        if (!ActionRiskPolicy.isSendAction(action)) return null
+        if (observation.packageName !in setOf("com.whatsapp", "com.whatsapp.w4b")) return null
+        if (context.checkSelfPermission(android.Manifest.permission.READ_CONTACTS) != PackageManager.PERMISSION_GRANTED) {
+            return null
+        }
+        val requestedName = SendConfirmationPolicy.requestedRecipientName(command) ?: return null
+        val exactVisibleName = Regex(
+            "(?i)(?<![\\\\p{L}\\\\p{N}])${Regex.escape(requestedName)}(?![\\\\p{L}\\\\p{N}])"
+        ).containsMatchIn(observation.visibleText)
+        if (!exactVisibleName) return null
+
+        val candidates = mutableListOf<ContactCandidate>()
+        val projection = arrayOf(
+            ContactsContract.CommonDataKinds.Phone.CONTACT_ID,
+            ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME,
+            ContactsContract.CommonDataKinds.Phone.NUMBER
+        )
+        val selection = "${ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME} = ?"
+        context.contentResolver.query(
+            ContactsContract.CommonDataKinds.Phone.CONTENT_URI,
+            projection,
+            selection,
+            arrayOf(requestedName),
+            null
+        )?.use { cursor ->
+            val idColumn = cursor.getColumnIndexOrThrow(ContactsContract.CommonDataKinds.Phone.CONTACT_ID)
+            val nameColumn = cursor.getColumnIndexOrThrow(ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME)
+            val numberColumn = cursor.getColumnIndexOrThrow(ContactsContract.CommonDataKinds.Phone.NUMBER)
+            while (cursor.moveToNext()) {
+                candidates += ContactCandidate(
+                    contactId = cursor.getString(idColumn).orEmpty(),
+                    displayName = cursor.getString(nameColumn).orEmpty(),
+                    phoneNumber = cursor.getString(numberColumn).orEmpty()
+                )
+            }
+        } ?: return null
+
+        val recipient = SendConfirmationPolicy.resolveExactContact(requestedName, candidates)
+            as? ExactContactMatch.Unique ?: return null
+        val message = SendConfirmationPolicy.composerMessage(observation.interactiveElements) ?: return null
+        return SendConfirmationPayload(
+            recipientContactId = recipient.contactId,
+            recipientName = recipient.displayName,
+            phoneLastFour = recipient.phoneLastFour,
+            message = message,
+            attachmentName = SendConfirmationPolicy.attachmentName(observation.visibleText)
+        )
+    }
+
     private suspend fun runGeneralAgentLoop(command: String, initialSession: AgentTaskSession?, approvedConfirmation: Boolean) {
         val startedAt = System.currentTimeMillis()
         val initial = initialSession ?: AgentTaskSession(command, startedAt)
@@ -1382,6 +1436,7 @@ ${snapshot.interactiveElements.take(3500)}
                 }
             },
             execute = { action -> executeActions(listOf(action)).succeeded },
+            resolveSendPayload = { action, snapshot -> resolveSendConfirmationPayload(command, action, snapshot) },
             verify = { action, before, after, accepted -> ActionVerifier.verify(action, before, after, accepted, action.packageName) }
         )
         when (result.status) {
