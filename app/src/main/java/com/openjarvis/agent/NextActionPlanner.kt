@@ -76,7 +76,7 @@ internal object DeterministicUiActionResolver {
             val target = observation.interactiveElements.lineSequence()
                 .filter { it.contains("clickable", ignoreCase = true) }
                 .mapNotNull(::visibleTargetFromLine)
-                .firstOrNull() ?: return null
+                .firstOrNull { !isNavigationLabel(it) } ?: return null
             return Action(action = Action.CLICK, text = target)
         }
         val searchTap = Regex(
@@ -96,8 +96,14 @@ internal object DeterministicUiActionResolver {
     }
 
     private fun visibleTargetFromLine(line: String): String? {
-        val text = Regex("""text=([^ ]+)""").find(line)?.groupValues?.get(1)
+        val text = Regex("""text=(.+?)(?:\\s+(?:desc=|hint=|id=|class=|bounds=)|$)""")
+            .find(line)?.groupValues?.get(1)?.trim()
         if (!text.isNullOrBlank()) return text
-        return Regex("""desc=([^ ]+)""").find(line)?.groupValues?.get(1)
+        return Regex("""desc=(.+?)(?:\\s+(?:hint=|id=|class=|bounds=)|$)""")
+            .find(line)?.groupValues?.get(1)?.trim()
     }
+
+    private fun isNavigationLabel(value: String): Boolean =
+        Regex("(?i)^(home|shorts|subscriptions|library|search|create|notifications|profile|account|settings|back|menu)$")
+            .matches(value.trim())
 }

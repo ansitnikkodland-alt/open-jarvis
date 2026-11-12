@@ -36,7 +36,7 @@ internal class AgentLoopRunner {
             session = session.resolveConfirmation(true)
             if (ActionRiskPolicy.isPaymentAction(pending)) return failed(session, BankingSafetyPolicy.userGuidance(BankingSafetyPolicy.BLOCKED_TRANSACTION))
             val before = observe()
-            val accepted = execute(pending)
+            val accepted = runCatching { execute(pending) }.getOrDefault(false)
             val after = observe()
             val checked = verify(pending, before, after, accepted)
             if (!checked.verified) return failed(session.markFailed(pending, checked.reason), checked.reason)
@@ -67,7 +67,7 @@ internal class AgentLoopRunner {
             val maxAttempts = ActionRetryPolicy.maxAttempts(action)
             while (attempts < maxAttempts) {
                 attempts++
-                val accepted = execute(action)
+                val accepted = runCatching { execute(action) }.getOrDefault(false)
                 val after = observe()
                 verified = verify(action, before, after, accepted)
                 if (verified.verified) { session = session.markCompleted(action, after.fingerprint); break }
