@@ -65,4 +65,22 @@ class SendConfirmationPayloadTest {
         assertTrue(text.contains("Hello"))
         assertTrue(text.contains("anime.png"))
     }
+
+    @Test fun extractsRecipientFromCrossAppCommandAndComposerMessage() {
+        assertEquals(
+            "Dad",
+            SendConfirmationPolicy.requestedRecipientName("Gemini me anime image banao phir WhatsApp me Dad ko bhejo")
+        )
+        assertEquals(
+            "Hello Dad",
+            SendConfirmationPolicy.composerMessage("[#2 editable] text=Hello Dad hint=Message class=EditText bounds=0,0,1,1")
+        )
+        assertEquals("anime.png", SendConfirmationPolicy.attachmentName("Preview anime.png Remove"))
+    }
+
+    @Test fun composerMessageMustBeUnambiguous() {
+        assertNull(SendConfirmationPolicy.composerMessage(
+            "[#1 editable] text=Hello hint=Message\\n[#2 editable] text=Other hint=Search"
+        ))
+    }
 }
