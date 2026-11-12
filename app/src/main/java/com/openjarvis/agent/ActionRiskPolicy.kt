@@ -6,6 +6,11 @@ internal object ActionRiskPolicy {
         if (action.action !in setOf(Action.CLICK, Action.TAP)) return false
         return irreversibleTarget.containsMatchIn(listOfNotNull(action.text, action.hint, action.value).joinToString(" "))
     }
+    fun isSendAction(action: Action): Boolean {
+        if (action.action !in setOf(Action.CLICK, Action.TAP)) return false
+        return Regex("(?<![\\\\p{L}\\\\p{N}])(send|send message|send now)(?![\\\\p{L}\\\\p{N}])", RegexOption.IGNORE_CASE)
+            .containsMatchIn(listOfNotNull(action.text, action.hint, action.value).joinToString(" "))
+    }
     fun isPaymentAction(action: Action): Boolean {
         if (action.action !in setOf(Action.CLICK, Action.TAP, Action.TYPE, Action.TYPE_TEXT)) return false
         val target = listOfNotNull(action.text, action.hint, action.value).joinToString(" ")
