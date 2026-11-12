@@ -78,11 +78,19 @@ internal object SendConfirmationPolicy {
     fun confirmationText(payload: SendConfirmationPayload): String = payload.confirmationText()
 
     fun requestedRecipientName(command: String): String? {
+        val withoutNumberSelector = command.replace(
+            Regex("""(?i)\s+(?:(?:phone|number)\s+)?(?:ending|last four|last digits)\s+\d{4}"""),
+            ""
+        )
         val match = Regex(
             """(?i)\b(?:me|par|to|for)\s+([\p{L}][\p{L}\p{N} .'-]{0,30}?)\s+ko\b"""
-        ).findAll(command).lastOrNull() ?: return null
+        ).findAll(withoutNumberSelector).lastOrNull() ?: return null
         return match.groupValues[1].trim().takeIf { it.isNotBlank() }
     }
+
+    fun requestedPhoneLastFour(command: String): String? =
+        Regex("""(?i)(?:(?:phone|number)\s+)?(?:ending|last four|last digits)\s+(\d{4})""")
+            .find(command)?.groupValues?.get(1)
 
     fun composerMessage(interactiveElements: String): String? {
         val values = interactiveElements.lineSequence()
