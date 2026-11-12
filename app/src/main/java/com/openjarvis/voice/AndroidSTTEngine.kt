@@ -191,7 +191,7 @@ class AndroidSTTEngine(private val context: Context) : STTEngine {
                     "screen ka photo lo", "screen photo lo", "screen shot lo", "take screenshot",
                     "capture screen", "स्क्रीन का फोटो लो", "स्क्रीनशॉट लो", "स्क्रीनचा फोटो काढ",
                     "पडद्याचा फोटो काढा", "read screen", "screen par kya hai"
-                ).apply { addAll(VoiceControlVocabulary.recognitionPhrases) }
+                ).apply {\n                    addAll(VoiceControlVocabulary.recognitionPhrases)\n                    addAll(MaharashtraSpeechProfile.recognitionHints)\n                }
             )
             putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 5)
             putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
