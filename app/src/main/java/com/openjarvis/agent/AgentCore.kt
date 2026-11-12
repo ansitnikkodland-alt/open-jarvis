@@ -85,6 +85,7 @@ class AgentCore(private val context: Context) {
     // Carries app/contact/message/group context between deterministic pipeline turns.
     private var actionStepContext = StepContext()
     private var pendingAgentLoopSession: AgentTaskSession? = null
+    private var pendingSendSafetyPrompt: String? = null
 
     private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
     private val taskMutex = Mutex()
@@ -1351,6 +1352,7 @@ ${fullSystem.substringAfter("MEMORY:")}
             return null
         }
         val requestedName = SendConfirmationPolicy.requestedRecipientName(command) ?: return null
+        val requestedLastFour = SendConfirmationPolicy.requestedPhoneLastFour(command)
         val exactVisibleName = Regex(
             "(?i)(?<![\\p{L}\\p{N}])${Regex.escape(requestedName)}(?![\\p{L}\\p{N}])"
         ).containsMatchIn(observation.visibleText)
@@ -1382,8 +1384,35 @@ ${fullSystem.substringAfter("MEMORY:")}
             }
         } ?: return null
 
-        val recipient = SendConfirmationPolicy.resolveExactContact(requestedName, candidates)
-            as? ExactContactMatch.Unique ?: return null
+        val filteredCandidates = requestedLastFour?.let { suffix ->
+            candidates.filter { it.phoneNumber.filter(Char::isDigit).endsWith(suffix) }
+        } ?: candidates
+        when (val match = SendConfirmationPolicy.resolveExactContact(requestedName, filteredCandidates)) {
+            is ExactContactMatch.Unique -> {
+                val message = SendConfirmationPolicy.composerMessage(observation.interactiveElements) ?: return null
+                return SendConfirmationPayload(
+                    recipientContactId = match.contactId,
+                    recipientName = match.displayName,
+                    phoneLastFour = match.phoneLastFour,
+                    message = message,
+                    attachmentName = SendConfirmationPolicy.attachmentName(observation.visibleText)
+                )
+            }
+            is ExactContactMatch.Ambiguous -> {
+                val options = filteredCandidates.distinctBy { it.contactId to it.phoneNumber.filter(Char::isDigit) }
+                    .joinToString("; ") { candidate ->
+                        "${candidate.displayName} (number ending ${candidate.phoneNumber.filter(Char::isDigit).takeLast(4)})"
+                    }
+                pendingSendSafetyPrompt =
+                    "I found multiple contacts named $requestedName: $options. Please repeat the send command with the exact number ending in its last four digits."
+                return null
+            }
+            ExactContactMatch.NotFound -> {
+                pendingSendSafetyPrompt =
+                    "I could not find one exact contact named $requestedName. Check the contact name and number, then repeat the send command."
+                return null
+            }
+        }
         val message = SendConfirmationPolicy.composerMessage(observation.interactiveElements) ?: return null
         return SendConfirmationPayload(
             recipientContactId = recipient.contactId,
@@ -1395,6 +1424,7 @@ ${fullSystem.substringAfter("MEMORY:")}
     }
 
     private suspend fun runGeneralAgentLoop(command: String, initialSession: AgentTaskSession?, approvedConfirmation: Boolean) {
+        pendingSendSafetyPrompt = null
         val startedAt = System.currentTimeMillis()
         val initial = initialSession ?: AgentTaskSession(command, startedAt)
         val planner = NextActionPlanner()
@@ -1451,9 +1481,13 @@ ${snapshot.interactiveElements.take(3500)}
             }
             AgentLoopStatus.FAILED, AgentLoopStatus.LIMIT_REACHED, AgentLoopStatus.CANCELLED -> {
                 pendingAgentLoopSession = null
-                AgentDiagnostics.record(context, "agent-loop", command, result.message, provider = "AgentLoopRunner", model = "qwen3:1.7b")
-                _state.value = AgentState.Error(result.message)
-                graphifyRepo.logTask(command, "failed (agent loop): ${result.message}", "AgentLoopRunner", System.currentTimeMillis() - startedAt)
+                val safetyPrompt = pendingSendSafetyPrompt
+                pendingSendSafetyPrompt = null
+                val reported = safetyPrompt ?: result.message
+                AgentDiagnostics.record(context, "agent-loop", command, reported, provider = "AgentLoopRunner", model = "qwen3:1.7b")
+                if (safetyPrompt != null) _state.value = AgentState.Done(reported)
+                else _state.value = AgentState.Error(reported)
+                graphifyRepo.logTask(command, "failed (agent loop): $reported", "AgentLoopRunner", System.currentTimeMillis() - startedAt)
             }
         }
     }
