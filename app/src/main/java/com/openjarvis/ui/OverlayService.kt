@@ -74,6 +74,7 @@ class OverlayService : Service() {
     private var waveformText: View? = null
     private var orbView: TextView? = null
     private var voiceStateLabelText: TextView? = null
+    private var micActionButton: TextView? = null
     private var visualState: String = "IDLE"
     private var waveformFrame: Int = 0
     private val waveformRunnable = object : Runnable {
@@ -223,6 +224,7 @@ class OverlayService : Service() {
         mainHandler.removeCallbacks(orbPulseRunnable)
         orbView = null
         voiceStateLabelText = null
+        micActionButton = null
         waveformText = null
         voiceManager.stopListening()
         VoiceUiBridge.registerStopCallback(null)
@@ -416,8 +418,8 @@ class OverlayService : Service() {
             }
             actions.addView(input, LinearLayout.LayoutParams(0, dp(52), 1f))
             val mic = TextView(this).apply {
-                text = "●"
-                textSize = 20f
+                text = "🎙"
+                textSize = 21f
                 gravity = Gravity.CENTER
                 setTextColor(Color.WHITE)
                 contentDescription = "Mic"
@@ -445,6 +447,7 @@ class OverlayService : Service() {
                     }
                 }
             }
+            micActionButton = mic
             val send = TextView(this).apply {
                 text = "↑"
                 textSize = 27f
@@ -542,6 +545,11 @@ class OverlayService : Service() {
         voiceStateLabelText?.apply {
             text = style.label
             setTextColor(style.colorArgb)
+        }
+        micActionButton?.background = android.graphics.drawable.GradientDrawable().apply {
+            shape = android.graphics.drawable.GradientDrawable.OVAL
+            setColor(style.colorArgb)
+            setStroke(dp(1), Color.argb(160, 255, 255, 255))
         }
     }
 
