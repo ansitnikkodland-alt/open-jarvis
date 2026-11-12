@@ -12,7 +12,7 @@ import java.util.UUID
 
 class AndroidTTSEngine(private val context: Context) {
     companion object {
-        fun preview(context: Context, gender: String, text: String, onUnavailable: () -> Unit = {}) {
+        fun preview(context: Context, gender: String, localeTag: String, text: String, onUnavailable: () -> Unit = {}) {
             var previewEngine: TextToSpeech? = null
             previewEngine = TextToSpeech(context.applicationContext) { status ->
                 val engine = previewEngine
@@ -21,9 +21,9 @@ class AndroidTTSEngine(private val context: Context) {
                     onUnavailable()
                     return@TextToSpeech
                 }
-                val locale = Locale.forLanguageTag("hi-IN")
+                val locale = Locale.forLanguageTag(localeTag)
                 val voices = engine.voices.orEmpty().filter {
-                    it.locale.language == "hi" && it.locale.country.equals("IN", true)
+                    it.locale.language == locale.language && it.locale.country.equals("IN", true)
                 }
                 val preferred = voices.filter { TtsVoiceSelectionPolicy.matchesGender(it.name, gender) }
                 val selected = (preferred.ifEmpty { voices })
@@ -123,7 +123,10 @@ class AndroidTTSEngine(private val context: Context) {
         val voices = engine.voices
             ?.filter { it.locale.language == language && it.locale.country.equals("IN", ignoreCase = true) }
             .orEmpty()
-        val preferredGender = voicePreferences.getString("tts_voice_gender", "Female") ?: "Female"
+        val preferredGender = voicePreferences.getString(
+            "tts_voice_gender_$language",
+            voicePreferences.getString("tts_voice_gender", "Female")
+        ) ?: "Female"
         val genderMatched = voices.filter { voice ->
             TtsVoiceSelectionPolicy.matchesGender(voice.name, preferredGender)
         }
