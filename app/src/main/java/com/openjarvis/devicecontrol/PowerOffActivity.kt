@@ -1,6 +1,7 @@
 package com.openjarvis.devicecontrol
 
-import android.app.Activity
+import androidx.activity.ComponentActivity
+import com.openjarvis.BuildConfig
 import android.content.ComponentName
 import android.content.Intent
 import android.content.ServiceConnection
@@ -20,7 +21,7 @@ import rikka.shizuku.Shizuku
  * Finishes the voice-confirmed power-off request using Shizuku.
  * The user must first approve Jarvis in Shizuku; no arbitrary shell command is accepted.
  */
-class PowerOffActivity : Activity() {
+class PowerOffActivity : ComponentActivity() {
 
     private var serviceBound = false
     private var requestListenerRegistered = false
