@@ -77,6 +77,29 @@ internal object SendConfirmationPolicy {
 
     fun confirmationText(payload: SendConfirmationPayload): String = payload.confirmationText()
 
+    fun requestedRecipientName(command: String): String? {
+        val match = Regex(
+            """(?i)\\b(?:me|par|to|for)\\s+([\\p{L}][\\p{L}\\p{N} .'-]{0,30}?)\\s+ko\\b"""
+        ).findAll(command).lastOrNull() ?: return null
+        return match.groupValues[1].trim().takeIf { it.isNotBlank() }
+    }
+
+    fun composerMessage(interactiveElements: String): String? {
+        val values = interactiveElements.lineSequence()
+            .filter { it.contains("editable", ignoreCase = true) }
+            .mapNotNull { line ->
+                Regex("""(?:^|\\s)text=(.+?)(?:\\s+(?:hint=|id=|class=|bounds=)|$)""")
+                    .find(line)?.groupValues?.get(1)?.trim()
+            }
+            .filter { it.isNotBlank() }
+            .toList()
+        return values.singleOrNull()
+    }
+
+    fun attachmentName(visibleText: String): String? =
+        Regex("""(?i)\\b[\\p{L}\\p{N}_ .-]+\\.(?:png|jpe?g|webp|gif|pdf)\\b""")
+            .find(visibleText)?.value?.trim()
+
     private fun normalizeName(value: String): String =
         value.trim().replace(Regex("\\s+"), " ").lowercase()
 }
