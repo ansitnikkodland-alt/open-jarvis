@@ -99,7 +99,9 @@ fun SettingsScreen(
     var savedVisible by remember { mutableStateOf(false) }
     var voiceEnabled by remember { mutableStateOf(voicePrefs.getBoolean("voice_enabled", false)) }
     var speakResults by remember { mutableStateOf(voicePrefs.getBoolean("speak_results", true)) }
-    var ttsVoiceGender by remember { mutableStateOf(voicePrefs.getString("tts_voice_gender", "Female") ?: "Female") }
+    var hindiVoiceGender by remember { mutableStateOf(voicePrefs.getString("tts_voice_gender_hi", "Female") ?: "Female") }
+    var marathiVoiceGender by remember { mutableStateOf(voicePrefs.getString("tts_voice_gender_mr", "Female") ?: "Female") }
+    var englishVoiceGender by remember { mutableStateOf(voicePrefs.getString("tts_voice_gender_en", "Female") ?: "Female") }
     val personalMemoryStore = remember { PersonalMemoryStore(context) }
     val personalityStore = remember { JarvisPersonalityStore(context) }
     var memoryFacts by remember { mutableStateOf(personalMemoryStore.getAll()) }
@@ -401,27 +403,30 @@ fun SettingsScreen(
                     ) {
                         Column(modifier = Modifier.padding(16.dp)) {
                             Text("Jarvis voice", color = VoidColor.TextPrimary, fontSize = 14.sp, fontWeight = FontWeight(600))
-                            Text("Choose Female or Male. Actual variants depend on installed TTS voice data.", color = VoidColor.TextDisabled, fontSize = 11.sp)
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                TextButton(onClick = {
-                                    ttsVoiceGender = "Female"
-                                    voicePrefs.edit().putString("tts_voice_gender", ttsVoiceGender).apply()
-                                }) { Text(if (ttsVoiceGender == "Female") "✓ Female (default)" else "Female") }
-                                TextButton(onClick = {
-                                    ttsVoiceGender = "Male"
-                                    voicePrefs.edit().putString("tts_voice_gender", ttsVoiceGender).apply()
-                                }) { Text(if (ttsVoiceGender == "Male") "✓ Male" else "Male") }
+                            Text("Choose Male or Female separately for each language. Voice gender matching depends on installed engine voice names.", color = VoidColor.TextDisabled, fontSize = 11.sp)
+                            @Composable
+                            fun VoiceLanguagePicker(label: String, locale: String, gender: String, onGender: (String) -> Unit, sample: String) {
+                                Text(label, color = VoidColor.TextPrimary, fontSize = 13.sp, fontWeight = FontWeight(600))
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    TextButton(onClick = {
+                                        onGender("Female")
+                                        voicePrefs.edit().putString("tts_voice_gender_${locale.substringBefore('-')}", "Female").apply()
+                                    }) { Text(if (gender == "Female") "✓ Female" else "Female") }
+                                    TextButton(onClick = {
+                                        onGender("Male")
+                                        voicePrefs.edit().putString("tts_voice_gender_${locale.substringBefore('-')}", "Male").apply()
+                                    }) { Text(if (gender == "Male") "✓ Male" else "Male") }
+                                    Spacer(modifier = Modifier.weight(1f))
+                                    TextButton(onClick = {
+                                        com.openjarvis.voice.AndroidTTSEngine.preview(context, gender, locale, sample) {
+                                            Toast.makeText(context, "$label voice preview unavailable. Check installed TTS voice data.", Toast.LENGTH_LONG).show()
+                                        }
+                                    }) { Text("Preview") }
+                                }
                             }
-                            OutlinedButton(
-                                onClick = {
-                                    com.openjarvis.voice.AndroidTTSEngine.preview(
-                                        context, ttsVoiceGender, "नमस्ते! मैं आपकी Jarvis हूँ। कैसे मदद करूँ?"
-                                    ) {
-                                        Toast.makeText(context, "Selected voice preview unavailable. Check installed TTS voices.", Toast.LENGTH_LONG).show()
-                                    }
-                                },
-                                modifier = Modifier.fillMaxWidth()
-                            ) { Text("Preview $ttsVoiceGender voice") }
+                            VoiceLanguagePicker("Hindi", "hi-IN", hindiVoiceGender, { hindiVoiceGender = it }, "नमस्ते! मैं आपकी Jarvis हूँ। कैसे मदद करूँ?")
+                            VoiceLanguagePicker("Marathi", "mr-IN", marathiVoiceGender, { marathiVoiceGender = it }, "नमस्कार! मी तुमची Jarvis आहे. मी कशी मदत करू?")
+                            VoiceLanguagePicker("English (India)", "en-IN", englishVoiceGender, { englishVoiceGender = it }, "Hello! I am your Jarvis. How can I help you?")
                         }
                     }
 
