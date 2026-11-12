@@ -574,7 +574,7 @@ class OverlayService : Service() {
         }
     }
 
-        private fun enterMuteMode() {
+    private fun enterMuteMode() {
         isMuted = true
         statusText?.text = "COMMAND MUTED — mic active for Unmute; other commands ignored"
         updateNotification("Mic active for Unmute; other commands ignored")
