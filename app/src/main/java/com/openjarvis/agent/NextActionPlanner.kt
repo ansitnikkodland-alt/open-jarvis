@@ -87,7 +87,7 @@ internal object DeterministicUiActionResolver {
         ) return Action(action = Action.CLICK, text = "Search")
 
         val indexed = Regex(
-            "(?i)(?:tap|click|dabao|दबाओ)\\s+(?:the\\s+)?(?:first|pehla|पहला)\\s+(?:button|control|item)"
+            "(?i)(?:tap|click|dabao|दबाओ)\s+(?:the\s+)?(?:first|pehla|पहला)\s+(?:button|control|item)"
         )
         if (indexed.containsMatchIn(command) && observation.interactiveElements.isNotBlank()) {
             return Action(action = Action.CLICK, text = "#1")
@@ -96,10 +96,10 @@ internal object DeterministicUiActionResolver {
     }
 
     private fun visibleTargetFromLine(line: String): String? {
-        val text = Regex("""text=(.+?)(?:\\s+(?:desc=|hint=|id=|class=|bounds=)|$)""")
+        val text = Regex("""text=(.+?)(?:\s+(?:desc=|hint=|id=|class=|bounds=)|$)""")
             .find(line)?.groupValues?.get(1)?.trim()
         if (!text.isNullOrBlank()) return text
-        return Regex("""desc=(.+?)(?:\\s+(?:hint=|id=|class=|bounds=)|$)""")
+        return Regex("""desc=(.+?)(?:\s+(?:hint=|id=|class=|bounds=)|$)""")
             .find(line)?.groupValues?.get(1)?.trim()
     }
 
