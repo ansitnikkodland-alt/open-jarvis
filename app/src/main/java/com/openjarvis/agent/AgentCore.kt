@@ -1352,7 +1352,7 @@ ${fullSystem.substringAfter("MEMORY:")}
         }
         val requestedName = SendConfirmationPolicy.requestedRecipientName(command) ?: return null
         val exactVisibleName = Regex(
-            "(?i)(?<![\\\\p{L}\\\\p{N}])${Regex.escape(requestedName)}(?![\\\\p{L}\\\\p{N}])"
+            "(?i)(?<![\\p{L}\\p{N}])${Regex.escape(requestedName)}(?![\\p{L}\\p{N}])"
         ).containsMatchIn(observation.visibleText)
         if (!exactVisibleName) return null
 
