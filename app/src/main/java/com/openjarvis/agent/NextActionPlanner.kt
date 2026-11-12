@@ -87,7 +87,7 @@ internal object DeterministicUiActionResolver {
         ) return Action(action = Action.CLICK, text = "Search")
 
         val indexed = Regex(
-            "(?i)(?:tap|click|dabao|दबाओ)\s+(?:the\s+)?(?:first|pehla|पहला)\s+(?:button|control|item)"
+            "(?i)(?:tap|click|dabao|दबाओ)\\s+(?:the\\s+)?(?:first|pehla|पहला)\\s+(?:button|control|item)"
         )
         if (indexed.containsMatchIn(command) && observation.interactiveElements.isNotBlank()) {
             return Action(action = Action.CLICK, text = "#1")
