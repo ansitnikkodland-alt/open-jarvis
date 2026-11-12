@@ -580,7 +580,8 @@ class OverlayService : Service() {
             params.flags = WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or
                 WindowManager.LayoutParams.FLAG_WATCH_OUTSIDE_TOUCH or
                 WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
-                (if (isExpanded) 0 else WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE)
+                (if (isExpanded) 0 else WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE) or
+                (if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) WindowManager.LayoutParams.FLAG_BLUR_BEHIND else 0)
             try { windowManager?.updateViewLayout(overlayView, params) } catch (_: Exception) { }
         }
         applyFloatingStyle()
