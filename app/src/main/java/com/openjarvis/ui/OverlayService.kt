@@ -450,7 +450,7 @@ class OverlayService : Service() {
             actions.addView(mic, LinearLayout.LayoutParams(actionWidth, dp(48)))
             actions.addView(send, LinearLayout.LayoutParams(actionWidth, dp(48)))
             commandPanel.addView(actions, LinearLayout.LayoutParams(-1, -2))
-            root.addView(commandPanel)
+            root.addView(commandPanel, LinearLayout.LayoutParams(-1, -2))
             panel = commandPanel
             isExpanded = false
 
@@ -520,6 +520,7 @@ class OverlayService : Service() {
         val mode = if (isExpanded) FloatingPanelMode.EXPANDED else FloatingPanelMode.COLLAPSED
         val style = mapFloatingViewStyle(mode, currentFloatingVoiceState())
         orbView?.apply {
+            contentDescription = "${style.label}. Tap to expand, drag to move."
             background = android.graphics.drawable.GradientDrawable().apply {
                 shape = android.graphics.drawable.GradientDrawable.OVAL
                 setColor(style.colorArgb)
