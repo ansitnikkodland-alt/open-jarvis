@@ -1349,14 +1349,21 @@ ${fullSystem.substringAfter("MEMORY:")}
         if (!ActionRiskPolicy.isSendAction(action)) return null
         if (observation.packageName !in setOf("com.whatsapp", "com.whatsapp.w4b")) return null
         if (context.checkSelfPermission(android.Manifest.permission.READ_CONTACTS) != PackageManager.PERMISSION_GRANTED) {
+            pendingSendSafetyPrompt = "Contact permission is required to verify the recipient. Grant Contacts permission, then repeat the send command."
             return null
         }
-        val requestedName = SendConfirmationPolicy.requestedRecipientName(command) ?: return null
+        val requestedName = SendConfirmationPolicy.requestedRecipientName(command) ?: run {
+            pendingSendSafetyPrompt = "I could not identify the exact recipient from the command. Say the contact name clearly, then repeat the send request."
+            return null
+        }
         val requestedLastFour = SendConfirmationPolicy.requestedPhoneLastFour(command)
         val exactVisibleName = Regex(
             "(?i)(?<![\\p{L}\\p{N}])${Regex.escape(requestedName)}(?![\\p{L}\\p{N}])"
         ).containsMatchIn(observation.visibleText)
-        if (!exactVisibleName) return null
+        if (!exactVisibleName) {
+            pendingSendSafetyPrompt = "The WhatsApp chat header does not match $requestedName. Open the exact contact chat, then repeat the send request."
+            return null
+        }
 
         val candidates = mutableListOf<ContactCandidate>()
         val projection = arrayOf(
@@ -1382,20 +1389,31 @@ ${fullSystem.substringAfter("MEMORY:")}
                     phoneNumber = cursor.getString(numberColumn).orEmpty()
                 )
             }
-        } ?: return null
+        } ?: run {
+            pendingSendSafetyPrompt = "Contacts could not be read to verify $requestedName. No message was sent."
+            return null
+        }
 
         val filteredCandidates = requestedLastFour?.let { suffix ->
             candidates.filter { it.phoneNumber.filter(Char::isDigit).endsWith(suffix) }
         } ?: candidates
         when (val match = SendConfirmationPolicy.resolveExactContact(requestedName, filteredCandidates)) {
             is ExactContactMatch.Unique -> {
-                val message = SendConfirmationPolicy.composerMessage(observation.interactiveElements) ?: return null
+                val message = SendConfirmationPolicy.composerMessage(observation.interactiveElements) ?: run {
+                    pendingSendSafetyPrompt = "The current WhatsApp message text could not be read. No message was sent."
+                    return null
+                }
+                val attachmentName = SendConfirmationPolicy.attachmentName(observation.visibleText)
+                if (SendConfirmationPolicy.hasAttachmentEvidence(observation.visibleText) && attachmentName == null) {
+                    pendingSendSafetyPrompt = "An attachment is present but its exact filename cannot be verified. No message was sent."
+                    return null
+                }
                 return SendConfirmationPayload(
                     recipientContactId = match.contactId,
                     recipientName = match.displayName,
                     phoneLastFour = match.phoneLastFour,
                     message = message,
-                    attachmentName = SendConfirmationPolicy.attachmentName(observation.visibleText)
+                    attachmentName = attachmentName
                 )
             }
             is ExactContactMatch.Ambiguous -> {
