@@ -447,8 +447,33 @@ Preserve the user's original intent. Never invent a destructive or sensitive act
                     workingMemory.set(action.outputKey ?: "page_text", screen)
                 }
 
-                Action.SCREENSHOT, Action.TAP_COORDS, Action.LONG_PRESS,
-                Action.SWIPE, Action.SCROLL, Action.CLEAR_TYPE -> {
+                Action.TAP_COORDS, Action.LONG_PRESS -> {
+                val x = action.x
+                val y = action.y
+                val service = JarvisAccessibilityService.instance
+
+                if (x == null || y == null || service == null) {
+                    _state.value = AgentState.Error(
+                        "Missing coordinates or accessibility service"
+                    )
+                    return
+                }
+
+                val success = if (action.action == Action.TAP_COORDS) {
+                    service.tapAt(x.toFloat(), y.toFloat())
+                } else {
+                    service.longPressAt(x.toFloat(), y.toFloat())
+                }
+
+                if (!success) {
+                    _state.value = AgentState.Error(
+                        "Gesture could not be dispatched"
+                    )
+                    return
+                }
+            }
+
+            Action.SCREENSHOT, Action.SWIPE, Action.SCROLL, Action.CLEAR_TYPE -> {
                     _state.value = AgentState.Error("Action not supported yet: ${action.action}")
                     return
                 }

@@ -1,6 +1,8 @@
 package com.openjarvis.accessibility
 
 import android.accessibilityservice.AccessibilityService
+import android.graphics.Path
+import android.accessibilityservice.GestureDescription
 import android.accessibilityservice.AccessibilityServiceInfo
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -127,6 +129,43 @@ class JarvisAccessibilityService : AccessibilityService() {
         }
         
         return null
+    }
+
+
+    fun tapAt(x: Float, y: Float): Boolean =
+        performGesture(x, y, x, y, 100L)
+
+    fun longPressAt(x: Float, y: Float): Boolean =
+        performGesture(x, y, x, y, 900L)
+
+    fun swipe(
+        x1: Float, y1: Float,
+        x2: Float, y2: Float,
+        durationMs: Long = 450L
+    ): Boolean =
+        performGesture(x1, y1, x2, y2, durationMs)
+
+    private fun performGesture(
+        x1: Float, y1: Float,
+        x2: Float, y2: Float,
+        durationMs: Long
+    ): Boolean {
+        if (durationMs <= 0L || durationMs > 60000L) return false
+
+        val path = Path().apply {
+            moveTo(x1, y1)
+            if (x1 != x2 || y1 != y2) lineTo(x2, y2)
+        }
+
+        val stroke = GestureDescription.StrokeDescription(
+            path, 0L, durationMs
+        )
+
+        val gesture = GestureDescription.Builder()
+            .addStroke(stroke)
+            .build()
+
+        return dispatchGesture(gesture, null, null)
     }
 
     companion object {
