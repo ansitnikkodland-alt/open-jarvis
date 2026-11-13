@@ -45,6 +45,9 @@ class SocketServer(
     }
     
     fun start() {
+        // Do not expose a listening TCP endpoint while client authentication
+        // is unavailable. Reject before binding a port or publishing it.
+        if (!isAuthorized()) return
         if (isRunning) return
         
         isRunning = true
