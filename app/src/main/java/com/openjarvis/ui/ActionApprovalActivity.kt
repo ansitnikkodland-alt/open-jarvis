@@ -88,6 +88,15 @@ class ActionApprovalActivity : ComponentActivity() {
         finish()
     }
 
+    override fun onStop() {
+        // Leaving the approval screen invalidates the request. A stale screen
+        // must never approve an action after Home, app switching or interruption.
+        if (!approvalScheduled) {
+            requestId?.let { ActionApprovalCoordinator.respond(it, false) }
+        }
+        super.onStop()
+    }
+
     override fun onDestroy() {
         handler.removeCallbacksAndMessages(null)
         if (isFinishing && !approvalScheduled) {
