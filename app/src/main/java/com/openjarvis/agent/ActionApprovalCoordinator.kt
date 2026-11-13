@@ -13,10 +13,6 @@ import androidx.core.app.NotificationManagerCompat
 import com.openjarvis.R
 import com.openjarvis.ui.ActionApprovalActivity
 import com.openjarvis.ui.ActionApprovalCancelReceiver
-import kotlinx.coroutines.CompletableDeferred
-import kotlinx.coroutines.withTimeoutOrNull
-import java.util.UUID
-import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicInteger
 
 /**
@@ -28,40 +24,28 @@ object ActionApprovalCoordinator {
     private const val CHANNEL_ID = "jarvis_action_approvals"
     private const val TIMEOUT_MS = 30_000L
 
-    data class Request(val id: String, val details: String)
-
-    private data class PendingRequest(
-        val request: Request,
-        val result: CompletableDeferred<Boolean>,
-        val notificationId: Int
-    )
-
-    private val requests = ConcurrentHashMap<String, PendingRequest>()
+    private val registry = ApprovalRequestRegistry()
     private val notificationIds = AtomicInteger(41000)
     private val intentIds = AtomicInteger(52000)
 
-    fun getRequest(id: String): Request? = requests[id]?.request
+    fun getRequest(id: String): ApprovalRequestRegistry.Request? = registry.get(id)
 
     /** Called only from an app-internal confirmation Activity or cancel receiver. */
-    fun respond(id: String, approved: Boolean): Boolean =
-        requests[id]?.result?.complete(approved) == true
+    fun respond(id: String, approved: Boolean): Boolean = registry.respond(id, approved)
 
     suspend fun awaitApproval(context: Context, action: Action): Boolean {
         val appContext = context.applicationContext
-        val id = UUID.randomUUID().toString()
         val notificationId = notificationIds.getAndIncrement()
-        val result = CompletableDeferred<Boolean>()
-        val request = Request(id, ActionApprovalPolicy.describe(action))
-        requests[id] = PendingRequest(request, result, notificationId)
+        val request = registry.create(ActionApprovalPolicy.describe(action))
 
         return try {
             if (!postApprovalNotification(appContext, request, notificationId)) {
                 false
             } else {
-                withTimeoutOrNull(TIMEOUT_MS) { result.await() } == true
+                registry.await(request.id, TIMEOUT_MS)
             }
         } finally {
-            requests.remove(id)
+            registry.remove(request.id)
             runCatching {
                 (appContext.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager)
                     .cancel(notificationId)
@@ -71,7 +55,7 @@ object ActionApprovalCoordinator {
 
     private fun postApprovalNotification(
         context: Context,
-        request: Request,
+        request: ApprovalRequestRegistry.Request,
         notificationId: Int
     ): Boolean {
         return try {
