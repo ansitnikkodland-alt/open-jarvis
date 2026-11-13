@@ -19,6 +19,11 @@ class ScreenReader private constructor(
     }
 
     private fun extractTextRecursive(node: AccessibilityNodeInfo, builder: StringBuilder) {
+        if (node.isPassword) {
+            builder.append("[PROTECTED_FIELD] ")
+            return
+        }
+
         val text = node.text
         if (!text.isNullOrBlank()) {
             builder.append(text)
@@ -54,6 +59,11 @@ class ScreenReader private constructor(
         
         while (queue.isNotEmpty()) {
             val current = queue.removeFirst()
+
+            if (current.isPassword) {
+                current.recycle()
+                continue
+            }
             
             val nodeText = current.text?.toString()?.lowercase()
             val contentDesc = current.contentDescription?.toString()?.lowercase()
@@ -88,6 +98,11 @@ class ScreenReader private constructor(
         
         while (queue.isNotEmpty()) {
             val current = queue.removeFirst()
+
+            if (current.isPassword) {
+                current.recycle()
+                continue
+            }
             
             val hintInfo = current.hintText?.toString()?.lowercase()
             if (hintInfo?.contains(normalizedHint) == true) {

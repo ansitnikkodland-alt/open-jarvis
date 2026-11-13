@@ -42,6 +42,7 @@ import kotlinx.coroutines.launch
 class OverlayService : Service() {
     private var windowManager: WindowManager? = null
     private var overlayView: LinearLayout? = null
+    private var activityBorderView: android.view.View? = null
     private var windowParams: WindowManager.LayoutParams? = null
     private var commandInput: EditText? = null
     private var statusText: TextView? = null
@@ -52,15 +53,18 @@ class OverlayService : Service() {
     private var recentTasks = emptyList<TaskNode>()
     private val serviceScope = CoroutineScope(Dispatchers.Main + SupervisorJob())
     private var isExpanded = false
+
+    private var panelRequested = false
     private var responseLanguage = "hi"
 
     override fun onCreate() {
         super.onCreate()
+        showActivityBorder()
         agentCore = AgentCore(this)
         voiceManager = VoiceManager(this)
         graphifyRepo = GraphifyRepository(this)
         startForeground(NOTIFICATION_ID, createNotification())
-        attachAssistant()
+        // Panel opens only through the accessibility shortcut.
         serviceScope.launch {
             voiceManager.state.collect { state ->
                 when (state) {
@@ -95,15 +99,73 @@ class OverlayService : Service() {
         serviceScope.launch(Dispatchers.IO) { recentTasks = graphifyRepo.getRecentTasks(10) }
     }
 
-    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int = START_STICKY
+    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        if (intent?.action == ACTION_TOGGLE_PANEL) {
+            if (overlayView == null) attachAssistant()
+            if (overlayView != null) togglePanel()
+        }
+        return START_STICKY
+    }
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onDestroy() {
-        try { overlayView?.let { windowManager?.removeView(it) } } catch (_: Exception) { }
+        try {
+            overlayView?.let { windowManager?.removeView(it) }
+        } catch (_: Exception) { }
+        try {
+            activityBorderView?.let { windowManager?.removeView(it) }
+        } catch (_: Exception) { }
+        activityBorderView = null
         overlayView = null
         voiceManager.release()
         serviceScope.cancel()
         super.onDestroy()
+    }
+
+
+    private fun showActivityBorder() {
+        if (activityBorderView != null ||
+            !Settings.canDrawOverlays(this)) return
+
+        val wm = getSystemService(WINDOW_SERVICE) as WindowManager
+        val border = object : android.view.View(this) {
+            private val paint = android.graphics.Paint(
+                android.graphics.Paint.ANTI_ALIAS_FLAG
+            ).apply {
+                color = Color.rgb(0, 220, 130)
+                style = android.graphics.Paint.Style.STROKE
+                strokeWidth = 6f * resources.displayMetrics.density
+            }
+
+            override fun onDraw(canvas: android.graphics.Canvas) {
+                super.onDraw(canvas)
+                val inset = paint.strokeWidth / 2f
+                canvas.drawRect(
+                    inset, inset,
+                    width.toFloat() - inset,
+                    height.toFloat() - inset,
+                    paint
+                )
+            }
+        }
+
+        val params = WindowManager.LayoutParams(
+            WindowManager.LayoutParams.MATCH_PARENT,
+            WindowManager.LayoutParams.MATCH_PARENT,
+            WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
+            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+                WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE or
+                WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
+            PixelFormat.TRANSLUCENT
+        )
+
+        try {
+            wm.addView(border, params)
+            windowManager = wm
+            activityBorderView = border
+        } catch (e: Exception) {
+            android.util.Log.e("OpenJarvis", "Border failed", e)
+        }
     }
 
     private fun attachAssistant() {
@@ -116,17 +178,6 @@ class OverlayService : Service() {
                 background = rounded(Color.rgb(20, 18, 35), 24)
                 elevation = 18f
             }
-            val pill = TextView(this).apply {
-                text = "●  JARVIS  ▾"
-                textSize = 14f
-                setTextColor(Color.WHITE)
-                gravity = Gravity.CENTER
-                setPadding(22, 14, 22, 14)
-                background = rounded(Color.rgb(55, 35, 95), 40)
-                setOnClickListener { togglePanel() }
-            }
-            root.addView(pill, LinearLayout.LayoutParams(-2, -2))
-
             val commandPanel = LinearLayout(this).apply {
                 orientation = LinearLayout.VERTICAL
                 visibility = android.view.View.GONE
@@ -209,8 +260,13 @@ class OverlayService : Service() {
         isExpanded = !isExpanded
         panel?.visibility = if (isExpanded) android.view.View.VISIBLE else android.view.View.GONE
         windowParams?.let { params ->
-            params.flags = if (isExpanded) WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN
-                else WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN
+            params.flags = if (isExpanded) {
+                    WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN
+                } else {
+                    WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+                        WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE or
+                        WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN
+                }
             try { windowManager?.updateViewLayout(overlayView, params) } catch (_: Exception) { }
         }
         if (isExpanded) commandInput?.requestFocus()
@@ -265,6 +321,7 @@ class OverlayService : Service() {
     fun executeCommand(command: String) = agentCore.executeTask(command)
 
     companion object {
+        private const val ACTION_TOGGLE_PANEL = "com.openjarvis.TOGGLE_PANEL"
         private const val CHANNEL_ID = "jarvis_overlay_channel"
         private const val NOTIFICATION_ID = 1
         fun start(context: Context) {

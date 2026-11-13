@@ -14,7 +14,7 @@ class RiskyActionConfirmation(private val context: Context) {
         EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
     )
     
-    private val autoProceedSeconds = 8
+
     
     fun shouldConfirm(action: Action): Boolean {
         return when (action.action) {
@@ -74,7 +74,7 @@ class RiskyActionConfirmation(private val context: Context) {
     private fun buildDetails(action: Action): List<String> {
         return listOf(
             "This action will interact with ${action.packageName}",
-            "Auto-proceeds in ${autoProceedSeconds} seconds",
+            "Requires explicit user confirmation",
             "You can cancel anytime before execution"
         )
     }

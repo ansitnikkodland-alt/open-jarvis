@@ -77,7 +77,7 @@ class SocketServer(
 
     private suspend fun acceptConnections() = withContext(Dispatchers.IO) {
         try {
-            serverSocket = ServerSocket(0)
+            serverSocket = ServerSocket(0, 50, java.net.InetAddress.getByName("127.0.0.1"))
             runningPort = serverSocket?.localPort ?: 0
             
             val sockFile = socketFile

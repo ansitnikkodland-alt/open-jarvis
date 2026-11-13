@@ -1,6 +1,10 @@
 package com.openjarvis.accessibility
 
 import android.accessibilityservice.AccessibilityService
+import android.accessibilityservice.AccessibilityButtonController
+import android.os.Handler
+import android.os.Looper
+import com.openjarvis.ui.OverlayService
 import android.graphics.Path
 import android.accessibilityservice.GestureDescription
 import android.accessibilityservice.AccessibilityServiceInfo
@@ -13,9 +17,25 @@ import kotlinx.coroutines.runBlocking
 
 class JarvisAccessibilityService : AccessibilityService() {
 
+
+    private val buttonCallback =
+        object : AccessibilityButtonController.AccessibilityButtonCallback() {
+            override fun onClicked(controller: AccessibilityButtonController) {
+                startService(
+    Intent(this@JarvisAccessibilityService, OverlayService::class.java).apply {
+        action = "com.openjarvis.TOGGLE_PANEL"
+    }
+)
+            }
+        }
+
     override fun onServiceConnected() {
         super.onServiceConnected()
         instance = this
+        accessibilityButtonController.registerAccessibilityButtonCallback(
+            buttonCallback,
+            Handler(Looper.getMainLooper())
+        )
         
         val info = AccessibilityServiceInfo().apply {
             eventTypes = AccessibilityEvent.TYPES_ALL_MASK
@@ -34,6 +54,8 @@ class JarvisAccessibilityService : AccessibilityService() {
     }
 
     override fun onDestroy() {
+        accessibilityButtonController.unregisterAccessibilityButtonCallback(buttonCallback)
+
         instance = null
         super.onDestroy()
     }
@@ -111,6 +133,11 @@ class JarvisAccessibilityService : AccessibilityService() {
         while (queue.isNotEmpty()) {
             val node = queue.removeFirst()
             
+            if (node.isPassword) {
+                node.recycle()
+                continue
+            }
+
             val nodeText = node.text?.toString()?.lowercase()
             val contentDesc = node.contentDescription?.toString()?.lowercase()
             
