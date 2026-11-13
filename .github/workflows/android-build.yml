@@ -7,6 +7,7 @@ on:
       - feature/euronics-webview-integration
       - feature/self-healing-command-dictionary
       - feature/autonomous-self-healing-edition
+      - "safety/**"
     paths:
       - "app/**"
       - "*.gradle"
