@@ -73,7 +73,8 @@ object ActionApprovalCoordinator {
         context: Context,
         request: Request,
         notificationId: Int
-    ): Boolean = try {
+    ): Boolean {
+        return try {
         if (Build.VERSION.SDK_INT >= 33 &&
             context.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) !=
             PackageManager.PERMISSION_GRANTED
@@ -125,7 +126,8 @@ object ActionApprovalCoordinator {
             .build()
         manager.notify(notificationId, notification)
         true
-    } catch (_: Exception) {
-        false
+        } catch (_: Exception) {
+            false
+        }
     }
 }
