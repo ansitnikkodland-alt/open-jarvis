@@ -38,6 +38,17 @@
             </intent-filter>
         </activity>
 
+        <!-- Internal, user-opened approval screen; never launched by a background service. -->
+        <activity
+            android:name=".ui.ActionApprovalActivity"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:theme="@style/Theme.OpenJarvis" />
+
+        <receiver
+            android:name=".ui.ActionApprovalCancelReceiver"
+            android:exported="false" />
+
         <activity
             android:name=".ui.EuronicsActivity"
             android:exported="false"
