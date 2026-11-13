@@ -93,16 +93,18 @@ class SocketServer(
 
     private suspend fun handleClient(clientSocket: Socket) = withContext(Dispatchers.IO) {
         try {
-            val reader = BufferedReader(InputStreamReader(clientSocket.getInputStream()))
-            val writer = PrintWriter(clientSocket.getOutputStream(), true)
-            
-            val line = reader.readLine() ?: run {
-                writer.println("""{"error":"empty request"}""")
+            // Reject unauthenticated clients before reading any attacker-controlled
+            // input. BufferedReader.readLine() otherwise permits an idle client
+            // to hold a coroutine or send an unbounded line into memory.
+            if (!isAuthorized()) {
                 return@withContext
             }
 
-            if (!isAuthorized()) {
-                writer.println(createErrorResponse("", "unauthorized"))
+            val reader = BufferedReader(InputStreamReader(clientSocket.getInputStream()))
+            val writer = PrintWriter(clientSocket.getOutputStream(), true)
+
+            val line = reader.readLine() ?: run {
+                writer.println("""{"error":"empty request"}""")
                 return@withContext
             }
 
