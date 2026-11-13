@@ -2,7 +2,6 @@ package com.openjarvis.bridge
 
 import android.content.Context
 import android.os.Build
-import android.os.Process
 import com.openjarvis.agent.AgentCore
 import com.openjarvis.agent.AgentState
 import com.openjarvis.graphify.GraphifyRepository
@@ -30,20 +29,14 @@ class SocketServer(
     private val socketFile: java.io.File
         get() = java.io.File(context.filesDir, SOCKET_NAME)
     
-    private val allowedUids = setOf(
-        context.applicationInfo.uid,
-        2000,
-        "com.termux".hashCode()
-    )
-
-    private fun isAuthorized(): Boolean {
-        return try {
-            val callingUid = Process.myUid()
-            callingUid in allowedUids
-        } catch (e: Exception) {
-            false
-        }
-    }
+    /**
+     * A TCP loopback client does not carry a trustworthy Android caller UID.
+     * Process.myUid() reports this server's own UID, not the remote client.
+     * Until the bridge implements a verified client authentication protocol,
+     * refuse every socket request (including read-only history/memory).
+     * This deliberately disables the unauthenticated socket bridge.
+     */
+    private fun isAuthorized(): Boolean = SocketAccessPolicy.allowUnauthenticatedClient()
     
     companion object {
         const val SOCKET_NAME = "jarvis.port"
