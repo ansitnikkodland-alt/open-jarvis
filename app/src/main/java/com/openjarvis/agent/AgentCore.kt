@@ -346,6 +346,23 @@ Preserve the user's original intent. Never invent a destructive or sensitive act
                 "action ${index + 1}/${actions.size}"
             )
 
+            // Fail closed until explicit, per-action approval is implemented.
+            // These actions may change application data or trigger external effects.
+            if (action.action in setOf(
+                    Action.TAP,
+                    Action.TAP_COORDS,
+                    Action.LONG_PRESS,
+                    Action.TYPE,
+                    Action.CLEAR_TYPE,
+                    Action.SWIPE,
+                    Action.SCROLL
+                )) {
+                _state.value = AgentState.Error(
+                    "Action blocked: explicit user confirmation is not implemented"
+                )
+                return
+            }
+
             when (action.action) {
                 Action.OPEN_APP -> {
                     val label = action.label
