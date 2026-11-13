@@ -108,6 +108,13 @@ class JarvisAccessibilityService : AccessibilityService() {
         val rootNode = rootInActiveWindow ?: return false
         val focused = rootNode.findFocus(AccessibilityNodeInfo.FOCUS_INPUT)
         if (focused != null) {
+            // Never inject text into Android password/PIN fields, even if an
+            // upstream planner or approval UI mistakenly permits this action.
+            if (focused.isPassword) {
+                focused.recycle()
+                rootNode.recycle()
+                return false
+            }
             val arguments = android.os.Bundle().apply {
                 putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, text)
             }
