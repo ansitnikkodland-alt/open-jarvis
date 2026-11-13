@@ -11,7 +11,7 @@ import java.util.concurrent.ConcurrentHashMap
  *
  * Thread-safe for requests originating from separate AgentCore instances.
  */
-internal class ApprovalRequestRegistry {
+class ApprovalRequestRegistry {
     data class Request(val id: String, val details: String)
 
     private class Pending(
