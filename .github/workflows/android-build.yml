@@ -76,9 +76,9 @@ jobs:
           emulator-options: -no-window -no-audio -no-boot-anim -no-snapshot -gpu swiftshader_indirect
           disable-animations: true
           script: |
-            timeout 120s adb wait-for-device
+            echo "Waiting for emulator ADB..." && timeout 300s adb wait-for-device
             [ "$(adb shell getprop sys.boot_completed | tr -d '\\r')" = "1" ]
-            timeout 120s adb install -r -t app/build/outputs/apk/debug/app-debug.apk
+            echo "Installing APK..." && timeout 300s adb install -r -t app/build/outputs/apk/debug/app-debug.apk
             adb shell pm grant com.openjarvis android.permission.RECORD_AUDIO
             adb shell settings put secure enabled_accessibility_services com.openjarvis/com.openjarvis.accessibility.JarvisAccessibilityService
             adb shell settings put secure accessibility_enabled 1
