@@ -15,6 +15,10 @@ import com.openjarvis.intelligence.TaskRouter
 import com.openjarvis.intelligence.TaskWorkingMemory
 import com.openjarvis.llm.UniversalAdapter
 import com.openjarvis.vision.VisionModule
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -86,10 +90,16 @@ RULES:
 """.trimIndent()
 
     fun executeTask(cleanCommand: String) {
-        workingMemory = TaskWorkingMemory()
+        val session = DeviceSession.current() ?: run {
+            _state.value = AgentState.Error("Enable Accessibility before starting a new task")
+            return
+        }
 
         scope.launch {
+            if (!DeviceSession.register(session, currentCoroutineContext()[Job]!!)) return@launch
             taskMutex.withLock {
+                currentCoroutineContext().ensureActive()
+                workingMemory = TaskWorkingMemory()
                 var currentStage = "initialization"
                 var deviceActionsStarted = false
                 try {
@@ -130,9 +140,13 @@ RULES:
 
                     currentStage = "screen reading"
                     val screenText = withContext(Dispatchers.IO) {
-                        screenReader.extractAllText()
+                        readScreenApproved()
                     }
 
+                    if (screenText.isBlank()) {
+                        _state.value = AgentState.Error("Screen read denied or unavailable")
+                        return@withLock
+                    }
                     _state.value = AgentState.Running("getting context...")
 
                     currentStage = "repair memory / graph context"
@@ -269,6 +283,9 @@ Preserve the user's original intent. Never invent a destructive or sensitive act
                             }
                         }
                     )
+                } catch (e: CancellationException) {
+                    _state.value = AgentState.Error("Task cancelled; start a new task after enabling Accessibility")
+                    throw e
                 } catch (e: NullPointerException) {
                     // NPE.message is commonly null; preserve the actual stack trace and stage.
                     val trace = Log.getStackTraceString(e)
@@ -314,8 +331,12 @@ Preserve the user's original intent. Never invent a destructive or sensitive act
 
     private fun scheduleSafeRetry(command: String, code: String) {
         _state.value = AgentState.Running("self-healing [$code]: safe retry once...")
+        val session = DeviceSession.current() ?: return
         scope.launch {
+            if (!DeviceSession.register(session, currentCoroutineContext()[Job]!!)) return@launch
             kotlinx.coroutines.delay(700)
+            currentCoroutineContext().ensureActive()
+            if (!DeviceSession.valid(session)) return@launch
             executeTask(command)
         }
     }
@@ -346,83 +367,29 @@ Preserve the user's original intent. Never invent a destructive or sensitive act
                 "action ${index + 1}/${actions.size}"
             )
 
+            currentCoroutineContext().ensureActive()
+            if (ActionApprovalPolicy.requiresApproval(action)) {
+                // Obtain a fresh, explicitly approved reference screen for this action.
+                readScreenApproved()
+                val resolved = if (action.action == Action.OPEN_APP && action.packageName == null) {
+                    action.copy(packageName = action.label?.let { findPackageByLabel(it) })
+                } else action
+                val service = JarvisAccessibilityService.instance
+                if (service == null || !service.executeApproved(resolved)) {
+                    _state.value = AgentState.Error("Action denied, screen changed or operation failed")
+                    return
+                }
+                continue
+            }
+
             when (action.action) {
-                Action.OPEN_APP -> {
-                    val label = action.label
-
-                    val packageName = action.packageName ?: label?.let { findPackageByLabel(it) }
-                    if (packageName.isNullOrBlank()) {
-                        _state.value = AgentState.Error("App not found: ${label ?: "missing package name"}")
-                        return
-                    }
-                    var service = JarvisAccessibilityService.instance
-                    var opened = service?.openAppByPackage(packageName) == true
-                    if (!opened) {
-                        kotlinx.coroutines.delay(600)
-                        service = JarvisAccessibilityService.instance
-                        opened = service?.openAppByPackage(packageName) == true
-                    }
-                    if (!opened) {
-                        _state.value = AgentState.Error("Could not open app: ${label ?: packageName}")
-                        return
-                    }
-                    graphifyRepo.logAppOpened(packageName, label ?: packageName)
-                }
-
-                Action.TAP -> {
-                    val target = action.text
-                    var service = JarvisAccessibilityService.instance
-                    var tapped = !target.isNullOrBlank() && service?.tapByText(target) == true
-                    if (!tapped && !target.isNullOrBlank()) {
-                        // Refresh the accessibility tree once before retrying a failed tap.
-                        kotlinx.coroutines.delay(350)
-                        screenReader.extractAllText()
-                        service = JarvisAccessibilityService.instance
-                        tapped = service?.tapByText(target) == true
-                    }
-                    if (!tapped) {
-                        _state.value = AgentState.Error("Could not tap screen text: ${target ?: "missing target"}")
-                        return
-                    }
-                }
-
-                Action.TYPE -> {
-                    val value = action.value
-                    val service = JarvisAccessibilityService.instance
-                    if (value.isNullOrEmpty() || service == null || !service.typeText(value)) {
-                        _state.value = AgentState.Error("Could not type: input field not found")
-                        return
-                    }
-                }
-
-                Action.PRESS_BACK -> {
-                    if (JarvisAccessibilityService.instance?.pressBack() != true) {
-                        _state.value = AgentState.Error("Back action failed")
-                        return
-                    }
-                }
-
-                Action.PRESS_HOME -> {
-                    if (JarvisAccessibilityService.instance?.pressHome() != true) {
-                        _state.value = AgentState.Error("Home action failed")
-                        return
-                    }
-                }
-
-                Action.PRESS_RECENTS -> {
-                    if (JarvisAccessibilityService.instance?.pressRecents() != true) {
-                        _state.value = AgentState.Error("Recent apps action failed")
-                        return
-                    }
-                }
-
                 Action.WAIT_FOR -> {
                     val expected = action.text
                     val timeout = action.timeoutMs.coerceIn(500L, 15000L)
                     val started = System.currentTimeMillis()
                     var found = false
                     while (expected != null && System.currentTimeMillis() - started < timeout) {
-                        if (screenReader.extractAllText().contains(expected, ignoreCase = true)) {
+                        if (readScreenApproved().contains(expected, ignoreCase = true)) {
                             found = true
                             break
                         }
@@ -435,10 +402,10 @@ Preserve the user's original intent. Never invent a destructive or sensitive act
                 }
 
                 Action.READ_SCREEN -> {
-                    var screen = screenReader.extractAllText()
+                    var screen = readScreenApproved()
                     if (screen.isBlank()) {
                         kotlinx.coroutines.delay(350)
-                        screen = screenReader.extractAllText()
+                        screen = readScreenApproved()
                     }
                     if (screen.isBlank()) {
                         _state.value = AgentState.Error("Could not read current screen")
@@ -447,47 +414,9 @@ Preserve the user's original intent. Never invent a destructive or sensitive act
                     workingMemory.set(action.outputKey ?: "page_text", screen)
                 }
 
-                Action.TAP_COORDS, Action.LONG_PRESS -> {
-                val x = action.x
-                val y = action.y
-                val service = JarvisAccessibilityService.instance
-
-                if (x == null || y == null || service == null) {
-                    _state.value = AgentState.Error(
-                        "Missing coordinates or accessibility service"
-                    )
-                    return
-                }
-
-                val success = if (action.action == Action.TAP_COORDS) {
-                    service.tapAt(x.toFloat(), y.toFloat())
-                } else {
-                    service.longPressAt(x.toFloat(), y.toFloat())
-                }
-
-                if (!success) {
-                    _state.value = AgentState.Error(
-                        "Gesture could not be dispatched"
-                    )
-                    return
-                }
-            }
-
-            Action.SCREENSHOT, Action.SWIPE, Action.SCROLL, Action.CLEAR_TYPE -> {
-                    _state.value = AgentState.Error("Action not supported yet: ${action.action}")
-                    return
-                }
-
-                Action.AI_PROMPT -> {
-                    _state.value = AgentState.Error(
-                        "External AI apps are disabled. Jarvis uses local Ollama only."
-                    )
-                    return
-                }
-
                 Action.EXTRACT_TEXT -> {
                     val outputKey = action.outputKey ?: "page_text"
-                    val text = screenReader.extractAllText()
+                    val text = readScreenApproved()
                     workingMemory.set(outputKey, text)
                 }
 
@@ -501,6 +430,13 @@ Preserve the user's original intent. Never invent a destructive or sensitive act
 
             kotlinx.coroutines.delay(500)
         }
+    }
+
+    private suspend fun readScreenApproved(): String {
+        currentCoroutineContext().ensureActive()
+        val text = JarvisAccessibilityService.instance?.readApproved().orEmpty()
+        if (text.isBlank()) throw CancellationException("Screen read denied or unavailable")
+        return text
     }
 
     private fun findPackageByLabel(label: String): String? {

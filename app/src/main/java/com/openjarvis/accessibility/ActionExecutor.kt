@@ -41,8 +41,8 @@ class ActionExecutor(private val service: JarvisAccessibilityService) {
                 val label = action.label
                 
                 if (packageName != null) {
-                    service.openAppByPackage(packageName)
-                    ActionResult(action, true, null)
+                    val success = service.openAppByPackage(packageName)
+                    ActionResult(action, success, if (!success) "Could not launch package: $packageName" else null)
                 } else if (label != null) {
                     val success = service.openAppByLabel(label)
                     ActionResult(action, success, if (!success) "App not found: $label" else null)
@@ -65,25 +65,25 @@ class ActionExecutor(private val service: JarvisAccessibilityService) {
                 val value = action.value
                 if (value != null) {
                     val success = service.typeText(value)
-                    ActionResult(action, success, if (!success) "Could not type: $value" else null)
+                    ActionResult(action, success, if (!success) "Could not type into the focused field" else null)
                 } else {
                     ActionResult(action, false, "No value provided for type")
                 }
             }
             
             Action.PRESS_BACK -> {
-                service.pressBack()
-                ActionResult(action, true, null)
+                val success = service.pressBack()
+                ActionResult(action, success, if (!success) "Could not perform back action" else null)
             }
             
             Action.PRESS_HOME -> {
-                service.pressHome()
-                ActionResult(action, true, null)
+                val success = service.pressHome()
+                ActionResult(action, success, if (!success) "Could not perform home action" else null)
             }
             
             Action.PRESS_RECENTS -> {
-                service.pressRecents()
-                ActionResult(action, true, null)
+                val success = service.pressRecents()
+                ActionResult(action, success, if (!success) "Could not perform recents action" else null)
             }
             
             else -> {

@@ -7,6 +7,7 @@ on:
       - feature/euronics-webview-integration
       - feature/self-healing-command-dictionary
       - feature/autonomous-self-healing-edition
+      - "safety/**"
     paths:
       - "app/**"
       - "*.gradle"
@@ -76,6 +77,7 @@ jobs:
           emulator-options: -no-window -no-audio -no-boot-anim -no-snapshot -gpu swiftshader_indirect
           disable-animations: true
           script: |
+            gradle --no-daemon :app:connectedDebugAndroidTest
             echo "Waiting for emulator ADB..." && timeout 300s adb wait-for-device
             [ "$(adb shell getprop sys.boot_completed | tr -d '\\r')" = "1" ]
             echo "Installing APK..." && timeout 300s adb install -r -t app/build/outputs/apk/debug/app-debug.apk
@@ -91,7 +93,7 @@ jobs:
             ! adb logcat -d -t 1500 | grep -F 'FATAL EXCEPTION'
 
       - name: Upload tested debug APK
-        if: success() || failure()
+        if: success()
         uses: actions/upload-artifact@v4
         with:
           name: open-jarvis-autonomous-self-healing-debug-apk

@@ -2,7 +2,6 @@ package com.openjarvis.bridge
 
 import android.content.Context
 import android.os.Build
-import android.os.Process
 import com.openjarvis.agent.AgentCore
 import com.openjarvis.agent.AgentState
 import com.openjarvis.graphify.GraphifyRepository
@@ -30,20 +29,14 @@ class SocketServer(
     private val socketFile: java.io.File
         get() = java.io.File(context.filesDir, SOCKET_NAME)
     
-    private val allowedUids = setOf(
-        context.applicationInfo.uid,
-        2000,
-        "com.termux".hashCode()
-    )
-
-    private fun isAuthorized(): Boolean {
-        return try {
-            val callingUid = Process.myUid()
-            callingUid in allowedUids
-        } catch (e: Exception) {
-            false
-        }
-    }
+    /**
+     * A TCP loopback client does not carry a trustworthy Android caller UID.
+     * Process.myUid() reports this server's own UID, not the remote client.
+     * Until the bridge implements a verified client authentication protocol,
+     * refuse every socket request (including read-only history/memory).
+     * This deliberately disables the unauthenticated socket bridge.
+     */
+    private fun isAuthorized(): Boolean = SocketAccessPolicy.allowUnauthenticatedClient()
     
     companion object {
         const val SOCKET_NAME = "jarvis.port"
@@ -52,6 +45,9 @@ class SocketServer(
     }
     
     fun start() {
+        // Do not expose a listening TCP endpoint while client authentication
+        // is unavailable. Reject before binding a port or publishing it.
+        if (!isAuthorized()) return
         if (isRunning) return
         
         isRunning = true
@@ -100,16 +96,18 @@ class SocketServer(
 
     private suspend fun handleClient(clientSocket: Socket) = withContext(Dispatchers.IO) {
         try {
-            val reader = BufferedReader(InputStreamReader(clientSocket.getInputStream()))
-            val writer = PrintWriter(clientSocket.getOutputStream(), true)
-            
-            val line = reader.readLine() ?: run {
-                writer.println("""{"error":"empty request"}""")
+            // Reject unauthenticated clients before reading any attacker-controlled
+            // input. BufferedReader.readLine() otherwise permits an idle client
+            // to hold a coroutine or send an unbounded line into memory.
+            if (!isAuthorized()) {
                 return@withContext
             }
 
-            if (!isAuthorized()) {
-                writer.println(createErrorResponse("", "unauthorized"))
+            val reader = BufferedReader(InputStreamReader(clientSocket.getInputStream()))
+            val writer = PrintWriter(clientSocket.getOutputStream(), true)
+
+            val line = reader.readLine() ?: run {
+                writer.println("""{"error":"empty request"}""")
                 return@withContext
             }
 

@@ -38,6 +38,20 @@ class MainActivity : ComponentActivity() {
         ).show()
     }
     
+    private val requestNotificationsPermission = registerForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        if (granted) {
+            startOverlayServiceDirectly()
+        } else {
+            Toast.makeText(
+                this,
+                "Notification permission is needed to approve Jarvis actions",
+                Toast.LENGTH_LONG
+            ).show()
+        }
+    }
+
     private lateinit var graphifyRepo: GraphifyRepository
     private lateinit var agentCore: AgentCore
     
@@ -108,6 +122,17 @@ class MainActivity : ComponentActivity() {
     }
     
     private fun startOverlayService() {
+        if (android.os.Build.VERSION.SDK_INT >= 33 &&
+            checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) !=
+            PackageManager.PERMISSION_GRANTED
+        ) {
+            requestNotificationsPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
+            return
+        }
+        startOverlayServiceDirectly()
+    }
+
+    private fun startOverlayServiceDirectly() {
         OverlayService.start(this)
         Toast.makeText(this, "Jarvis is active", Toast.LENGTH_SHORT).show()
     }
