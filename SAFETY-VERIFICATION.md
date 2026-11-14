@@ -4,15 +4,17 @@ The PR remains a draft. Do not install on a personal device yet.
 
 Implemented: session-generation invalidation and cancellation of registered agent jobs;
 revocation of outstanding approvals on service interruption, unbind and destruction;
-main-thread, non-suspending final package/window/structural-snapshot check;
+main-thread, non-suspending final package/window/structural and text-digest check;
 exact, unambiguous text matching; low-level legacy entry points fail closed;
 explicit one-read consent for each screen capture used by AgentCore.
 Password-marked trees are blocked entirely. SocketServer remains disabled.
 Coordinate gestures and the legacy self-healing executor are disabled.
 
-Limits: the structural snapshot intentionally does not read text before consent.
-It cannot detect changed text/meaning in an otherwise identical UI, or atomicity
-across another application's process. Custom unmarked PIN keypads are not reliably
+Each mutation requires a fresh read approval followed by action approval. A digest
+of that approved screen is consumed once, and checked again after action approval.
+Text is hashed only after read/action consent; hashes are process-local and not logged.
+
+Limits: Android cannot guarantee atomicity across another application's process. Custom unmarked PIN keypads are not reliably
 identified. Deny reading confidential screens and disable Accessibility during
 secret entry. No persistent protected-app configuration or confidential-mode UI
 is implemented by this change. Existing saved history is not erased.

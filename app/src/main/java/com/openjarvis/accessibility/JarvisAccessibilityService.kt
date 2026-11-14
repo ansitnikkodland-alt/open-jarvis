@@ -62,6 +62,7 @@ class JarvisAccessibilityService : AccessibilityService() {
     }
 
     private fun revoke() {
+        approvedRead = null
         DeviceSession.stop()
         ActionApprovalCoordinator.cancelAll()
         instance = null
@@ -220,7 +221,9 @@ class JarvisAccessibilityService : AccessibilityService() {
 
     // Metadata only until reading is explicitly approved. No screen text is
     // read, retained, logged or sent to the model by this snapshot.
-    private fun snapshot(): WindowState? {
+    private var approvedRead: WindowState? = null
+
+    private fun snapshot(includeText: Boolean = false): WindowState? {
         if (instance !== this || DeviceSession.current() == null) return null
         val root = rootInActiveWindow ?: return null
         return try {
@@ -232,6 +235,10 @@ class JarvisAccessibilityService : AccessibilityService() {
                 if (++count > 2000 || node.isPassword) return false
                 val bounds = Rect()
                 node.getBoundsInScreen(bounds)
+                if (includeText) {
+                    metadata.append(node.text).append("\u0000")
+                        .append(node.contentDescription).append("\u0000").append(node.hintText)
+                }
                 metadata.append(node.viewIdResourceName).append(node.className)
                     .append(bounds).append(node.isFocused).append(node.isClickable)
                     .append(node.isEnabled).append(node.isVisibleToUser).append(node.childCount)
@@ -250,24 +257,34 @@ class JarvisAccessibilityService : AccessibilityService() {
     }
 
     private suspend fun <T> approvedOperation(
-        details: String, denied: T, operation: () -> T
+        details: String, denied: T, expectedContent: WindowState? = null, operation: () -> T
     ): T {
         val token = DeviceSession.current() ?: return denied
         val before = withContext(Dispatchers.Main.immediate) { snapshot() } ?: return denied
+        if (expectedContent != null &&
+            (before.pkg != expectedContent.pkg || before.id != expectedContent.id)) return denied
         if (!ActionApprovalCoordinator.awaitDetails(this,
                 "$details\nCurrent application: ${before.pkg}\nWindow: ${before.id}")) return denied
         return withContext(Dispatchers.Main.immediate) {
             currentCoroutineContext().ensureActive()
             if (!DeviceSession.valid(token) || snapshot() != before) return@withContext denied
+            if (expectedContent != null && snapshot(includeText = true) != expectedContent) {
+                return@withContext denied
+            }
             // No suspension between the final check and the device call.
             permitted = true
             try { operation() } finally { permitted = false }
         }
     }
 
-    suspend fun executeApproved(action: Action): Boolean = approvedOperation(
-        ActionApprovalPolicy.describe(action), false
-    ) {
+    suspend fun executeApproved(action: Action): Boolean {
+        val expected = withContext(Dispatchers.Main.immediate) {
+            approvedRead.also { approvedRead = null }
+        } ?: return false
+        return approvedOperation(
+            ActionApprovalPolicy.describe(action) + "\nVerify the previously approved screen before acting.",
+            false, expected
+        ) {
         when (action.action) {
             Action.OPEN_APP -> action.packageName?.let { openAppByPackage(it) } ?: false
             Action.TAP -> action.text?.takeIf { it.isNotBlank() }?.let { tapByText(it) } ?: false
@@ -280,10 +297,23 @@ class JarvisAccessibilityService : AccessibilityService() {
         }
     }
 
+    }
+
     suspend fun readApproved(): String = approvedOperation(
         "Read this application's screen once and use its text in the AI request. " +
             "Deny on confidential screens, PIN keypads or passwords.", ""
-    ) { ScreenReader(this).extractAllText() }
+    ) {
+        approvedRead = null
+        val state = snapshot(includeText = true)
+        if (state == null) "" else {
+            val text = ScreenReader(this).extractAllText()
+            // Recheck after capture as well; do not retain a mixed screen.
+            if (snapshot(includeText = true) != state) "" else {
+                approvedRead = state
+                text
+            }
+        }
+    }
 
     internal fun mayReadScreen(): Boolean = permittedNow()
 

@@ -369,6 +369,8 @@ Preserve the user's original intent. Never invent a destructive or sensitive act
 
             currentCoroutineContext().ensureActive()
             if (ActionApprovalPolicy.requiresApproval(action)) {
+                // Obtain a fresh, explicitly approved reference screen for this action.
+                readScreenApproved()
                 val resolved = if (action.action == Action.OPEN_APP && action.packageName == null) {
                     action.copy(packageName = action.label?.let { findPackageByLabel(it) })
                 } else action
