@@ -14,6 +14,16 @@ import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
+import com.openjarvis.agent.Action
+import com.openjarvis.agent.ActionApprovalCoordinator
+import com.openjarvis.agent.ActionApprovalPolicy
+import com.openjarvis.agent.DeviceSession
+import android.graphics.Rect
+import java.security.MessageDigest
 
 class JarvisAccessibilityService : AccessibilityService() {
 
@@ -31,6 +41,7 @@ class JarvisAccessibilityService : AccessibilityService() {
 
     override fun onServiceConnected() {
         super.onServiceConnected()
+        DeviceSession.start()
         instance = this
         accessibilityButtonController.registerAccessibilityButtonCallback(
             buttonCallback,
@@ -50,17 +61,33 @@ class JarvisAccessibilityService : AccessibilityService() {
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
     }
 
-    override fun onInterrupt() {
+    private fun revoke() {
+        DeviceSession.stop()
+        ActionApprovalCoordinator.cancelAll()
+        instance = null
+    }
+
+    override fun onInterrupt() { revoke() }
+
+    override fun onUnbind(intent: Intent?): Boolean {
+        revoke()
+        return super.onUnbind(intent)
     }
 
     override fun onDestroy() {
         accessibilityButtonController.unregisterAccessibilityButtonCallback(buttonCallback)
 
-        instance = null
+        revoke()
         super.onDestroy()
     }
 
+    private var permitted = false
+    private fun permittedNow(): Boolean =
+        Looper.myLooper() == Looper.getMainLooper() && permitted && instance === this &&
+            DeviceSession.current() != null
+
     fun openAppByPackage(packageName: String): Boolean {
+        if (!permittedNow()) return false
         return try {
             val intent = packageManager.getLaunchIntentForPackage(packageName)
                 ?: return false
@@ -73,6 +100,7 @@ class JarvisAccessibilityService : AccessibilityService() {
     }
 
     fun openAppByLabel(label: String): Boolean {
+        if (!permittedNow()) return false
         val pm = packageManager
         val intent = Intent(Intent.ACTION_MAIN, null).apply {
             addCategory(Intent.CATEGORY_LAUNCHER)
@@ -91,6 +119,7 @@ class JarvisAccessibilityService : AccessibilityService() {
     }
 
     fun tapByText(text: String): Boolean {
+        if (!permittedNow()) return false
         val rootNode = rootInActiveWindow ?: return false
         val node = findNodeByText(rootNode, text)
         if (node != null) {
@@ -104,6 +133,7 @@ class JarvisAccessibilityService : AccessibilityService() {
     }
 
     fun typeText(text: String): Boolean {
+        if (!permittedNow()) return false
         val rootNode = rootInActiveWindow ?: return false
         val focused = rootNode.findFocus(AccessibilityNodeInfo.FOCUS_INPUT)
         if (focused != null) {
@@ -126,41 +156,25 @@ class JarvisAccessibilityService : AccessibilityService() {
         return false
     }
 
-    fun pressBack() = performGlobalAction(GLOBAL_ACTION_BACK)
-    fun pressHome() = performGlobalAction(GLOBAL_ACTION_HOME)
-    fun pressRecents() = performGlobalAction(GLOBAL_ACTION_RECENTS)
+    fun pressBack() = permittedNow() && performGlobalAction(GLOBAL_ACTION_BACK)
+    fun pressHome() = permittedNow() && performGlobalAction(GLOBAL_ACTION_HOME)
+    fun pressRecents() = permittedNow() && performGlobalAction(GLOBAL_ACTION_RECENTS)
 
     private fun findNodeByText(root: AccessibilityNodeInfo, text: String): AccessibilityNodeInfo? {
-        val normalizedText = text.lowercase()
-        
-        val queue = ArrayDeque<AccessibilityNodeInfo>()
-        queue.add(root)
-        
-        while (queue.isNotEmpty()) {
-            val node = queue.removeFirst()
-            
-            if (node.isPassword) {
-                node.recycle()
-                continue
+        val matches = mutableListOf<AccessibilityNodeInfo>()
+        fun visit(node: AccessibilityNodeInfo) {
+            if (node.isPassword) return
+            if (node.isClickable && node.isVisibleToUser &&
+                (node.text?.toString() == text || node.contentDescription?.toString() == text)) {
+                matches.add(AccessibilityNodeInfo.obtain(node))
             }
-
-            val nodeText = node.text?.toString()?.lowercase()
-            val contentDesc = node.contentDescription?.toString()?.lowercase()
-            
-            if (nodeText?.contains(normalizedText) == true || contentDesc?.contains(normalizedText) == true) {
-                if (node.isClickable && node.isVisibleToUser) {
-                    return node
-                }
+            for (i in 0 until node.childCount) node.getChild(i)?.let {
+                try { visit(it) } finally { it.recycle() }
             }
-            
-            for (i in 0 until node.childCount) {
-                node.getChild(i)?.let { child ->
-                    queue.add(child)
-                }
-            }
-            node.recycle()
         }
-        
+        visit(root)
+        if (matches.size == 1) return matches.single()
+        matches.forEach { it.recycle() }
         return null
     }
 
@@ -183,6 +197,7 @@ class JarvisAccessibilityService : AccessibilityService() {
         x2: Float, y2: Float,
         durationMs: Long
     ): Boolean {
+        if (!permittedNow()) return false
         if (durationMs <= 0L || durationMs > 60000L) return false
 
         val path = Path().apply {
@@ -200,6 +215,77 @@ class JarvisAccessibilityService : AccessibilityService() {
 
         return dispatchGesture(gesture, null, null)
     }
+
+    private data class WindowState(val pkg: String, val id: Int, val digest: String)
+
+    // Metadata only until reading is explicitly approved. No screen text is
+    // read, retained, logged or sent to the model by this snapshot.
+    private fun snapshot(): WindowState? {
+        if (instance !== this || DeviceSession.current() == null) return null
+        val root = rootInActiveWindow ?: return null
+        return try {
+            val pkg = root.packageName?.toString() ?: return null
+            if (pkg == packageName) return null
+            val metadata = StringBuilder()
+            var count = 0
+            fun visit(node: AccessibilityNodeInfo): Boolean {
+                if (++count > 2000 || node.isPassword) return false
+                val bounds = Rect()
+                node.getBoundsInScreen(bounds)
+                metadata.append(node.viewIdResourceName).append(node.className)
+                    .append(bounds).append(node.isFocused).append(node.isClickable)
+                    .append(node.isEnabled).append(node.isVisibleToUser).append(node.childCount)
+                for (i in 0 until node.childCount) {
+                    val child = node.getChild(i) ?: return false
+                    val safe = try { visit(child) } finally { child.recycle() }
+                    if (!safe) return false
+                }
+                return true
+            }
+            if (!visit(root)) return null
+            val digest = MessageDigest.getInstance("SHA-256")
+                .digest(metadata.toString().toByteArray()).joinToString("") { "%02x".format(it) }
+            WindowState(pkg, root.windowId, digest)
+        } finally { root.recycle() }
+    }
+
+    private suspend fun <T> approvedOperation(
+        details: String, denied: T, operation: () -> T
+    ): T {
+        val token = DeviceSession.current() ?: return denied
+        val before = withContext(Dispatchers.Main.immediate) { snapshot() } ?: return denied
+        if (!ActionApprovalCoordinator.awaitDetails(this,
+                "$details\nCurrent application: ${before.pkg}\nWindow: ${before.id}")) return denied
+        return withContext(Dispatchers.Main.immediate) {
+            currentCoroutineContext().ensureActive()
+            if (!DeviceSession.valid(token) || snapshot() != before) return@withContext denied
+            // No suspension between the final check and the device call.
+            permitted = true
+            try { operation() } finally { permitted = false }
+        }
+    }
+
+    suspend fun executeApproved(action: Action): Boolean = approvedOperation(
+        ActionApprovalPolicy.describe(action), false
+    ) {
+        when (action.action) {
+            Action.OPEN_APP -> action.packageName?.let { openAppByPackage(it) } ?: false
+            Action.TAP -> action.text?.takeIf { it.isNotBlank() }?.let { tapByText(it) } ?: false
+            Action.TYPE -> action.value?.let { typeText(it) } ?: false
+            Action.PRESS_BACK -> pressBack()
+            Action.PRESS_HOME -> pressHome()
+            Action.PRESS_RECENTS -> pressRecents()
+            // Coordinates cannot identify a stable UI target: fail closed.
+            else -> false
+        }
+    }
+
+    suspend fun readApproved(): String = approvedOperation(
+        "Read this application's screen once and use its text in the AI request. " +
+            "Deny on confidential screens, PIN keypads or passwords.", ""
+    ) { ScreenReader(this).extractAllText() }
+
+    internal fun mayReadScreen(): Boolean = permittedNow()
 
     companion object {
         var instance: JarvisAccessibilityService? = null

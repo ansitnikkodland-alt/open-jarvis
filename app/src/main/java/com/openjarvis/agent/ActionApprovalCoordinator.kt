@@ -28,15 +28,21 @@ object ActionApprovalCoordinator {
     private val notificationIds = AtomicInteger(41000)
     private val intentIds = AtomicInteger(52000)
 
+    fun cancelAll() = registry.cancelAll()
+
     fun getRequest(id: String): ApprovalRequestRegistry.Request? = registry.get(id)
 
     /** Called only from an app-internal confirmation Activity or cancel receiver. */
     fun respond(id: String, approved: Boolean): Boolean = registry.respond(id, approved)
 
     suspend fun awaitApproval(context: Context, action: Action): Boolean {
+        return awaitDetails(context, ActionApprovalPolicy.describe(action))
+    }
+
+    suspend fun awaitDetails(context: Context, details: String): Boolean {
         val appContext = context.applicationContext
         val notificationId = notificationIds.getAndIncrement()
-        val request = registry.create(ActionApprovalPolicy.describe(action))
+        val request = registry.create(details)
 
         return try {
             if (!postApprovalNotification(appContext, request, notificationId)) {

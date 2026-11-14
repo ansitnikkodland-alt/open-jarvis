@@ -21,54 +21,9 @@ class SelfHealingExecutor(private val context: Context) {
         attempt: Int = 1
     ): ActionResult {
 
-        val result = tryExecuteAction(action, context)
-
-        if (result is ActionResult.Success) return result
-
-        if (attempt >= maxAttempts) {
-            return ActionResult.Failed(
-                "Could not complete after $maxAttempts attempts"
-            )
-        }
-
-        val currentScreen = screenReader.extractAllText()
-
-        val healingPrompt = buildHealingPrompt(
-            action,
-            context,
-            currentScreen,
-            attempt
-        )
-
-        val alternativeResponse: String? = try {
-            llm.complete(
-                healingPrompt.first,
-                healingPrompt.second
-            ).getOrNull()
-        } catch (e: Exception) {
-            null
-        }
-
-        delay(baseDelayMs * attempt)
-
-        if (!alternativeResponse.isNullOrBlank()) {
-            val alternativeAction =
-                parseActionFromLLM(alternativeResponse)
-
-            if (alternativeAction != null) {
-                return executeWithHealing(
-                    alternativeAction,
-                    context,
-                    attempt + 1
-                )
-            }
-        }
-
-        return executeWithHealing(
-            action,
-            context,
-            attempt + 1
-        )
+        // Automatic repair must not reinterpret denial as an execution error,
+        // replay actions or send a screen to a model via this legacy path.
+        return ActionResult.Failed("Legacy self-healing execution disabled; start a new approved task")
     }
 
     private fun tryExecuteAction(
@@ -98,7 +53,7 @@ class SelfHealingExecutor(private val context: Context) {
                         service?.typeText(action.value ?: "") == true
 
                     if (typed) {
-                        ActionResult.Success("typed ${action.value}")
+                        ActionResult.Success("text entered")
                     } else {
                         ActionResult.Failed("type failed")
                     }

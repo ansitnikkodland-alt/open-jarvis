@@ -14,6 +14,17 @@ import org.junit.Test
 
 @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
 class ApprovalRequestRegistryTest {
+    @Test fun serviceShutdownRevokesPendingAndAlreadyAnsweredRequests() = runTest {
+        val registry = ApprovalRequestRegistry()
+        val pending = registry.create("pending")
+        val answered = registry.create("answered")
+        registry.respond(answered.id, true)
+        registry.cancelAll()
+        assertFalse(registry.await(pending.id, 1000))
+        assertFalse(registry.await(answered.id, 1000))
+        assertFalse(registry.respond(pending.id, true))
+    }
+
     @Test fun explicitAllowWorksOnlyOnce() = runTest {
         val registry = ApprovalRequestRegistry()
         val request = registry.create("Tap Save")

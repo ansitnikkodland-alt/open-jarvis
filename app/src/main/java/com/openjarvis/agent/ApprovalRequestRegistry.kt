@@ -45,6 +45,10 @@ class ApprovalRequestRegistry {
         }
     }
 
+    fun cancelAll() {
+        pending.keys.toList().forEach { remove(it) }
+    }
+
     fun remove(id: String) {
         pending.remove(id)?.answer?.complete(false)
     }
