@@ -389,15 +389,10 @@ Preserve the user's original intent. Never invent a destructive or sensitive act
 
                 Action.TAP -> {
                     val target = action.text
-                    var service = JarvisAccessibilityService.instance
-                    var tapped = !target.isNullOrBlank() && service?.tapByText(target) == true
-                    if (!tapped && !target.isNullOrBlank()) {
-                        // Refresh the accessibility tree once before retrying a failed tap.
-                        kotlinx.coroutines.delay(350)
-                        screenReader.extractAllText()
-                        service = JarvisAccessibilityService.instance
-                        tapped = service?.tapByText(target) == true
-                    }
+                    // A failed tap must not be retried after a delay: the active
+                    // window may have changed, making the same text unsafe to tap.
+                    val tapped = !target.isNullOrBlank() &&
+                        JarvisAccessibilityService.instance?.tapByText(target) == true
                     if (!tapped) {
                         _state.value = AgentState.Error("Could not tap screen text: ${target ?: "missing target"}")
                         return
