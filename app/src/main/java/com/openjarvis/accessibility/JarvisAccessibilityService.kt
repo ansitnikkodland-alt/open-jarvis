@@ -84,8 +84,7 @@ class JarvisAccessibilityService : AccessibilityService() {
         for (app in apps) {
             val appLabel = app.loadLabel(pm).toString().lowercase()
             if (appLabel.contains(normalizedLabel) || normalizedLabel.contains(appLabel)) {
-                openAppByPackage(app.activityInfo.packageName)
-                return true
+                return openAppByPackage(app.activityInfo.packageName)
             }
         }
         return false
